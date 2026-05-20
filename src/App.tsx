@@ -2,8 +2,10 @@ import { useState } from 'react';
 import {
   LayoutDashboard, Users, Clock, CalendarDays, Building2, Menu, X,
   LogOut, ChevronRight, Bell, Banknote, GraduationCap, Calculator,
-  Building, Shield
+  Building, Shield, User, FileText
 } from 'lucide-react';
+import { useAuth } from './lib/auth-context';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import AttendancePage from './pages/Attendance';
@@ -14,10 +16,12 @@ import TrainingPage from './pages/Training';
 import SalaryFormulaPage from './pages/SalaryFormula';
 import Branches from './pages/Branches';
 import UsersPage from './pages/Users';
+import EmployeeProfile from './pages/EmployeeProfile';
 
-type Page = 'dashboard' | 'employees' | 'attendance' | 'leaves' | 'departments' | 'payroll' | 'training' | 'salary-formula' | 'branches' | 'users';
+type Page = 'dashboard' | 'employees' | 'attendance' | 'leaves' | 'departments' | 'payroll' | 'training' | 'salary-formula' | 'branches' | 'users' | 'profile' | 'my-leaves' | 'expenses';
 
-const navSections = [
+// Navigation for each role
+const adminNav = [
   {
     label: 'Utama',
     items: [
@@ -50,6 +54,31 @@ const navSections = [
   },
 ];
 
+const leaderNav = [
+  {
+    label: 'Utama',
+    items: [
+      { id: 'dashboard' as Page, label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+];
+
+const employeeNav = [
+  {
+    label: 'Profil',
+    items: [
+      { id: 'profile' as Page, label: 'Profil Saya', icon: User },
+    ],
+  },
+  {
+    label: 'Permohonan',
+    items: [
+      { id: 'my-leaves' as Page, label: 'Pengajuan Cuti', icon: CalendarDays },
+      { id: 'expenses' as Page, label: 'Pengajuan Kasbon', icon: FileText },
+    ],
+  },
+];
+
 const pageTitles: Record<Page, string> = {
   dashboard: 'Dashboard',
   employees: 'Karyawan',
@@ -61,25 +90,66 @@ const pageTitles: Record<Page, string> = {
   training: 'Training & Pengembangan',
   branches: 'Cabang',
   users: 'Pengguna & Permisi',
+  profile: 'Profil Saya',
+  'my-leaves': 'Pengajuan Cuti',
+  expenses: 'Pengajuan Kasbon',
 };
 
 export default function App() {
+  const { user, loading, signOut } = useAuth();
   const [page, setPage] = useState<Page>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  // Get navigation based on role
+  const navSections = user.role === 'admin' ? adminNav : user.role === 'leader' ? leaderNav : employeeNav;
+
   function renderPage() {
-    switch (page) {
-      case 'dashboard': return <Dashboard />;
-      case 'employees': return <Employees />;
-      case 'attendance': return <AttendancePage />;
-      case 'leaves': return <Leaves />;
-      case 'departments': return <Departments />;
-      case 'salary-formula': return <SalaryFormulaPage />;
-      case 'payroll': return <Payroll />;
-      case 'training': return <TrainingPage />;
-      case 'branches': return <Branches />;
-      case 'users': return <UsersPage />;
+    // Admin has full access
+    if (user.role === 'admin') {
+      switch (page) {
+        case 'dashboard': return <Dashboard />;
+        case 'employees': return <Employees />;
+        case 'attendance': return <AttendancePage />;
+        case 'leaves': return <Leaves />;
+        case 'departments': return <Departments />;
+        case 'salary-formula': return <SalaryFormulaPage />;
+        case 'payroll': return <Payroll />;
+        case 'training': return <TrainingPage />;
+        case 'branches': return <Branches />;
+        case 'users': return <UsersPage />;
+        default: return <Dashboard />;
+      }
     }
+
+    // Leader - read-only access to dashboard
+    if (user.role === 'leader') {
+      if (page === 'dashboard') return <Dashboard />;
+      return <Dashboard />;
+    }
+
+    // Employee - self-service only
+    if (user.role === 'employee') {
+      switch (page) {
+        case 'profile': return <EmployeeProfile />;
+        case 'my-leaves': return <Leaves />;
+        case 'expenses': return <div className="text-center py-12"><p className="text-gray-500">Fitur pengajuan kasbon akan segera tersedia</p></div>;
+        default: return <EmployeeProfile />;
+      }
+    }
+
+    return <Dashboard />;
   }
 
   return (
@@ -103,7 +173,13 @@ export default function App() {
             </div>
             <div>
               <p className="font-bold text-gray-900 text-sm leading-tight">HRIS Pro</p>
-              <p className="text-xs text-gray-400">HR Management</p>
+              <p className={`text-xs font-medium ${
+                user.role === 'admin' ? 'text-red-600' :
+                user.role === 'leader' ? 'text-amber-600' :
+                'text-emerald-600'
+              }`}>
+                {user.role === 'admin' ? 'Super Admin' : user.role === 'leader' ? 'Leader' : 'Karyawan'}
+              </p>
             </div>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1.5 hover:bg-gray-100 rounded-lg">
@@ -148,14 +224,16 @@ export default function App() {
         {/* User profile */}
         <div className="p-3 border-t border-gray-100">
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-              HR
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {user.employee_name?.split(' ').map(n => n[0]).join('') || user.email[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate">Admin HR</p>
-              <p className="text-xs text-gray-400">Superadmin</p>
+              <p className="text-sm font-medium text-gray-800 truncate">{user.employee_name || user.email}</p>
+              <p className="text-xs text-gray-400">{user.role}</p>
             </div>
-            <LogOut className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 shrink-0 transition-colors" />
+            <button onClick={signOut} className="p-1 text-gray-300 hover:text-gray-500 shrink-0 transition-colors" title="Logout">
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </aside>
