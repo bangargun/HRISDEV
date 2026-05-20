@@ -15,6 +15,19 @@ interface AuthContextType {
   user: UserSession | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (data: {
+    email: string;
+    password: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      gender: string;
+      birthDate: string;
+      address: string;
+      city: string;
+    };
+  }) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -110,6 +123,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }
 
+  async function signUp(data: {
+    email: string;
+    password: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      gender: string;
+      birthDate: string;
+      address: string;
+      city: string;
+    };
+  }) {
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+    });
+
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('Registrasi gagal');
+
+    try {
+      const employeeResponse = await api.insert('employees', {
+        employee_id: `EMP-${Date.now()}`,
+        first_name: data.profile.firstName,
+        last_name: data.profile.lastName,
+        email: data.email,
+        phone: data.profile.phone,
+        gender: data.profile.gender,
+        birth_date: data.profile.birthDate,
+        address: data.profile.address,
+        city: data.profile.city,
+        status: 'active',
+        employment_type: 'full-time',
+        hire_date: new Date().toISOString(),
+        department_id: null,
+        position_id: null,
+        branch_id: null,
+      });
+
+      if (!employeeResponse || employeeResponse.length === 0) {
+        throw new Error('Gagal membuat profil karyawan');
+      }
+
+      const employeeId = employeeResponse[0].id;
+
+      const userAccountResponse = await api.insert('user_accounts', {
+        user_id: authData.user.id,
+        employee_id: employeeId,
+        role: 'employee',
+        branch_id: null,
+      });
+
+      if (!userAccountResponse) {
+        throw new Error('Gagal membuat akun pengguna');
+      }
+
+      await signIn(data.email, data.password);
+    } catch (err) {
+      await supabase.auth.admin.deleteUser(authData.user.id);
+      throw err;
+    }
+  }
+
   async function signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -117,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
