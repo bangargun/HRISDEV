@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from './lib/auth-context';
 import Login from './pages/Login';
+import AuthGate from './pages/AuthGate';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import AttendancePage from './pages/Attendance';
@@ -109,7 +110,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <Login />;
+    return <AuthGate />;
   }
 
   // Get navigation based on role
