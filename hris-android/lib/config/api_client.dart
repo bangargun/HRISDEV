@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
   static const String defaultBaseUrl = 'https://api.barokahgroupindonesia.tech/api';
-  static bool isTabletEdition = true;
+  static bool isTabletEdition = false;
 
   static Future<String> getBaseUrl() async {
     return defaultBaseUrl;

@@ -257,7 +257,7 @@ export async function approveRejectLeave(req, res) {
       });
     }
 
-    const approvalDate = new Date().toISOString();
+    const approvalDate = new Date().toISOString().split('T')[0];
 
     // 2. Update status pengajuan
     await dbQuery.run(`

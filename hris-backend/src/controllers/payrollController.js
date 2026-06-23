@@ -171,7 +171,7 @@ export async function updatePaymentStatus(req, res) {
       });
     }
 
-    const paymentDate = payment_status === 'paid' ? new Date().toISOString() : null;
+    const paymentDate = payment_status === 'paid' ? new Date().toISOString().split('T')[0] : null;
 
     // Update status bayar
     await dbQuery.run(`
