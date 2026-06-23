@@ -193,37 +193,12 @@ export default function OmzetCabang({ token, API_URL }) {
       } catch {
         parsed = [];
       }
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        parsed = [];
-        const outletNames = [
-          'AYAM PECAK 2001 SEAFOOD TEBING TINGGI',
-          'AYAM BAKAR SURABAYA TEBING TINGGI',
-          'AYAM PECAK 2001 SEAFOOD KISARAN',
-          'PECEL LELE PAK HAJI KISARAN',
-          'AYAM PECAK 2001 SEAFOOD RANTAU PRAPAT'
-        ];
-        const targetRates = {
-          'AYAM PECAK 2001 SEAFOOD TEBING TINGGI': 180000000,
-          'AYAM BAKAR SURABAYA TEBING TINGGI': 150000000,
-          'AYAM PECAK 2001 SEAFOOD KISARAN': 320000000,
-          'PECEL LELE PAK HAJI KISARAN': 180000000,
-          'AYAM PECAK 2001 SEAFOOD RANTAU PRAPAT': 350000000
-        };
-
-        // Seed target data for all months of 2026
-        let idx = 1;
-        INDO_MONTHS.forEach(m => {
-          outletNames.forEach(name => {
-            parsed.push({
-              id: `tomzet-seed-${idx++}`,
-              outlet_name: name,
-              target_omzet: targetRates[name],
-              bulan: m,
-              tahun: '2026'
-            });
-          });
-        });
-        localStorage.setItem('target_omzet_data', JSON.stringify(parsed));
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter(item => !String(item.id).includes('seed'));
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem('target_omzet_data', JSON.stringify(cleaned));
+          parsed = cleaned;
+        }
       }
       return parsed;
     };
@@ -237,51 +212,12 @@ export default function OmzetCabang({ token, API_URL }) {
       } catch {
         parsed = [];
       }
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        parsed = [];
-        const outletsList = [
-          { id: 'ABS TT', name: 'AYAM BAKAR SURABAYA TEBING TINGGI', base: 4900000 },
-          { id: 'APS TT', name: 'AYAM PECAK 2001 SEAFOOD TEBING TINGGI', base: 6000000 },
-          { id: 'APS KIS', name: 'AYAM PECAK 2001 SEAFOOD KISARAN', base: 10600000 },
-          { id: 'APS RP', name: 'AYAM PECAK 2001 SEAFOOD RANTAU PRAPAT', base: 11600000 },
-          { id: 'PLPH KIS', name: 'PECEL LELE PAK HAJI KISARAN', base: 5800000 }
-        ];
-
-        let logIdx = 1;
-        // Seed logs from January 2026 to June 15, 2026
-        // Months: 1 (Jan), 2 (Feb), 3 (Mar), 4 (Apr), 5 (May), 6 (June)
-        const monthsLength = [31, 28, 31, 30, 31, 15]; // June only up to 15
-        
-        for (let mIdx = 0; mIdx < 6; mIdx++) {
-          const monthNum = String(mIdx + 1).padStart(2, '0');
-          const maxDays = monthsLength[mIdx];
-          
-          for (let day = 1; day <= maxDays; day++) {
-            const dayStr = String(day).padStart(2, '0');
-            const dateStr = `2026-${monthNum}-${dayStr}`;
-            
-            outletsList.forEach(ot => {
-              // Add random variation to base daily revenue
-              const variation = (Math.random() * 0.4) - 0.15; // -15% to +25%
-              const amount = Math.round(ot.base * (1 + variation));
-              
-              // Seed random stock denda (15% chance, Rp50.000 to Rp250.000)
-              const hasDenda = Math.random() < 0.15;
-              const dendaAmount = hasDenda ? Math.round((Math.random() * 4 + 1) * 50000) : 0;
-              
-              parsed.push({
-                id: `rev-seed-${logIdx++}`,
-                outlet_id: ot.id,
-                outlet_name: ot.name,
-                tanggal: dateStr,
-                jumlah_omzet: amount,
-                pj_shift: day % 2 === 0 ? 'Budi Santoso' : 'Rian Wijaya',
-                denda_stok: dendaAmount
-              });
-            });
-          }
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter(item => !String(item.id).includes('seed'));
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem('daily_revenue_logs', JSON.stringify(cleaned));
+          parsed = cleaned;
         }
-        localStorage.setItem('daily_revenue_logs', JSON.stringify(parsed));
       }
       return parsed;
     };
@@ -1253,12 +1189,67 @@ export default function OmzetCabang({ token, API_URL }) {
                               className="clickable-cell"
                               style={{ 
                                 textAlign: 'right', 
-                                paddingRight: '24px',
+                                paddingRight: '12px',
                                 fontWeight: log ? 700 : 'normal',
-                                color: log ? 'var(--success)' : 'rgba(255,255,255,0.2)'
+                                color: log ? 'var(--success)' : 'rgba(255,255,255,0.2)',
+                                transition: 'all 0.2s',
                               }}
                             >
-                              {log ? formatRp(log.jumlah_omzet) : '-'}
+                              {log ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                                  <span>{formatRp(log.jumlah_omzet)}</span>
+                                  <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button
+                                      title="Ubah Setoran"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditClick(log);
+                                      }}
+                                      style={{
+                                        background: 'rgba(0, 173, 181, 0.15)',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        color: 'var(--accent-primary)',
+                                        width: '22px',
+                                        height: '22px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.15s'
+                                      }}
+                                      onMouseEnter={btn => btn.currentTarget.style.background = 'rgba(0, 173, 181, 0.3)'}
+                                      onMouseLeave={btn => btn.currentTarget.style.background = 'rgba(0, 173, 181, 0.15)'}
+                                    >
+                                      <Edit size={10} />
+                                    </button>
+                                    <button
+                                      title="Hapus Setoran"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteClick(log.id);
+                                      }}
+                                      style={{
+                                        background: 'rgba(239, 68, 68, 0.15)',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        color: '#ef4444',
+                                        width: '22px',
+                                        height: '22px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.15s'
+                                      }}
+                                      onMouseEnter={btn => btn.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)'}
+                                      onMouseLeave={btn => btn.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+                                    >
+                                      <Trash2 size={10} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : '-'}
                             </td>
                           );
                         })}

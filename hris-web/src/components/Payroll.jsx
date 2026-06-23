@@ -1685,6 +1685,31 @@ export default function Payroll({ token, API_URL }) {
     setShowModal(true);
   };
 
+  const getExistingSlipForRekap = (emp) => {
+    const targetMonth = Array.isArray(rekapBulan) && rekapBulan.length > 0 ? rekapBulan[0] : 1;
+    return slips.find(s => 
+      String(s.employee_id) === String(emp.id || emp.employee_id) && 
+      Number(s.bulan) === Number(targetMonth) && 
+      Number(s.tahun) === Number(rekapTahun)
+    );
+  };
+
+  const handleEditRekap = (emp) => {
+    const targetMonth = Array.isArray(rekapBulan) && rekapBulan.length > 0 ? rekapBulan[0] : 1;
+    const targetYear = rekapTahun;
+    const existingSlip = getExistingSlipForRekap(emp);
+    
+    if (existingSlip) {
+      openEditModal(existingSlip);
+    } else {
+      setEditingSlipId(null);
+      setSelectedEmployee(emp.id || emp.employee_id);
+      setFormBulan(targetMonth);
+      setFormTahun(targetYear);
+      setShowModal(true);
+    }
+  };
+
   // ── Simpan slip ──
   const handleSave = () => {
     if (!selectedEmployee) {
@@ -2285,6 +2310,7 @@ export default function Payroll({ token, API_URL }) {
                   <th style={{ ...S.th, color: PALETTE.success }}>Pendapatan</th>
                   <th style={{ ...S.th, color: PALETTE.danger }}>Pengeluaran</th>
                   <th style={{ ...S.th, color: PALETTE.cream }}>Gaji THP</th>
+                  <th style={{ ...S.th, width: '90px', textAlign: 'center' }}>Aksi</th>
                 </tr>
               </thead>
               <tbody style={{
@@ -2295,7 +2321,7 @@ export default function Payroll({ token, API_URL }) {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       style={{ ...S.td, textAlign: 'center', padding: '40px' }}
                     >
                       <div className="spinner-container" style={{ minHeight: '120px' }}>
@@ -2307,7 +2333,7 @@ export default function Payroll({ token, API_URL }) {
                 ) : rekapCurrentRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       style={{ ...S.td, textAlign: 'center', padding: '40px', color: PALETTE.creamMuted }}
                     >
                       📋 Belum ada data karyawan untuk outlet / filter yang dipilih.
@@ -2348,6 +2374,42 @@ export default function Payroll({ token, API_URL }) {
                       <td style={{ ...S.td, color: PALETTE.cream, fontWeight: 800, fontSize: '0.9rem', fontFamily: 'JetBrains Mono, Fira Code, Monaco, Courier New, monospace' }}>
                         {formatCurrency(emp.payroll.thp)}
                       </td>
+                      <td style={{ ...S.td, textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => handleEditRekap(emp)}
+                            title="Edit Gaji"
+                            style={{
+                              width: '28px', height: '28px', background: 'rgba(65,45,21,0.5)',
+                              border: `1px solid ${PALETTE.accent}`, borderRadius: '6px',
+                              color: PALETTE.cream, cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => {
+                              const existing = getExistingSlipForRekap(emp);
+                              if (existing) {
+                                triggerDelete(existing.id);
+                              } else {
+                                showToast('info', 'ℹ️ Belum ada slip gaji yang disimpan untuk karyawan ini.');
+                              }
+                            }}
+                            title="Hapus Gaji"
+                            style={{
+                              width: '28px', height: '28px', background: 'rgba(231,76,60,0.1)',
+                              border: `1px solid rgba(231,76,60,0.3)`, borderRadius: '6px',
+                              color: PALETTE.danger, cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -2372,6 +2434,7 @@ export default function Payroll({ token, API_URL }) {
                     <td style={{ ...S.td, fontWeight: 800, color: PALETTE.cream, fontSize: '0.92rem', fontFamily: 'JetBrains Mono, Fira Code, Monaco, Courier New, monospace' }}>
                       {formatCurrency(rekapTotalThp)}
                     </td>
+                    <td style={S.td}></td>
                   </tr>
                 </tfoot>
               )}

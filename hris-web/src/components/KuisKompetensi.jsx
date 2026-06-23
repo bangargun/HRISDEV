@@ -660,11 +660,6 @@ export default function KuisKompetensi() {
   const [previewData, setPreviewData] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, danger: false });
 
-  // ── Simulator
-  const [showSimulator, setShowSimulator] = useState(false);
-  const [simSelectedQuiz, setSimSelectedQuiz] = useState('');
-  const [simSelectedEmployee, setSimSelectedEmployee] = useState('');
-  const [simScore, setSimScore] = useState('');
 
   // ── Derived
   const divisiOptions = (() => {
@@ -824,10 +819,6 @@ export default function KuisKompetensi() {
           performLocalFallback();
         } finally {
           setIsSendingEvent(false);
-          // Auto-clear inputs/forms
-          setSimSelectedQuiz('');
-          setSimSelectedEmployee('');
-          setSimScore('');
         }
       }
     });
@@ -925,40 +916,6 @@ export default function KuisKompetensi() {
     return rows.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
   };
 
-  // ── Simulator: Simulasi karyawan baca notif
-  const handleSimRead = () => {
-    if (!simSelectedQuiz || !simSelectedEmployee) return;
-    const updated = notifications.map(n =>
-      n.quiz_id === simSelectedQuiz && n.employee_id === simSelectedEmployee
-        ? { ...n, status: 'read', read_at: new Date().toISOString() }
-        : n
-    );
-    saveNotifications(updated);
-    setNotifications(updated);
-    hrisDispatch('QUIZ_SENT');
-  };
-
-  const handleSimSubmit = () => {
-    if (!simSelectedQuiz || !simSelectedEmployee) return;
-    const score = simScore ? parseInt(simScore) : Math.floor(Math.random() * 41 + 60);
-    const existing = quizResults.filter(
-      r => !(r.quiz_id === simSelectedQuiz && r.employee_id === simSelectedEmployee)
-    );
-    const newResult = {
-      id: uid(),
-      quiz_id: simSelectedQuiz,
-      employee_id: simSelectedEmployee,
-      employee_name: capitalEachWord(activeEmployees.find(e => e.id === simSelectedEmployee)?.full_name || ''),
-      outlet: capitalEachWord(activeEmployees.find(e => e.id === simSelectedEmployee)?.outlet || ''),
-      skor: score,
-      status_lulus: score > 80,
-      tanggal_selesai: new Date().toISOString(),
-      date: new Date().toISOString().slice(0, 10),
-    };
-    saveQuizResults([...existing, newResult]);
-    setSimScore('');
-    hrisDispatch('QUIZ_SENT');
-  };
 
   // ── Kerjakan Kuis Interaktif — submit handler
   const handleKerjakanSubmit = ({ score, lulus, correct, total }) => {
@@ -1339,7 +1296,7 @@ export default function KuisKompetensi() {
               }}>
                 <BarChart2 size={48} color={C.muted} style={{ marginBottom: '16px' }} />
                 <p style={{ color: C.text, fontWeight: 700, marginBottom: '6px' }}>Belum Ada Hasil Kuis</p>
-                <p style={{ color: C.muted, fontSize: '0.84rem' }}>Kirim kuis terlebih dahulu, lalu gunakan Simulator di bawah untuk mencoba pengalaman karyawan.</p>
+                <p style={{ color: C.muted, fontSize: '0.84rem' }}>Kirim kuis terlebih dahulu, lalu tunggu karyawan menyelesaikan kuis di aplikasi mobile.</p>
               </div>
             ) : (() => {
               const totalPages = Math.ceil(hasilRows.length / QUIZ_PAGE_SIZE);
@@ -1426,83 +1383,6 @@ export default function KuisKompetensi() {
           </div>
         )}
 
-        {/* ──────── SIMULATOR KARYAWAN ──────── */}
-        <div style={{
-          marginTop: '32px', background: C.surface,
-          border: `1px solid ${C.cyanBorder}`, borderRadius: '16px',
-          overflow: 'hidden',
-        }}>
-          <button
-            onClick={() => setShowSimulator(p => !p)}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              background: 'none', border: 'none', padding: '18px 24px', cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Users size={18} color={C.cyan} />
-              <span style={{ color: C.cyan, fontWeight: 700, fontSize: '0.92rem' }}>
-                🎭 Simulator Respon Karyawan
-              </span>
-              <Badge label="Demo Mode" color={C.warn} bg="rgba(245,166,35,0.1)" />
-            </div>
-            <ChevronDown size={18} color={C.muted}
-              style={{ transform: showSimulator ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-          </button>
-
-          {showSimulator && (
-            <div style={{ padding: '0 24px 24px', borderTop: `1px solid ${C.border}` }}>
-              <p style={{ color: C.muted, fontSize: '0.82rem', marginBottom: '20px', marginTop: '16px', lineHeight: '1.6' }}>
-                Gunakan panel ini untuk mensimulasikan respons karyawan — membaca notifikasi dan mengerjakan kuis.
-                Ini membantu demonstrasi alur read receipt dan hasil skor tanpa memerlukan aplikasi mobile.
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
-                <Select label="Pilih Kuis Yang Dikirim"
-                  value={simSelectedQuiz}
-                  onChange={e => setSimSelectedQuiz(e.target.value)}
-                  options={[
-                    { value: '', label: '— Pilih Kuis —' },
-                    ...quizBank.filter(q => q.status === 'terkirim').map(q => ({ value: q.id, label: capitalEachWord(q.nama_kuis) }))
-                  ]} />
-                <Select label="Pilih Karyawan"
-                  value={simSelectedEmployee}
-                  onChange={e => setSimSelectedEmployee(e.target.value)}
-                  options={[
-                    { value: '', label: '— Pilih Karyawan —' },
-                    ...filteredEmployees.map(e => ({ value: e.id, label: `${capitalEachWord(e.full_name || '')} (${capitalEachWord(e.outlet || '')})` }))
-                  ]} />
-                <Input label="Skor Kuis (kosong = acak 60–100)"
-                  type="number" value={simScore}
-                  onChange={e => setSimScore(e.target.value)}
-                  placeholder="Mis: 85" />
-              </div>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <Btn variant="ghost"
-                  onClick={handleSimRead}
-                  disabled={!simSelectedQuiz || !simSelectedEmployee}>
-                  <Eye size={15} /> Simulasi: Karyawan Membaca Notifikasi
-                </Btn>
-                <Btn variant="primary"
-                  onClick={handleSimSubmit}
-                  disabled={!simSelectedQuiz || !simSelectedEmployee}>
-                  <CheckCircle size={15} /> Simulasi: Karyawan Mengumpulkan Kuis
-                </Btn>
-                {/* Interaktif Kerjakan Kuis */}
-                {simSelectedQuiz && simSelectedEmployee && (
-                  <Btn variant="ghost"
-                    style={{ background: 'rgba(0,173,181,0.08)', border: `1px solid rgba(0,173,181,0.4)`, color: '#00ADB5' }}
-                    onClick={() => {
-                      setKerjakanQuizId(simSelectedQuiz);
-                      setKerjakanEmpId(simSelectedEmployee);
-                      setShowKerjakanModal(true);
-                    }}>
-                    📝 Simulasi Kerjakan Kuis (Interaktif)
-                  </Btn>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* ── MODALS ── */}

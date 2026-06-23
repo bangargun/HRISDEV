@@ -200,13 +200,6 @@ const SvgMultiLineChart = ({ data, width = 600, height = 300 }) => {
   );
 };
 
-const MOCK_OMZET_TRENDS = {
-  'AYAM PECAK 2001 SEAFOOD RANTAU PRAPAT': [310000000, 330000000, 320000000, 340000000, 335000000, 350000000],
-  'AYAM PECAK 2001 SEAFOOD KISARAN': [280000000, 290000000, 310000000, 305000000, 315000000, 320000000],
-  'PECEL LELE PAK HAJI KISARAN': [150000000, 160000000, 155000000, 170000000, 165000000, 180000000],
-  'AYAM PECAK 2001 SEAFOOD TEBING TINGGI': [160000000, 175000000, 170000000, 180000000, 175000000, 180000000],
-  'AYAM BAKAR SURABAYA TEBING TINGGI': [120000000, 130000000, 140000000, 135000000, 145000000, 150000000]
-};
 
 export default function Dashboard({ token, API_URL, userPermissions, setActiveTab }) {
   // ─── Subscribe ke Global HRIS Context untuk reaktivitas lintas modul ────────
@@ -740,7 +733,7 @@ export default function Dashboard({ token, API_URL, userPermissions, setActiveTa
 
   // Revenue Harian: Update blok omzet saat input baru dari OmzetCabang
   useEffect(() => {
-    if (Array.isArray(ctxDailyRevenue) && ctxDailyRevenue.length > 0) {
+    if (Array.isArray(ctxDailyRevenue)) {
       // Map daily_revenue_logs format ke format yang digunakan Dashboard
       setRevenues(ctxDailyRevenue);
     }
@@ -883,33 +876,6 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
   let grandTotalOmzet = 0;
   if (revenues && revenues.length > 0) {
     grandTotalOmzet = filteredRevenues.reduce((sum, r) => sum + (parseFloat(r.jumlah_omzet) || 0), 0);
-  } else {
-    // Fallback mock omzet
-    const startParts = startDate.split('-');
-    const endParts = endDate.split('-');
-    if (startParts.length === 3 && endParts.length === 3) {
-      const startY = parseInt(startParts[0]);
-      const startM = parseInt(startParts[1]);
-      const endY = parseInt(endParts[0]);
-      const endM = parseInt(endParts[1]);
-
-      const activeSelectedOutlets = Object.keys(MOCK_OMZET_TRENDS).filter(key => 
-        selectedOutlets.some(so => so.trim().toUpperCase() === key.trim().toUpperCase())
-      );
-
-      activeSelectedOutlets.forEach(ot => {
-        const trend = MOCK_OMZET_TRENDS[ot] || [0, 0, 0, 0, 0, 0];
-        trend.forEach((val, idx) => {
-          const m = idx + 1;
-          const absMonth = 2026 * 12 + m;
-          const absStart = startY * 12 + startM;
-          const absEnd = endY * 12 + endM;
-          if (absMonth >= absStart && absMonth <= absEnd) {
-            grandTotalOmzet += val;
-          }
-        });
-      });
-    }
   }
   const avgOmzet = filteredRevenues.length > 0 ? Math.round(grandTotalOmzet / filteredRevenues.length) : 0;
   const totalRevenueTransactions = filteredRevenues.length;
@@ -1098,30 +1064,9 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
           }
         }
       });
-      return grouped;
     }
 
-    // Mock trend filter
-    const startParts = startDate.split('-');
-    const endParts = endDate.split('-');
-    const startY = parseInt(startParts[0]);
-    const startM = parseInt(startParts[1]);
-    const endY = parseInt(endParts[0]);
-    const endM = parseInt(endParts[1]);
-
-    const mockFiltered = {};
-    activeSelectedOutlets.forEach(ot => {
-      const trend = MOCK_OMZET_TRENDS[ot] || [0, 0, 0, 0, 0, 0];
-      mockFiltered[ot] = trend.map((val, idx) => {
-        const m = idx + 1; // Jan = 1, Jun = 6
-        const absMonth = 2026 * 12 + m;
-        const absStart = startY * 12 + startM;
-        const absEnd = endY * 12 + endM;
-        return (absMonth >= absStart && absMonth <= absEnd) ? val : 0;
-      });
-    });
-
-    return mockFiltered;
+    return grouped;
   };
 
   // --- SEKTOR 3: SEKTOR LOG KEHADIRAN CALCULATIONS ---
