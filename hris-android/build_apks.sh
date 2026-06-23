@@ -1,67 +1,96 @@
 #!/bin/bash
 set -e
 
+# =====================================================
+# HRIS BAROKAH - Build Script (Updated)
+# Build kedua APK: Mobile Karyawan + Tablet Operasional
+# API URL: https://api.barokahgroupindonesia.tech/api
+# =====================================================
+
 WORKSPACE_DIR="/Volumes/Macintosh HD - Data/Users/macair/hris-sistem"
 ANDROID_DIR="$WORKSPACE_DIR/hris-android"
 DEPLOY_DIR="$WORKSPACE_DIR/deploy-artifacts"
-ARTIFACT_DIR="/Users/macbookargun/.gemini/antigravity/brain/0e41943c-cca6-423f-9386-8fa58626ea2b"
+ARTIFACT_DIR="/Users/macbookargun/.gemini/antigravity/brain/f24306c1-2e02-48bd-a9c4-d35f9a866597"
+
+# --- Environment Variables ---
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export ANDROID_SDK_ROOT="$HOME/Library/Android/sdk"
+export JAVA_HOME="/Volumes/Macintosh HD - Data/Users/macair/development/jdk/Contents/Home"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/30.0.3:$PATH"
 
 mkdir -p "$DEPLOY_DIR"
 mkdir -p "$ARTIFACT_DIR"
 
 cd "$ANDROID_DIR"
 
+echo "=== [HRIS Barokah Build] API Target: https://api.barokahgroupindonesia.tech/api ==="
 echo "=== Running Flutter Clean ==="
 flutter clean
+flutter pub get
 
 # ==========================================
-# 1. BUILD PHONE EDITION
+# 1. BUILD PHONE EDITION (Mobile Karyawan)
 # ==========================================
-echo "=== Configuring Phone Edition ==="
-# Ensure isTabletEdition = false in lib/config/api_client.dart
-sed -i '' 's/static bool isTabletEdition = true;/static bool isTabletEdition = false;/g' lib/config/api_client.dart || true
-# Ensure android:label="HRIS Employee" in AndroidManifest.xml
-sed -i '' 's/android:label="HRIS Employee (Tablet)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml || true
-sed -i '' 's/android:label="HRIS Employee (Tablet Edition)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml || true
+echo ""
+echo "=== [1/2] Building Mobile Karyawan (Phone Edition) ==="
+sed -i '' 's/static bool isTabletEdition = true;/static bool isTabletEdition = false;/g' lib/config/api_client.dart 2>/dev/null || true
+sed -i '' 's/android:label="HRIS Employee (Tablet)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
+sed -i '' 's/android:label="HRIS Employee (Tablet Edition)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
 
-echo "=== Compiling Phone Edition APK ==="
 flutter build apk --release --target-platform android-arm64
 
 echo "=== Copying Phone Edition APK ==="
 if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
   cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.0.apk"
   cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v1.0.apk"
+  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.0.apk"
 elif [ -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ]; then
   cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.0.apk"
   cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v1.0.apk"
+  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.0.apk"
+else
+  echo "❌ ERROR: APK Mobile tidak ditemukan di build output!"
+  exit 1
 fi
 
 # ==========================================
-# 2. BUILD TABLET EDITION
+# 2. BUILD TABLET EDITION (Operasional)
 # ==========================================
-echo "=== Configuring Tablet Edition ==="
-# Set isTabletEdition = true in lib/config/api_client.dart
-sed -i '' 's/static bool isTabletEdition = false;/static bool isTabletEdition = true;/g' lib/config/api_client.dart || true
-# Set android:label="HRIS Employee (Tablet)" in AndroidManifest.xml
-sed -i '' 's/android:label="HRIS Employee"/android:label="HRIS Employee (Tablet)"/g' android/app/src/main/AndroidManifest.xml || true
+echo ""
+echo "=== [2/2] Building Tablet Operasional (Landscape Edition) ==="
+sed -i '' 's/static bool isTabletEdition = false;/static bool isTabletEdition = true;/g' lib/config/api_client.dart 2>/dev/null || true
+sed -i '' 's/android:label="HRIS Employee"/android:label="HRIS Employee (Tablet)"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
 
-echo "=== Compiling Tablet Edition APK ==="
 flutter build apk --release --target-platform android-arm64
 
 echo "=== Copying Tablet Edition APK ==="
 if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
   cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.0.apk"
   cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v1.0.apk"
+  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.0.apk"
 elif [ -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ]; then
   cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.0.apk"
   cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v1.0.apk"
+  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.0.apk"
+else
+  echo "❌ ERROR: APK Tablet tidak ditemukan di build output!"
+  exit 1
 fi
 
 # ==========================================
 # 3. RESTORE CONFIGS
 # ==========================================
-echo "=== Restoring Configurations ==="
-sed -i '' 's/static bool isTabletEdition = true;/static bool isTabletEdition = false;/g' lib/config/api_client.dart || true
-sed -i '' 's/android:label="HRIS Employee (Tablet)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml || true
+echo ""
+echo "=== Restoring Default Configurations ==="
+sed -i '' 's/static bool isTabletEdition = true;/static bool isTabletEdition = false;/g' lib/config/api_client.dart 2>/dev/null || true
+sed -i '' 's/android:label="HRIS Employee (Tablet)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
 
-echo "=== Build Completed Successfully ==="
+echo ""
+echo "============================================"
+echo " ✅ HRIS Barokah APK Build Selesai!"
+echo "============================================"
+echo " Mobile Karyawan : $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.0.apk"
+echo " Tablet Operasional: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.0.apk"
+echo " API URL          : https://api.barokahgroupindonesia.tech/api"
+echo "============================================"
+ls -lh "$DEPLOY_DIR/"

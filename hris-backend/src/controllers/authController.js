@@ -7,120 +7,6 @@ import { config } from '../config/env.js';
 import { mapPositionToRole } from '../middleware/permissionMiddleware.js';
 
 /**
- * Sync Credentials to JSON DB file
- */
-export async function syncCredentials(req, res) {
-  const { passwords, usernames, roles } = req.body;
-  try {
-    const dbPath = path.resolve('backend_sync_db.json');
-    let state = { training_materials: [], disc_results: [], credentials: [] };
-    if (fs.existsSync(dbPath)) {
-      state = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
-    }
-    state.user_credentials = {
-      passwords: passwords || {},
-      usernames: usernames || {},
-      roles: roles || {}
-    };
-
-    // Reconstruct credentials list for mobile to ensure consistency
-    state.credentials = [];
-    const activeUsernames = usernames || {};
-    const activePasswords = passwords || {};
-    const activeRoles = roles || {};
-
-    for (const [empId, username] of Object.entries(activeUsernames)) {
-      const password = activePasswords[empId];
-      if (!password) continue;
-      
-      const role = activeRoles[empId] || 'Karyawan';
-      
-      // Query database for name and outlet
-      let employeeName = 'Karyawan HRIS';
-      let outlet = 'PUSAT';
-      try {
-        const employee = await dbQuery.get("SELECT full_name, outlet FROM employees WHERE id = ?", [empId]);
-        if (employee) {
-          employeeName = employee.full_name;
-          outlet = employee.outlet || 'PUSAT';
-        }
-      } catch (err) {
-        console.error('Error querying employee details for sync:', err);
-      }
-
-      state.credentials.push({
-        username,
-        password,
-        employeeName,
-        outlet,
-        role,
-        id: Number(empId),
-        employeeId: Number(empId)
-      });
-    }
-
-    fs.writeFileSync(dbPath, JSON.stringify(state, null, 2), 'utf-8');
-
-    // Tambahkan sinkronisasi massal / penyelarasan ke database SQLite users table!
-    try {
-      const allEmployees = await dbQuery.all("SELECT id, user_id, nik FROM employees");
-      for (const emp of allEmployees) {
-        const empIdStr = String(emp.id);
-        if (activeUsernames[empIdStr] && activePasswords[empIdStr]) {
-          const username = activeUsernames[empIdStr];
-          const password = activePasswords[empIdStr];
-          const role = activeRoles[empIdStr] || 'Karyawan';
-          
-          let mappedRole = 'employee';
-          const roleLower = role.toLowerCase();
-          if (roleLower === 'owner' || roleLower === 'master') {
-            mappedRole = 'owner';
-          } else if (roleLower === 'admin' || roleLower === 'leader') {
-            mappedRole = 'admin';
-          }
-          
-          const salt = await bcrypt.genSalt(10);
-          const passwordHash = await bcrypt.hash(password, salt);
-          
-          await dbQuery.run(
-            "UPDATE users SET email = ?, password_hash = ?, role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            [username.toLowerCase().trim(), passwordHash, mappedRole, emp.user_id]
-          );
-        } else {
-          // Lindungi seed owner (user_id 1) dan seed admin (user_id 2) agar tidak direset ke employee
-          if (emp.user_id === 1 || emp.user_id === 2) {
-            continue;
-          }
-          // Reset ke default login berbasis NIK
-          const defaultEmail = `${emp.nik.toLowerCase()}@hris.local`;
-          const salt = await bcrypt.genSalt(10);
-          const passwordHash = await bcrypt.hash(emp.nik || '123456', salt);
-          
-          await dbQuery.run(
-            "UPDATE users SET email = ?, password_hash = ?, role = 'employee', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            [defaultEmail, passwordHash, emp.user_id]
-          );
-        }
-      }
-      console.log(`[Bulk Sync] SQLite users table synchronized for all ${allEmployees.length} employees.`);
-    } catch (dbErr) {
-      console.error('[Bulk Sync] Failed to synchronize SQLite users table:', dbErr.message);
-    }
-
-    return res.status(200).json({
-      status: 'success',
-      message: 'Credentials synchronized successfully.'
-    });
-  } catch (error) {
-    console.error('syncCredentials error:', error.message);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to sync credentials.'
-    });
-  }
-}
-
-/**
  * Login Pengguna
  */
 export async function login(req, res) {
@@ -136,85 +22,7 @@ export async function login(req, res) {
   const searchUser = email.toLowerCase().trim();
 
   try {
-    // 1. Cek laci penyimpanan akun custom-synced terlebih dahulu (backend_sync_db.json)
-    let syncedPass = {};
-    let syncedUsernames = {};
-    let syncedRoles = {};
-    
-    try {
-      const dbPath = path.resolve('backend_sync_db.json');
-      if (fs.existsSync(dbPath)) {
-        const state = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
-        if (state.user_credentials) {
-          syncedPass = state.user_credentials.passwords || {};
-          syncedUsernames = state.user_credentials.usernames || {};
-          syncedRoles = state.user_credentials.roles || {};
-        }
-      }
-    } catch (err) {
-      console.error('Error reading backend db in login:', err);
-    }
-
-    let foundEmpId = null;
-    for (const [empId, username] of Object.entries(syncedUsernames)) {
-      if (String(username).toLowerCase().trim() === searchUser) {
-        foundEmpId = empId;
-        break;
-      }
-    }
-
-    if (foundEmpId) {
-      const savedPass = syncedPass[foundEmpId];
-      if (savedPass && String(savedPass) === String(password)) {
-        // Password Cocok! Ambil data profil karyawan dari SQLite (perbaikan query id saja)
-        const employee = await dbQuery.get("SELECT id, user_id, full_name, position, outlet FROM employees WHERE id = ?", [foundEmpId]);
-        const userRole = (syncedRoles[foundEmpId] || (employee ? mapPositionToRole(employee.position) : 'karyawan')).toLowerCase();
-
-        // Guard Access: Web client hanya diperuntukkan bagi Master, Owner, Admin, Leader
-        const isClientWeb = client === 'web';
-        const isWebAllowed = userRole === 'master' || userRole === 'owner' || userRole === 'admin' || userRole === 'leader';
-        if (isClientWeb && !isWebAllowed) {
-          return res.status(403).json({
-            status: 'error',
-            message: 'Akses Ditolak: Akun Karyawan biasa hanya diperbolehkan masuk melalui Aplikasi Mobile Android.'
-          });
-        }
-
-        // Gunakan employee.user_id jika ada agar selaras dengan tabel users dan middleware authenticateToken
-        const tokenUserId = employee ? employee.user_id : foundEmpId;
-
-        // Sign JWT Token
-        const token = jwt.sign(
-          { userId: tokenUserId, email: searchUser, role: userRole },
-          config.jwtSecret,
-          { expiresIn: '24h' }
-        );
-
-        return res.status(200).json({
-          status: 'success',
-          message: 'Login berhasil',
-          data: {
-            token,
-            user: {
-              id: tokenUserId,
-              email: searchUser,
-              role: userRole,
-              employeeId: employee ? employee.id : foundEmpId,
-              fullName: employee ? employee.full_name : 'Karyawan HRIS',
-              outlet: employee ? employee.outlet : null,
-              position: employee ? employee.position : 'Karyawan'
-            }
-          }
-        });
-      } else {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Email atau password yang Anda masukkan salah.'
-        });
-      }
-    }
-
-    // 2. Jika tidak ditemukan di custom-synced, cari user di database SQLite standard
+    // Cari user di database SQLite standard
     const user = await dbQuery.get("SELECT * FROM users WHERE email = ?", [searchUser]);
     if (!user) {
       return res.status(401).json({
@@ -244,7 +52,7 @@ export async function login(req, res) {
     }
 
     // Ambil profil karyawan terkait
-    const employee = await dbQuery.get("SELECT id, full_name, position, outlet FROM employees WHERE user_id = ?", [user.id]);
+    const employee = await dbQuery.get("SELECT id, full_name, position, department, outlet FROM employees WHERE user_id = ?", [user.id]);
 
     // Sign JWT Token
     const token = jwt.sign(
@@ -265,7 +73,8 @@ export async function login(req, res) {
           employeeId: employee ? employee.id : null,
           fullName: employee ? employee.full_name : 'Admin System',
           outlet: employee ? employee.outlet : null,
-          position: employee ? employee.position : null
+          position: employee ? employee.position : null,
+          department: employee ? employee.department : null
         }
       }
     });

@@ -92,8 +92,17 @@ class AuthProvider extends ChangeNotifier {
 
   void _handleConnectionError(dynamic e, String method) {
     print('$method Connection Error: $e');
-    _connectionError = true;
-    _errorMessage = 'Gagal menghubungkan ke server API backend.';
+    final errStr = e.toString().toLowerCase();
+    final isNetworkException = errStr.contains('socketexception') ||
+        errStr.contains('timeout') ||
+        errStr.contains('clientexception') ||
+        errStr.contains('connection failed') ||
+        errStr.contains('handshakeexception');
+
+    if (method == 'FetchProfile' || isNetworkException) {
+      _connectionError = true;
+      _errorMessage = 'Gagal menghubungkan ke server API backend.';
+    }
     notifyListeners();
   }
 
@@ -109,24 +118,6 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     String? savedToken = prefs.getString('auth_token') ?? prefs.getString('token');
     String? userJson = prefs.getString('user_profile');
-
-    // Auto-login bypass for mobile: if no session exists, automatically login as Arif Gunawan Panggabea
-    if (savedToken == null) {
-      savedToken = 'local-employee-token-10002'; // Arif Gunawan Panggabea
-      userJson = jsonEncode({
-        'id': 10004,
-        'email': '1233333333333333@hris.local',
-        'role': 'employee',
-        'employee_id': 10002,
-        'full_name': 'Arif Gunawan Panggabea',
-        'position': 'Koki',
-        'department': 'Operasional',
-        'outlet': 'Ayam Bakar Surabaya Tebing Tinggi'
-      });
-      await prefs.setString('auth_token', savedToken);
-      await prefs.setString('token', savedToken);
-      await prefs.setString('user_profile', userJson);
-    }
 
     final rawNotifs = prefs.getString('hris_unacknowledged_leave_notifications') ?? '[]';
     try {
@@ -153,60 +144,28 @@ class AuthProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    // Bypass empty credentials on login screen: log in as Arif Gunawan Panggabea
-    if (email.trim().isEmpty && password.isEmpty) {
-      _token = 'local-employee-token-10002'; // Arif Gunawan Panggabea
-      _profile = FullEmployeeProfile(
-        id: 10004,
-        email: '1233333333333333@hris.local',
-        role: 'employee',
-        employeeId: 10002,
-        fullName: 'Arif Gunawan Panggabea',
-        position: 'Koki',
-        department: 'Operasional',
-        outlet: 'Ayam Bakar Surabaya Tebing Tinggi',
-      );
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('auth_token', _token!);
-      await prefs.setString('token', _token!);
-      await prefs.setString('user_profile', jsonEncode({
-        'id': _profile!.id,
-        'email': _profile!.email,
-        'role': _profile!.role,
-        'employee_id': _profile!.employeeId,
-        'full_name': _profile!.fullName,
-        'position': _profile!.position,
-        'department': _profile!.department,
-        'outlet': _profile!.outlet,
-      }));
-
-      _isLoading = false;
-      notifyListeners();
-      fetchInitialData();
-      return;
-    }
-
     try {
-      final res = await ApiClient.post('mobile/login', {
-        'username': email.trim(),
+      final res = await ApiClient.post('auth/login', {
+        'email': email.trim(),
         'password': password,
-      }).timeout(const Duration(seconds: 1));
+        'client': 'mobile',
+      }).timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(res.body);
       _isLoading = false;
 
-      if (res.statusCode == 200 && data['success'] == true) {
-        final tokenObj = 'MockToken-${email.trim()}';
+      if (res.statusCode == 200 && (data['success'] == true || data['status'] == 'success')) {
+        final resData = data['data'] ?? {};
+        final tokenObj = resData['token'] ?? data['token'];
         _token = tokenObj;
         
-        final userMap = data['user'] ?? {};
+        final userMap = resData['user'] ?? data['user'] ?? {};
         _profile = FullEmployeeProfile(
           id: userMap['id'] as int? ?? 9999,
-          email: userMap['email'] as String? ?? '${email.trim().toLowerCase()}@barokah.com',
+          email: userMap['email'] as String? ?? email.trim(),
           role: userMap['role'] as String? ?? 'Karyawan',
-          fullName: userMap['full_name'] as String? ?? userMap['fullName'] as String? ?? email.trim(),
-          employeeId: userMap['employee_id'] as int? ?? userMap['employeeId'] as int? ?? 9999,
+          fullName: userMap['fullName'] as String? ?? userMap['full_name'] as String? ?? email.trim(),
+          employeeId: userMap['employeeId'] as int? ?? userMap['employee_id'] as int? ?? 9999,
           position: userMap['position'] as String? ?? 'Staff',
           department: userMap['department'] as String? ?? 'Operasional',
           outlet: userMap['outlet'] as String? ?? 'PUSAT',
@@ -259,7 +218,7 @@ class AuthProvider extends ChangeNotifier {
           final cachedPassword = offlineData['password'] as String;
           if (cachedPassword == password) {
             final userMap = offlineData['user'] ?? {};
-            _token = 'MockToken-$cleanUsername';
+            _token = 'OfflineSession-$cleanUsername';
             _profile = FullEmployeeProfile(
               id: userMap['id'] as int? ?? 9999,
               email: userMap['email'] as String? ?? '${cleanUsername.toLowerCase()}@barokah.com',

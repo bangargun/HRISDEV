@@ -57,7 +57,7 @@ class ApiClient {
 
     String? activeToken = token;
     // Jika token tidak disertakan atau masih menggunakan token pengujian default, coba ambil dari SharedPreferences
-    if (activeToken == null || activeToken == 'MockToken') {
+    if (activeToken == null) {
       try {
         final prefs = await SharedPreferences.getInstance();
         activeToken = prefs.getString('auth_token') ?? prefs.getString('token');

@@ -24,6 +24,7 @@ import policyRoutes from './routes/policyRoutes.js';
 import docRoutes from './routes/docRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import contractRoutes from './routes/contractRoutes.js';
+import informationRoutes from './routes/informationRoutes.js';
 import { authenticateToken } from './middleware/auth.js';
 
 
@@ -84,6 +85,7 @@ app.use('/api/policies', policyRoutes);
 app.use('/api/documentations', docRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/contracts', contractRoutes);
+app.use('/api/informations', informationRoutes);
 
 // File-based database for training materials and DISC results
 import fs from 'fs';
@@ -266,17 +268,6 @@ app.post('/api/credentials/sync', async (req, res) => {
   }
 
   res.status(200).json({ success: true, message: "Kredensial Sinkron ke Server Pusat" });
-});
-
-// Endpoint validasi login untuk Mobile APK
-app.post('/api/mobile/login', (req, res) => {
-  const { username, password } = req.body;
-  const user = hrisDatabase.credentials.find(u => u.username === username && u.password === password);
-  if (user) {
-    res.status(200).json({ success: true, user });
-  } else {
-    res.status(401).json({ success: false, message: "Username atau Password Salah" });
-  }
 });
 
 

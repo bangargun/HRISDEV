@@ -14,12 +14,25 @@ void main() {
     });
 
     test('1. Login Berhasil (Bypass/Mock Mode)', () async {
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'local-employee-token-10002',
+        'token': 'local-employee-token-10002',
+        'user_profile': jsonEncode({
+          'id': 10004,
+          'email': '1233333333333333@hris.local',
+          'role': 'employee',
+          'employee_id': 10002,
+          'full_name': 'Arif Gunawan Panggabea',
+          'position': 'Koki',
+          'department': 'Operasional',
+          'outlet': 'Ayam Bakar Surabaya Tebing Tinggi'
+        })
+      });
       final auth = AuthProvider();
       
       // Wait for auto-login / load session to complete
       await Future.delayed(const Duration(milliseconds: 50));
       
-      // Initially, since SharedPreferences was empty, the auto-login bypass triggers:
       expect(auth.isAuthenticated, true);
       expect(auth.token, 'local-employee-token-10002');
       expect(auth.profile?.fullName, 'Arif Gunawan Panggabea');
@@ -27,6 +40,21 @@ void main() {
     });
 
     test('2. JWT Tersimpan di SharedPreferences', () async {
+      SharedPreferences.setMockInitialValues({
+        'hris_offline_user_': jsonEncode({
+          'password': '',
+          'user': {
+            'id': 10004,
+            'email': '1233333333333333@hris.local',
+            'role': 'employee',
+            'employee_id': 10002,
+            'full_name': 'Arif Gunawan Panggabea',
+            'position': 'Koki',
+            'department': 'Operasional',
+            'outlet': 'Ayam Bakar Surabaya Tebing Tinggi'
+          }
+        })
+      });
       final auth = AuthProvider();
       await Future.delayed(const Duration(milliseconds: 50));
       
@@ -34,8 +62,8 @@ void main() {
       await auth.login('', '');
       
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('auth_token'), 'local-employee-token-10002');
-      expect(prefs.getString('token'), 'local-employee-token-10002');
+      expect(prefs.getString('auth_token'), 'OfflineSession-');
+      expect(prefs.getString('token'), 'OfflineSession-');
       expect(prefs.getString('user_profile'), isNotNull);
       
       final Map<String, dynamic> storedProfile = jsonDecode(prefs.getString('user_profile')!);

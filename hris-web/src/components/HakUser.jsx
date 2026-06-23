@@ -106,7 +106,7 @@ export default function HakUser({ token, API_URL, user }) {
           acc.username,
           cap(acc.position),
           cap(acc.outlet || 'PUSAT'),
-          cap(acc.role),
+          cap(acc.role) + (['Kasir','Helper','Waiters','Karyawan'].includes(acc.role) ? ' (Mobile)' : ' (Web+Mobile)'),
           acc.password
         ]);
 
@@ -146,6 +146,9 @@ export default function HakUser({ token, API_URL, user }) {
       else if (pos.includes('master') || pos.includes('chief') || pos.includes('ceo')) setRoleInput('Master');
       else if (pos.includes('leader') || pos.includes('kepala') || pos.includes('spv') || pos.includes('supervisor')) setRoleInput('Leader');
       else if (pos.includes('admin') || pos.includes('hr') || pos.includes('personalia') || pos.includes('staff admin')) setRoleInput('Admin');
+      else if (pos.includes('kasir')) setRoleInput('Kasir');
+      else if (pos.includes('helper')) setRoleInput('Helper');
+      else if (pos.includes('waiters') || pos.includes('waiter') || pos.includes('pelayan')) setRoleInput('Waiters');
       else setRoleInput('Karyawan');
     }
   };
@@ -436,11 +439,18 @@ export default function HakUser({ token, API_URL, user }) {
                 required
               >
                 <option value="">-- Pilih Peran --</option>
-                <option value="Master">Master (Web & Mobile)</option>
-                <option value="Owner">Owner (Web & Mobile)</option>
-                <option value="Admin">Admin (Web & Mobile)</option>
-                <option value="Leader">Leader (Web & Mobile)</option>
-                <option value="Karyawan">Karyawan (Mobile-Only)</option>
+                <optgroup label="── Manajemen (Web & Mobile) ──">
+                  <option value="Master">Master (Web &amp; Mobile)</option>
+                  <option value="Owner">Owner (Web &amp; Mobile)</option>
+                  <option value="Admin">Admin (Web &amp; Mobile)</option>
+                  <option value="Leader">Leader (Web &amp; Mobile)</option>
+                </optgroup>
+                <optgroup label="── Karyawan (Mobile-Only) ──">
+                  <option value="Kasir">Kasir (Mobile-Only)</option>
+                  <option value="Helper">Helper (Mobile-Only)</option>
+                  <option value="Waiters">Waiters (Mobile-Only)</option>
+                  <option value="Karyawan">Karyawan Umum (Mobile-Only)</option>
+                </optgroup>
               </select>
             </div>
 
@@ -478,7 +488,33 @@ export default function HakUser({ token, API_URL, user }) {
                       <td style={{ fontFamily: 'monospace', color: C.cyan, fontWeight: 700 }}>{acc.username}</td>
                       <td style={{ textTransform: 'capitalize' }}>{acc.position}</td>
                       <td>{acc.outlet || 'PUSAT'}</td>
-                      <td style={{ fontWeight: 600, color: acc.role === 'Karyawan' ? C.muted : C.cyan }}>{acc.role}</td>
+                      <td>
+                        <span style={{
+                          fontWeight: 600,
+                          color: ['Kasir','Helper','Waiters','Karyawan'].includes(acc.role) ? C.muted : C.cyan,
+                          background: ['Kasir','Helper','Waiters'].includes(acc.role)
+                            ? 'rgba(241,196,15,0.12)'
+                            : acc.role === 'Karyawan'
+                            ? 'rgba(178,190,195,0.10)'
+                            : 'rgba(0,173,181,0.12)',
+                          border: `1px solid ${['Kasir','Helper','Waiters'].includes(acc.role) ? 'rgba(241,196,15,0.3)' : acc.role === 'Karyawan' ? 'rgba(178,190,195,0.2)' : 'rgba(0,173,181,0.3)'}`,
+                          borderRadius: '6px',
+                          padding: '2px 10px',
+                          fontSize: '0.78rem',
+                          letterSpacing: '0.3px',
+                          display: 'inline-block',
+                        }}>
+                          {acc.role === 'Kasir' ? '💰 Kasir'
+                            : acc.role === 'Helper' ? '🔧 Helper'
+                            : acc.role === 'Waiters' ? '🍽️ Waiters'
+                            : acc.role === 'Karyawan' ? '👤 Karyawan'
+                            : acc.role === 'Leader' ? '🎯 Leader'
+                            : acc.role === 'Admin' ? '🛠️ Admin'
+                            : acc.role === 'Owner' ? '👑 Owner'
+                            : acc.role === 'Master' ? '⚡ Master'
+                            : acc.role}
+                        </span>
+                      </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ fontFamily: 'monospace' }}>{isVisible ? acc.password : '••••••••'}</span>

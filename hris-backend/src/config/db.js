@@ -71,6 +71,17 @@ export async function initializeDatabase() {
   try {
     const connection = await pool.getConnection();
     console.log('SUCCESS: Berhasil terhubung ke database MySQL.');
+    
+    // Pastikan tabel mobile_user_notifications memiliki kolom response dan read_at
+    try {
+      await connection.execute("ALTER TABLE mobile_user_notifications ADD COLUMN response VARCHAR(255) NULL");
+      console.log('SUCCESS: Menambahkan kolom response ke tabel mobile_user_notifications.');
+    } catch (_) {}
+    try {
+      await connection.execute("ALTER TABLE mobile_user_notifications ADD COLUMN read_at TIMESTAMP NULL");
+      console.log('SUCCESS: Menambahkan kolom read_at ke tabel mobile_user_notifications.');
+    } catch (_) {}
+
     connection.release();
   } catch (error) {
     console.error('CRITICAL: Gagal membangun koneksi pool ke MySQL:', error.message);

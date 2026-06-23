@@ -313,6 +313,8 @@ async function executeMigration() {
         message TEXT NOT NULL,
         type VARCHAR(50) NOT NULL,
         is_read TINYINT DEFAULT 0 CHECK (is_read IN (0, 1)),
+        response VARCHAR(255) NULL,
+        read_at TIMESTAMP NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_mobile_notif_emp (employee_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,

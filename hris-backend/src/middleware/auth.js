@@ -73,48 +73,6 @@ export async function authenticateToken(req, res, next) {
     }
   }
 
-  // Bypass untuk MockToken dari aplikasi mobile/HP testing
-  if (token === 'MockToken') {
-    try {
-      const user = await dbQuery.get(
-        `SELECT u.id, u.email, u.role, e.id as employee_id, e.position, e.outlet 
-         FROM users u 
-         LEFT JOIN employees e ON e.user_id = u.id 
-         WHERE u.id = 2 OR u.email = 'admin@hris.com' LIMIT 1`
-      );
-
-      if (user) {
-        req.user = {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          employeeId: user.employee_id,
-          position: user.position,
-          outlet: user.outlet
-        };
-      } else {
-        req.user = {
-          id: 2,
-          email: 'admin@hris.com',
-          role: 'admin',
-          employeeId: 2,
-          position: 'Admin Personalia',
-          outlet: 'AYAM PECAK 2001 SEAFOOD TEBING TINGGI'
-        };
-      }
-      return next();
-    } catch (err) {
-      req.user = {
-        id: 2,
-        email: 'admin@hris.com',
-        role: 'admin',
-        employeeId: 2,
-        position: 'Admin Personalia',
-        outlet: 'AYAM PECAK 2001 SEAFOOD TEBING TINGGI'
-      };
-      return next();
-    }
-  }
 
   try {
     const decoded = jwt.verify(token, config.jwtSecret);
