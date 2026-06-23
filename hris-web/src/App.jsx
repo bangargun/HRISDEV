@@ -192,6 +192,27 @@ export default function App() {
     } catch (e) {
       console.error('Error migrating KPI data:', e);
     }
+
+    try {
+      if (!localStorage.getItem('hris_payroll_cleanup_v1')) {
+        const keysToRemove = [
+          'hris_payroll_slips',
+          'hris_payroll_mobile_slips',
+          'hris_attendances_history',
+          'attendances_history',
+          'hris_attendance_history',
+          'attendance_logs',
+          'hris_leaves',
+          'leaves',
+          'hris_leave_requests'
+        ];
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        localStorage.setItem('hris_payroll_cleanup_v1', 'true');
+        console.log('Permanently cleared payroll, attendance, and leave mock/existing local storage data.');
+      }
+    } catch (e) {
+      console.error('Error during payroll and attendance cleanup:', e);
+    }
   }, []);
 
   useEffect(() => {
