@@ -400,7 +400,7 @@ export default function TrainingPage({ token, API_URL }) {
   const [isExportingPDF, setIsExportingPDF] = useState(false);
 
   // ── Filters
-  const savedFilters = lsGet('filter_training_state', { outlets:[], jabatan:[], bulan:'', tahun:'' });
+  const savedFilters = lsGet('filter_training_state', {}) || {};
   const [fOutlets,  setFOutlets]  = useState(savedFilters.outlets || []);
   const [fJabatan,  setFJabatan]  = useState(savedFilters.jabatan || []);
   const [fBulan,    setFBulan]    = useState(savedFilters.bulan   || '');
@@ -421,9 +421,18 @@ export default function TrainingPage({ token, API_URL }) {
   }, [fOutlets, fJabatan, fBulan, fTahun]);
 
   // ── Data State
-  const [trainings,  setTrainings]  = useState(() => lsGet('hris_trainings', []));
-  const [results,    setResults]    = useState(() => lsGet('hris_training_results', []));
-  const [materials,  setMaterials]  = useState(() => lsGet('hris_training_materials', []));
+  const [trainings,  setTrainings]  = useState(() => {
+    const d = lsGet('hris_trainings', []);
+    return Array.isArray(d) ? d : [];
+  });
+  const [results,    setResults]    = useState(() => {
+    const d = lsGet('hris_training_results', []);
+    return Array.isArray(d) ? d : [];
+  });
+  const [materials,  setMaterials]  = useState(() => {
+    const d = lsGet('hris_training_materials', []);
+    return Array.isArray(d) ? d : [];
+  });
 
   // ── Tab State
   const [activeTab, setActiveTab] = useState('jadwal');
@@ -449,8 +458,9 @@ export default function TrainingPage({ token, API_URL }) {
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   // ── Derived Options
-  const allOutlets = [...new Set(activeEmployees.map(e=>e.outlet).filter(Boolean))].sort();
-  const allJabatan = [...new Set(activeEmployees.map(e=>e.position).filter(Boolean))].sort();
+  const employeesList = Array.isArray(activeEmployees) ? activeEmployees : [];
+  const allOutlets = [...new Set(employeesList.map(e=>e.outlet).filter(Boolean))].sort();
+  const allJabatan = [...new Set(employeesList.map(e=>e.position).filter(Boolean))].sort();
   const BULAN_LIST = ['','01','02','03','04','05','06','07','08','09','10','11','12'];
   const BULAN_LABEL = { '':'Semua Bulan','01':'Januari','02':'Februari','03':'Maret','04':'April','05':'Mei','06':'Juni','07':'Juli','08':'Agustus','09':'September','10':'Oktober','11':'November','12':'Desember' };
   const currYear = new Date().getFullYear();
@@ -460,9 +470,18 @@ export default function TrainingPage({ token, API_URL }) {
   useEffect(() => {
     const h = (e) => {
       const { key } = e.detail || {};
-      if (key === 'hris_trainings')         setTrainings(lsGet('hris_trainings', []));
-      if (key === 'hris_training_results')  setResults(lsGet('hris_training_results', []));
-      if (key === 'hris_training_materials')setMaterials(lsGet('hris_training_materials', []));
+      if (key === 'hris_trainings') {
+        const d = lsGet('hris_trainings', []);
+        setTrainings(Array.isArray(d) ? d : []);
+      }
+      if (key === 'hris_training_results') {
+        const d = lsGet('hris_training_results', []);
+        setResults(Array.isArray(d) ? d : []);
+      }
+      if (key === 'hris_training_materials') {
+        const d = lsGet('hris_training_materials', []);
+        setMaterials(Array.isArray(d) ? d : []);
+      }
     };
     window.addEventListener('hris:storage', h);
     return () => window.removeEventListener('hris:storage', h);
@@ -470,7 +489,8 @@ export default function TrainingPage({ token, API_URL }) {
 
   // ── Filter logic
   const filterByGlobal = useCallback((list, dateField = 'tanggal_waktu') => {
-    return list.filter(item => {
+    const arr = Array.isArray(list) ? list : [];
+    return arr.filter(item => {
       // outlet filter (pada data training)
       if (fOutlets.length > 0) {
         const tgt = item.target_outlets || [];
@@ -497,7 +517,7 @@ export default function TrainingPage({ token, API_URL }) {
   const filteredTrainings = filterByGlobal(trainings);
 
   // Results & materials — filter by bulan/tahun only (outlet/jabatan via training link)
-  const filteredResults   = results.filter(r => {
+  const filteredResults   = (Array.isArray(results) ? results : []).filter(r => {
     if (fBulan && fTahun) {
       const d = new Date(r.date || r.created_at || '');
       if (fBulan && String(d.getMonth()+1).padStart(2,'0') !== fBulan) return false;
@@ -508,7 +528,7 @@ export default function TrainingPage({ token, API_URL }) {
     return true;
   });
 
-  const filteredMaterials = materials.filter(m => {
+  const filteredMaterials = (Array.isArray(materials) ? materials : []).filter(m => {
     if (fBulan || fTahun) {
       const d = new Date(m.created_at || '');
       if (fBulan && String(d.getMonth()+1).padStart(2,'0') !== fBulan) return false;
