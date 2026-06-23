@@ -137,7 +137,7 @@ export async function clearTrash(req, res) {
   try {
     // 1. Bersihkan notifikasi mobile > 7 hari
     const deletedNotifications = await dbQuery.run(
-      "DELETE FROM mobile_user_notifications WHERE created_at < datetime('now', '-7 days')"
+      "DELETE FROM mobile_user_notifications WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)"
     );
 
     // 2. Bersihkan orphan records (data tanpa karyawan terdaftar)
@@ -159,9 +159,9 @@ export async function clearTrash(req, res) {
       totalOrphansDeleted += result.changes || 0;
     }
 
-    // 3. Compact database
-    await dbQuery.run("VACUUM");
-    await dbQuery.run("PRAGMA wal_checkpoint(TRUNCATE)");
+    // 3. Compact database (Diabaikan untuk MySQL)
+    // await dbQuery.run("VACUUM");
+    // await dbQuery.run("PRAGMA wal_checkpoint(TRUNCATE)");
 
     return res.status(200).json({
       status: 'success',

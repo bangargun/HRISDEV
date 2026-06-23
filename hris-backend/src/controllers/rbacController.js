@@ -36,7 +36,7 @@ export async function updateRbacPermission(req, res) {
     await dbQuery.run(
       `INSERT INTO rbac_permissions (role, permission_key, is_allowed)
        VALUES (?, ?, ?)
-       ON CONFLICT(role, permission_key) DO UPDATE SET is_allowed = excluded.is_allowed`,
+       ON DUPLICATE KEY UPDATE is_allowed = VALUES(is_allowed)`,
       [role, permission_key, is_allowed ? 1 : 0]
     );
 

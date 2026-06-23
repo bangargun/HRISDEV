@@ -69,12 +69,14 @@ export async function createOrUpdateKpi(req, res) {
       });
     }
 
-    // Gunakan INSERT OR REPLACE atau INSERT ... ON CONFLICT
+    // Gunakan MySQL ON DUPLICATE KEY UPDATE untuk UPSERT
     await dbQuery.run(
       `INSERT INTO kpis (employee_id, periode, skor_kpi, evaluator_id, catatan)
        VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(employee_id, periode) 
-       DO UPDATE SET skor_kpi = excluded.skor_kpi, evaluator_id = excluded.evaluator_id, catatan = excluded.catatan`,
+       ON DUPLICATE KEY UPDATE 
+         skor_kpi = VALUES(skor_kpi), 
+         evaluator_id = VALUES(evaluator_id), 
+         catatan = VALUES(catatan)`,
       [employee_id, periode, parseFloat(skor_kpi), evaluatorId, catatan ? catatan.trim() : null]
     );
 

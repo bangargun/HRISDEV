@@ -41,5 +41,10 @@ export const config = {
   jwtSecret: getJwtSecret(),
   databaseFile: process.env.DATABASE_FILE || 'database.sqlite',
   allowedOrigins: (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(','),
-  geminiApiKey: process.env.GEMINI_API_KEY || ''
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
+  dbHost: process.env.DB_HOST || '127.0.0.1',
+  dbUser: process.env.DB_USER || 'root',
+  dbPassword: process.env.DB_PASSWORD || '',
+  dbName: process.env.DB_NAME || 'hris_barokah',
+  dbPort: process.env.DB_PORT || '3306'
 };
