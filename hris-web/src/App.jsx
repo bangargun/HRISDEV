@@ -13,7 +13,7 @@ import SopPage from './components/SopPage';
 import KontrakPage from './components/KontrakPage';
 import PenilaianKPI from './components/PenilaianKPI';
 import SanksiPage from './components/SanksiPage';
-import TrainingPage from './components/TrainingPage';
+import ProgramPelatihanBaru from './components/ProgramPelatihanBaru';
 import PolicyPage from './components/PolicyPage';
 import KuisKompetensi from './components/KuisKompetensi';
 import BroadcastUtama from './components/BroadcastUtama';
@@ -401,7 +401,7 @@ export default function App() {
       case 'sanctions':
         return <SanksiPage token={token} API_URL={API_URL} userPermissions={userPermissions} />;
       case 'trainings':
-        return <TrainingPage token={token} API_URL={API_URL} userPermissions={userPermissions} />;
+        return <ProgramPelatihanBaru token={token} API_URL={API_URL} userPermissions={userPermissions} />;
       case 'policies':
         return <PolicyPage token={token} API_URL={API_URL} userPermissions={userPermissions} user={user} />;
       case 'kuis':
