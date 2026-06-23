@@ -89,94 +89,6 @@ export default function PenilaianKPI({ token, API_URL }) {
     let localSurveys = JSON.parse(localStorage.getItem('hris_360_surveys') || '[]');
     let localResponses = JSON.parse(localStorage.getItem('hris_360_responses') || '[]');
 
-    // 3. Auto seed jika masih kosong
-    if (localSurveys.length === 0 && mergedEmployees.length > 0) {
-      const nowStr = '2026-06-20';
-      const initialSurveys = [
-        {
-          id: 'SV-SEED001',
-          judul: 'Evaluasi Kinerja Staf Triwulan II',
-          tipe_paket: 'staf',
-          outlet: 'Semua Outlet',
-          penerima_count: mergedEmployees.filter(e => !isLeader(e.position)).length,
-          tanggal_kirim: '2026-06-01',
-          created_at: '2026-06-01T08:00:00Z'
-        },
-        {
-          id: 'SV-SEED002',
-          judul: 'Penilaian Kepemimpinan Leader Utama',
-          tipe_paket: 'leader',
-          outlet: 'Gedung Sate',
-          penerima_count: mergedEmployees.filter(e => e.outlet === 'Gedung Sate' && e.id !== 'EMP001').length, // evaluasi Kepala Cabang Gedung Sate
-          tanggal_kirim: '2026-06-05',
-          created_at: '2026-06-05T09:30:00Z'
-        }
-      ];
-
-      // Generate seed responses
-      const initialResponses = [];
-      
-      // Seed 1: Staf P2P
-      const stafEmps = mergedEmployees.filter(e => !isLeader(e.position));
-      stafEmps.forEach(assessor => {
-        stafEmps.forEach(target => {
-          if (assessor.id !== target.id && assessor.outlet === target.outlet) {
-            // Generate composite score
-            const score = Math.round(78 + Math.random() * 20); // 78 - 98
-            initialResponses.push({
-              id: uid('RS'),
-              survey_id: 'SV-SEED001',
-              target_id: target.id,
-              target_name: cap(target.full_name || target.nama || ''),
-              target_position: target.position,
-              target_outlet: target.outlet,
-              assessor_id: assessor.id,
-              assessor_position: assessor.position,
-              score,
-              theme: 'sejawat',
-              answers: Array.from({ length: 5 }, () => ['A', 'B'][Math.floor(Math.random() * 2)]),
-              date: '2026-06-10',
-              month: 6,
-              year: 2026
-            });
-          }
-        });
-      });
-
-      // Seed 2: Leader Evaluated (Ahmad Subarjo Kepala Cabang Gedung Sate EMP001)
-      const leaderTarget = mergedEmployees.find(e => String(e.id) === 'EMP001' || e.position === 'Kepala Cabang');
-      if (leaderTarget) {
-        const gsEmps = mergedEmployees.filter(e => e.outlet === 'Gedung Sate' && e.id !== leaderTarget.id);
-        gsEmps.forEach(assessor => {
-          const score = Math.round(82 + Math.random() * 16); // 82 - 98
-          initialResponses.push({
-            id: uid('RS'),
-            survey_id: 'SV-SEED002',
-            target_id: leaderTarget.id,
-            target_name: cap(leaderTarget.full_name || leaderTarget.nama || ''),
-            target_position: leaderTarget.position,
-            target_outlet: leaderTarget.outlet,
-            assessor_id: assessor.id,
-            assessor_position: assessor.position,
-            score,
-            theme: isLeader(assessor.position) ? 'sejawat' : 'bawahan',
-            answers: Array.from({ length: 5 }, () => ['A', 'B', 'C'][Math.floor(Math.random() * 3)]),
-            date: '2026-06-12',
-            month: 6,
-            year: 2026
-          });
-        });
-      }
-
-      localStorage.setItem('hris_360_surveys', JSON.stringify(initialSurveys));
-      localStorage.setItem('hris_360_responses', JSON.stringify(initialResponses));
-      // Tulis juga survey_360_data agar payroll page dan kalkulator sinkron!
-      localStorage.setItem('survey_360_data', JSON.stringify(initialResponses));
-      
-      localSurveys = initialSurveys;
-      localResponses = initialResponses;
-    }
-
     setSurveys(localSurveys);
     setResponses(localResponses);
   }, [activeEmployees]);
@@ -679,7 +591,7 @@ export default function PenilaianKPI({ token, API_URL }) {
     { value: 11, label: 'November' },
     { value: 12, label: 'Desember' }
   ];
-  const yearsList = [2026, 2025, 2024];
+  const yearsList = [2030, 2029, 2028, 2027, 2026, 2025, 2024];
 
   // Data bindings for tables
   const hasil360Rows = getEvaluasi360Summary();

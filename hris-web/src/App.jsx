@@ -177,6 +177,21 @@ export default function App() {
     } catch (e) {
       console.error('Error migrating target_omzet_data:', e);
     }
+
+    try {
+      const surveysStr = localStorage.getItem('hris_360_surveys');
+      if (surveysStr) {
+        const surveys = JSON.parse(surveysStr);
+        if (Array.isArray(surveys) && surveys.some(s => s.id && String(s.id).includes('SEED'))) {
+          localStorage.removeItem('hris_360_surveys');
+          localStorage.removeItem('hris_360_responses');
+          localStorage.removeItem('survey_360_data');
+          localStorage.removeItem('hris_kpi_card_summary');
+        }
+      }
+    } catch (e) {
+      console.error('Error migrating KPI data:', e);
+    }
   }, []);
 
   useEffect(() => {

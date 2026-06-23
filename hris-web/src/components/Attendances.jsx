@@ -17,7 +17,7 @@ export default function Attendances({ token, API_URL }) {
 
   const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   const currentYear = new Date().getFullYear();
-  const TAHUN = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+  const TAHUN = Array.from({ length: 2030 - (currentYear - 2) + 1 }, (_, i) => currentYear - 2 + i);
 
   // ─── DATA STATES ───────────────────────────────────────────────────────────
   const [employees, setEmployees]             = useState([]);
