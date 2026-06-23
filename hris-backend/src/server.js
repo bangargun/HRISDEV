@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { config } from './config/env.js';
-import { initializeDatabase, dbQuery } from './config/db.js';
+import { initializeDatabase, dbQuery, transactionContext } from './config/db.js';
 import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -42,6 +42,28 @@ app.use(cors({
 
 // 2. Body Parser
 app.use(express.json({ limit: '10mb' })); // Limit upload untuk foto selfie absensi/izin
+
+// 2b. Middleware Transaksi Database (AsyncLocalStorage)
+app.use((req, res, next) => {
+  const store = new Map();
+  transactionContext.run(store, () => {
+    // Fungsi pembersihan koneksi transaksi otomatis jika belum di-commit/rollback
+    const cleanup = () => {
+      const conn = store.get('connection');
+      if (conn) {
+        conn.rollback()
+          .catch(err => console.error('[Auto-Rollback] Error:', err.message))
+          .finally(() => {
+            conn.release();
+            store.delete('connection');
+          });
+      }
+    };
+    res.on('finish', cleanup);
+    res.on('close', cleanup);
+    next();
+  });
+});
 
 // 3. Middleware Header Keamanan HTTP Kustom (Security Hardening)
 app.use((req, res, next) => {

@@ -1,5 +1,9 @@
 import mysql from 'mysql2/promise';
 import { config } from './env.js';
+import { AsyncLocalStorage } from 'async_hooks';
+
+// Setup AsyncLocalStorage untuk melacak koneksi dalam satu request context (transaksi)
+export const transactionContext = new AsyncLocalStorage();
 
 // Konfigurasi parameter pool MySQL dari environment
 const pool = mysql.createPool({
@@ -17,6 +21,17 @@ const pool = mysql.createPool({
 
 console.log(`MySQL Connection Pool diinisialisasi ke host: ${config.dbHost || '127.0.0.1'}`);
 
+/**
+ * Mendapatkan client eksekusi aktif (koneksi transaksi spesifik atau pool global)
+ */
+async function getExecuteClient() {
+  const store = transactionContext.getStore();
+  if (store && store.has('connection')) {
+    return store.get('connection');
+  }
+  return pool;
+}
+
 // Wrapper kompatibilitas tinggi (Drop-in Replacement untuk dbQuery lama)
 export const dbQuery = {
   /**
@@ -25,7 +40,46 @@ export const dbQuery = {
    */
   async run(sql, params = []) {
     try {
-      const [result] = await pool.execute(sql, params);
+      const sqlTrimmed = sql.trim().toUpperCase();
+      const store = transactionContext.getStore();
+
+      if (store) {
+        // Intersepsi sintaks transaksi SQLite -> MySQL
+        if (sqlTrimmed.startsWith('BEGIN TRANSACTION') || sqlTrimmed.startsWith('START TRANSACTION') || sqlTrimmed === 'BEGIN') {
+          if (store.has('connection')) {
+            throw new Error('Transaction already in progress in this context');
+          }
+          const conn = await pool.getConnection();
+          await conn.beginTransaction();
+          store.set('connection', conn);
+          return { id: null, changes: 0 };
+        }
+
+        if (sqlTrimmed === 'COMMIT') {
+          const conn = store.get('connection');
+          if (!conn) {
+            throw new Error('No active transaction to commit');
+          }
+          await conn.commit();
+          conn.release();
+          store.delete('connection');
+          return { id: null, changes: 0 };
+        }
+
+        if (sqlTrimmed === 'ROLLBACK') {
+          const conn = store.get('connection');
+          if (!conn) {
+            return { id: null, changes: 0 };
+          }
+          await conn.rollback();
+          conn.release();
+          store.delete('connection');
+          return { id: null, changes: 0 };
+        }
+      }
+
+      const client = await getExecuteClient();
+      const [result] = await client.execute(sql, params);
       return {
         id: result.insertId || null,
         changes: result.affectedRows !== undefined ? result.affectedRows : 0
@@ -41,7 +95,8 @@ export const dbQuery = {
    */
   async get(sql, params = []) {
     try {
-      const [rows] = await pool.execute(sql, params);
+      const client = await getExecuteClient();
+      const [rows] = await client.execute(sql, params);
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       console.error(`Database query get error: ${sql}`, error.message);
@@ -54,7 +109,8 @@ export const dbQuery = {
    */
   async all(sql, params = []) {
     try {
-      const [rows] = await pool.execute(sql, params);
+      const client = await getExecuteClient();
+      const [rows] = await client.execute(sql, params);
       return rows;
     } catch (error) {
       console.error(`Database query all error: ${sql}`, error.message);

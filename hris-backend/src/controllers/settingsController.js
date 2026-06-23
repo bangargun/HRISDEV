@@ -5,7 +5,7 @@ import { dbQuery } from '../config/db.js';
  */
 export async function getSettings(req, res) {
   try {
-    const settings = await dbQuery.all("SELECT key, value, description FROM system_settings");
+    const settings = await dbQuery.all("SELECT `key`, value, description FROM system_settings");
     return res.status(200).json({
       status: 'success',
       data: settings
@@ -39,7 +39,7 @@ export async function updateSettings(req, res) {
         const { key, value } = item;
         if (key && value !== undefined) {
           await dbQuery.run(
-            "UPDATE system_settings SET value = ? WHERE key = ?",
+            "UPDATE system_settings SET value = ? WHERE `key` = ?",
             [String(value), key]
           );
         }

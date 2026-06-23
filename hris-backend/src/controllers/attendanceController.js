@@ -63,7 +63,7 @@ export async function clockIn(req, res) {
 
   try {
     // 1. Ambil pengaturan absensi dinamis dari database
-    const settingsRows = await dbQuery.all("SELECT key, value FROM system_settings");
+    const settingsRows = await dbQuery.all("SELECT `key`, value FROM system_settings");
     const settings = {};
     settingsRows.forEach(row => {
       settings[row.key] = row.value;
@@ -159,7 +159,7 @@ export async function clockOut(req, res) {
 
   try {
     // 1. Ambil pengaturan absensi dinamis dari database
-    const settingsRows = await dbQuery.all("SELECT key, value FROM system_settings");
+    const settingsRows = await dbQuery.all("SELECT `key`, value FROM system_settings");
     const settings = {};
     settingsRows.forEach(row => {
       settings[row.key] = row.value;
