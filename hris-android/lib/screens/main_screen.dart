@@ -22,17 +22,11 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = const [
     DashboardScreen(),
-    AttendanceScreen(),
-    TrainingScreen(),
-    InformationScreen(),
     ProfileScreen(),
   ];
 
   final List<String> _titles = const [
     'BERANDA UTAMA',
-    'ABSENSI GPS GEOFENCE',
-    'MATERI & MODUL TRAINING',
-    'PAPAN INFORMASI & LOG',
     'PROFIL SAYA',
   ];
 
@@ -102,9 +96,12 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
             onPressed: () {
-              setState(() {
-                _currentIndex = 3; // Navigate to Kotak Masuk tab
-              });
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const InformationScreen(initialIndex: 0),
+                ),
+              );
             },
           ),
           TextButton(
@@ -143,10 +140,7 @@ class _MainScreenState extends State<MainScreen> {
           unselectedFontSize: 11,
           type: BottomNavigationBarType.fixed,
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.gps_fixed_outlined), label: 'Absen'),
-            BottomNavigationBarItem(icon: Icon(Icons.book_outlined), label: 'Training'),
-            BottomNavigationBarItem(icon: Icon(Icons.notifications_outlined), label: 'Inbox'),
+            BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Dashboard'),
             BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profil'),
           ],
         ),

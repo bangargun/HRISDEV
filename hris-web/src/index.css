@@ -1,26 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  /* Cyber Tech Premium Dark Mode Palette */
-  --bg-main: #222831;           /* Dark Navy Pekat */
-  --bg-surface: #393E46;        /* Charcoal Dark */
-  --bg-card: #393E46;           /* Card = bg-surface */
-  --bg-sidebar: #222831;        /* Sidebar = Dark Navy */
-  --bg-header: #393E46;         /* Header = bg-surface */
-  --accent-primary: #00ADB5;    /* Electric Cyan / Toska Menyala */
-  --text-main: #EEEEEE;         /* Light Platinum */
-  --text-muted: #b2bec3;        /* Muted grey */
-  --text-dark: #EEEEEE;         
-  --border-color: #2d3238;      /* Gelap tipis border */
-  
-  --bg-secondary-btn: rgba(255, 255, 255, 0.06);
-  --bg-secondary-btn-hover: rgba(255, 255, 255, 0.12);
-  --border-secondary-btn: var(--border-color);
+  /* Light Theme — Putih & Biru Santai */
+  --bg-main: #F0F4F8;           /* Background utama abu sangat terang */
+  --bg-surface: #FFFFFF;        /* Surface kartu putih bersih */
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #FFFFFF;
+  --bg-header: #FFFFFF;
+  --accent-primary: #3B82F6;    /* Biru santai primary */
+  --text-main: #1E293B;         /* Teks gelap slate */
+  --text-muted: #64748B;        /* Muted slate */
+  --text-dark: #0F172A;
+  --border-color: #E2E8F0;      /* Border abu terang */
 
-  /* Primary brand = Electric Cyan */
-  --primary-solid: #00ADB5;
-  --primary-gradient: #00ADB5;  
-  --primary-glow: rgba(0, 173, 181, 0.15);
+  --bg-secondary-btn: #F1F5F9;
+  --bg-secondary-btn-hover: #E2E8F0;
+  --border-secondary-btn: #CBD5E1;
+
+  --primary-solid: #3B82F6;
+  --primary-gradient: linear-gradient(135deg, #3B82F6, #60A5FA);
+  --primary-glow: rgba(59, 130, 246, 0.15);
 
   /* Status colors */
   --success: #10b981;
@@ -34,9 +33,9 @@
   --danger: #ef4444;
   --danger-glow: rgba(239, 68, 68, 0.15);
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-  --backdrop-blur: none;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --backdrop-blur: blur(12px);
   --transition-smooth: all 0.2s ease-in-out;
 }
 
@@ -67,8 +66,8 @@ body::before {
   width: 100%;
   height: 100%;
   background-image: 
-    linear-gradient(to right, rgba(0, 173, 181, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 173, 181, 0.02) 1px, transparent 1px);
+    linear-gradient(to right, rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;
   z-index: -2;
@@ -101,8 +100,8 @@ body::before {
 }
 
 .glass-card:hover {
-  border-color: var(--text-main);
-  box-shadow: 0 12px 28px -5px rgba(0, 0, 0, 0.4), 0 0 10px 0 var(--primary-glow);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.12);
+  border-color: var(--accent-primary);
 }
 
 .btn-primary {
@@ -122,8 +121,8 @@ body::before {
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px 0 var(--primary-glow), 0 0 12px 2px var(--primary-glow);
-  background: #94a37e;               /* Darker Sage Green */
+  background: #2563EB;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
 }
 
 .btn-primary:active {
@@ -511,27 +510,8 @@ div[style*="border-color: #412D15"] {
 }
 
 /* ============================================================ */
-/* LIGHT THEME VARIABLES (Soft Sage palette)                    */
+/* Light theme is now the default :root — blok ini dihapus.    */
 /* ============================================================ */
-html[data-theme="light"] {
-  --bg-main: #EDE8DC;           /* Latar Lembut */
-  --bg-surface: #FFFFFF;        /* Kartu Putih */
-  --bg-card: #FFFFFF;           /* Card = bg-surface */
-  --bg-sidebar: #FFFFFF;        /* Sidebar = Kartu Putih */
-  --bg-header: #FFFFFF;         /* Header = Kartu Putih */
-  --border-color: #E7CCCC;      /* Border/Sidebar */
-  --accent-primary: #A5B68D;    /* Aksen Hijau Sage */
-  --text-main: #1E293B;         /* Teks Slate Gelap */
-  --text-muted: #64748B;        /* Teks Muted Slate */
-  
-  --bg-secondary-btn: #F1F5F9;
-  --bg-secondary-btn-hover: #E2E8F0;
-  --border-secondary-btn: #CBD5E1;
-
-  --primary-solid: #A5B68D;
-  --primary-gradient: #A5B68D;
-  --primary-glow: rgba(165, 182, 141, 0.15);
-}
 
 /* ============================================================ */
 /* SMOOTH DUAL-THEME TRANSITION ENGINE                          */
@@ -550,7 +530,7 @@ body, header, .sidebar, .glass-card, .main-content, input, select, textarea, but
 .dashed-loading-line {
   width: 200px;
   height: 4px;
-  background-image: linear-gradient(90deg, #00ADB5 50%, transparent 50%);
+  background-image: linear-gradient(90deg, #3B82F6 50%, transparent 50%);
   background-size: 20px 4px;
   animation: movingDashedLine 1s linear infinite;
   margin-bottom: 12px;
@@ -562,7 +542,7 @@ body, header, .sidebar, .glass-card, .main-content, input, select, textarea, but
   50% { opacity: 1; }
 }
 .loading-text-contextual {
-  color: #EEEEEE;
+  color: #1E293B;
   font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: 0.5px;

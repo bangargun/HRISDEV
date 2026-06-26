@@ -13,6 +13,9 @@ import 'disc_screen.dart';
 import 'pusat_pengajuan_screen.dart';
 import 'payroll_screen.dart';
 import 'sop_screen.dart';
+import 'attendance_screen.dart';
+import 'training_screen.dart';
+import 'information_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -631,96 +634,90 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildBreakScheduleCard(context, auth, today),
           const SizedBox(height: 20),
 
-          // Layanan Mandiri Karyawan
+          // Layanan & Performa (Gojek-Style)
           const Text(
-            'Layanan Mandiri Karyawan',
+            'Layanan & Performa',
             style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildMenuCard(
-                  icon: Icons.post_add_outlined,
-                  title: 'Pengajuan Izin',
-                  subtitle: 'Cuti & Lembur',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PusatPengajuanScreen())),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFEEEEEE).withOpacity(0.05)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Expanded(
+                      child: _buildGojekMenuItem(
+                        icon: Icons.gps_fixed_outlined,
+                        label: 'Kehadiran',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceScreen())),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildGojekMenuItem(
+                        icon: Icons.assignment_outlined,
+                        label: 'Kuis',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QuizListScreen())),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildGojekMenuItem(
+                        icon: Icons.book_outlined,
+                        label: 'Pelatihan',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrainingScreen())),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildGojekMenuItem(
+                        icon: Icons.analytics_outlined,
+                        label: 'KPI',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KpiReportScreen())),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMenuCard(
-                  icon: Icons.payments_outlined,
-                  title: 'Slip Gaji',
-                  subtitle: 'Detail Bulanan',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PayrollScreen())),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Expanded(
+                      child: _buildGojekMenuItem(
+                        icon: Icons.inbox_outlined,
+                        label: 'Inbox',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PusatPengajuanScreen())),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildGojekMenuItem(
+                        icon: Icons.campaign_outlined,
+                        label: 'Informasi',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InformationScreen(initialIndex: 0))),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildGojekMenuItem(
+                        icon: Icons.alarm_on_outlined,
+                        label: 'Sholat',
+                        onTap: () => _showPrayerScheduleModal(context, auth),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildGojekMenuItem(
+                        icon: Icons.description_outlined,
+                        label: 'Kontrak',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InformationScreen(initialIndex: 3))),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMenuCard(
-                  icon: Icons.book_outlined,
-                  title: 'Dokumen SOP',
-                  subtitle: 'Standard Prosedur',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SopScreen())),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // 2b. Menu Penilaian & Performa
-          const Text(
-            'Evaluasi & Performa',
-            style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildMenuCard(
-                      icon: Icons.people_alt_outlined,
-                      title: 'Penilaian 360°',
-                      subtitle: 'Beri Evaluasi Sejawat',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Rating360Screen())),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildMenuCard(
-                      icon: Icons.analytics_outlined,
-                      title: 'Rapor KPI',
-                      subtitle: 'Lihat Rapor',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KpiReportScreen())),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildMenuCard(
-                      icon: Icons.assignment_outlined,
-                      title: 'Halaman Kuis',
-                      subtitle: 'Uji Pemahaman SOP',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QuizListScreen())),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildMenuCard(
-                      icon: Icons.psychology_outlined,
-                      title: 'Tes DISC',
-                      subtitle: 'Profil Gaya Kerja',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DiscScreen())),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -1203,6 +1200,214 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             )
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildGojekMenuItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: const Color(0xFF00ADB5),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00ADB5).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 26),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFEEEEEE),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPrayerScheduleModal(BuildContext context, AuthProvider auth) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF222831),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        final timings = PrayerService.timings ?? {};
+        final city = PrayerService.currentCity ?? 'Jakarta';
+        final nextPrayer = PrayerService.nextPrayerName;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEEEEE).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Jadwal Sholat',
+                            style: TextStyle(
+                              color: Color(0xFFEEEEEE),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Wilayah $city & Sekitarnya',
+                            style: const TextStyle(
+                              color: Color(0x8DEEEEEE),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00ADB5).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF00ADB5).withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: const [
+                            Icon(Icons.gps_fixed, color: Color(0xFF00ADB5), size: 14),
+                            SizedBox(width: 4),
+                            Text(
+                              'Auto GPS',
+                              style: TextStyle(
+                                color: Color(0xFF00ADB5),
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  if (timings.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 30),
+                        child: Text(
+                          'Mengambil data jadwal sholat...',
+                          style: TextStyle(color: Color(0x8DEEEEEE), fontSize: 13),
+                        ),
+                      ),
+                    )
+                  else
+                    ...timings.entries.map((entry) {
+                      final name = entry.key;
+                      final time = entry.value;
+                      final isNext = name.toLowerCase() == nextPrayer.toLowerCase();
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: isNext
+                              ? const Color(0xFF00ADB5).withOpacity(0.12)
+                              : const Color(0xFF393E46),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isNext
+                                ? const Color(0xFF00ADB5).withOpacity(0.4)
+                                : const Color(0xFFEEEEEE).withOpacity(0.03),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  isNext ? Icons.notifications_active : Icons.notifications_none,
+                                  color: isNext ? const Color(0xFF00ADB5) : const Color(0x8DEEEEEE),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  name,
+                                  style: TextStyle(
+                                    color: const Color(0xFFEEEEEE),
+                                    fontSize: 14,
+                                    fontWeight: isNext ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                Text(
+                                  time,
+                                  style: TextStyle(
+                                    color: isNext ? const Color(0xFF00ADB5) : const Color(0xFFEEEEEE),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'WIB',
+                                  style: TextStyle(
+                                    color: Color(0x8DEEEEEE),
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            );
+          },
         );
       },
     );

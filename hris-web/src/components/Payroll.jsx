@@ -844,7 +844,7 @@ export default function Payroll({ token, API_URL }) {
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   // ── State untuk Rekap Gaji Bulanan ──
-  const [activeTab, setActiveTab] = useState('rekap'); // 'rekap' atau 'slips'
+  const [activeTab, setActiveTab] = useState('slips'); // 'rekap' atau 'slips'
   const [rekapBulan, setRekapBulan] = useState([new Date().getMonth() + 1]); // array of numbers: [1-12]
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
   const monthDropdownRef = React.useRef(null);
@@ -1776,6 +1776,7 @@ export default function Payroll({ token, API_URL }) {
     saveSlips(updated);
     setSlips(updated);
     setShowModal(false);
+    setPreviewSlip(newSlip); // Auto preview right after saving!
     showToast('success', `✅ Slip gaji ${newSlip.nama_karyawan} berhasil ${editingSlipId ? 'diperbarui' : 'disimpan'}!`);
   };
 
@@ -1808,6 +1809,36 @@ export default function Payroll({ token, API_URL }) {
     } catch {
       return 'belum_kirim';
     }
+  };
+
+  const getNotificationStatusBadge = (slip) => {
+    const status = getSlipLogStatus(slip);
+    if (status === 'dibaca') {
+      return (
+        <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+          Dibaca
+        </span>
+      );
+    }
+    if (status === 'terkirim') {
+      return (
+        <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '4px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+          Diterima
+        </span>
+      );
+    }
+    if (slip.slip_sent) {
+      return (
+        <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '4px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+          Terkirim
+        </span>
+      );
+    }
+    return (
+      <span className="badge" style={{ background: 'rgba(100, 116, 139, 0.1)', color: '#64748b', border: '1px solid rgba(100, 116, 139, 0.3)', padding: '4px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+        Belum Dikirim
+      </span>
+    );
   };
 
   // ── Kirim slip ke mobile ──
@@ -1934,40 +1965,10 @@ export default function Payroll({ token, API_URL }) {
 
   const renderTabNavigation = () => {
     return (
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: `1px solid var(--border-color)`, paddingBottom: '12px' }}>
-        <button
-          onClick={() => setActiveTab('rekap')}
-          style={{
-            padding: '10px 20px',
-            background: activeTab === 'rekap' ? PALETTE.activeTabBg : 'transparent',
-            color: activeTab === 'rekap' ? PALETTE.activeTabText : PALETTE.creamMuted,
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '0.88rem',
-            fontWeight: 800,
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
-        >
-          📊 Rekap Gaji Bulanan
-        </button>
-        <button
-          onClick={() => setActiveTab('slips')}
-          style={{
-            padding: '10px 20px',
-            background: activeTab === 'slips' ? PALETTE.activeTabBg : 'transparent',
-            color: activeTab === 'slips' ? PALETTE.activeTabText : PALETTE.creamMuted,
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '0.88rem',
-            fontWeight: 800,
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
-        >
-          📜 Slip Gaji
-        </button>
-
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: `1px solid var(--border-color)`, paddingBottom: '12px' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+          💰 Kelola Slip Gaji Karyawan (Payroll)
+        </h2>
       </div>
     );
   };
@@ -1990,28 +1991,20 @@ export default function Payroll({ token, API_URL }) {
         </div>
       )}
 
-
-
       {renderTabNavigation()}
 
       {/* ── KPI Summary Cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px,1fr))', gap: '16px', marginBottom: '28px' }}>
-        {(activeTab === 'rekap' ? [
-          { label: 'Total Anggaran THP', val: formatCurrency(rekapTotalThp), color: PALETTE.cream, icon: <Coins size={16}/>, bg: 'rgba(165, 182, 141, 0.1)' },
-          { label: 'Total Pendapatan', val: formatCurrency(rekapTotalPendapatanAll), color: PALETTE.success, icon: <TrendingUp size={16}/>, bg: 'rgba(46,204,113,0.1)' },
-          { label: 'Total Pengeluaran', val: formatCurrency(rekapTotalPengeluaranAll), color: PALETTE.danger, icon: <TrendingDown size={16}/>, bg: 'rgba(231,76,60,0.1)' },
-          { label: 'Jumlah Karyawan', val: `${rekapKaryawanCount} Orang`, color: PALETTE.warning, icon: <Users size={16}/>, bg: 'rgba(243,156,18,0.1)' },
-          { label: 'Slip Terkirim', val: `${rekapSudahDikirim} / ${rekapKaryawanCount}`, color: PALETTE.success, icon: <CheckCircle size={16}/>, bg: 'rgba(46,204,113,0.1)' },
-        ] : [
-          { label: 'Total Anggaran THP', val: formatCurrency(totalThp), color: PALETTE.cream, icon: <Coins size={16}/>, bg: 'rgba(165, 182, 141, 0.1)' },
-          { label: 'Total Pendapatan', val: formatCurrency(totalPendapatanAll), color: PALETTE.success, icon: <TrendingUp size={16}/>, bg: 'rgba(46,204,113,0.1)' },
-          { label: 'Total Pengeluaran', val: formatCurrency(totalPengeluaranAll), color: PALETTE.danger, icon: <TrendingDown size={16}/>, bg: 'rgba(231,76,60,0.1)' },
-          { label: 'Jumlah Karyawan', val: `${filtered.length} Orang`, color: PALETTE.warning, icon: <Users size={16}/>, bg: 'rgba(243,156,18,0.1)' },
-          { label: 'Slip Terkirim', val: `${sudahDikirim} / ${filtered.length}`, color: PALETTE.success, icon: <CheckCircle size={16}/>, bg: 'rgba(46,204,113,0.1)' },
-        ]).map((c, i) => (
-          <div key={i} style={{ ...S.card, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {[
+          { label: 'Total Anggaran THP', val: formatCurrency(totalThp), color: 'var(--text-main)', icon: <Coins size={16}/>, bg: 'var(--primary-glow)' },
+          { label: 'Total Pendapatan', val: formatCurrency(totalPendapatanAll), color: 'var(--success)', icon: <TrendingUp size={16}/>, bg: 'var(--success-glow)' },
+          { label: 'Total Pengeluaran', val: formatCurrency(totalPengeluaranAll), color: 'var(--danger)', icon: <TrendingDown size={16}/>, bg: 'var(--danger-glow)' },
+          { label: 'Jumlah Karyawan', val: `${filtered.length} Orang`, color: 'var(--warning)', icon: <Users size={16}/>, bg: 'var(--warning-glow)' },
+          { label: 'Slip Terkirim', val: `${sudahDikirim} / ${filtered.length}`, color: 'var(--success)', icon: <CheckCircle size={16}/>, bg: 'var(--success-glow)' },
+        ].map((c, i) => (
+          <div key={i} style={{ ...S.card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '16px 20px' }}>
             <div>
-              <div style={{ fontSize: '0.72rem', color: PALETTE.creamMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>{c.label}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>{c.label}</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 800, color: c.color }}>{c.val}</div>
             </div>
             <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.color }}>
@@ -2082,7 +2075,7 @@ export default function Payroll({ token, API_URL }) {
                 }}>
                   {/* Option: Semua Bulan */}
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: PALETTE.cream, cursor: 'pointer', padding: '4px 6px', borderRadius: '4px' }}
-                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(65,45,21,0.3)'}
+                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.08)'}
                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                     <input
                       type="checkbox"
@@ -2107,7 +2100,7 @@ export default function Payroll({ token, API_URL }) {
                       const isChecked = rekapBulan.includes(monthVal);
                       return (
                         <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: PALETTE.cream, cursor: 'pointer', padding: '4px 6px', borderRadius: '4px' }}
-                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(65,45,21,0.3)'}
+                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.08)'}
                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                           <input
                             type="checkbox"
@@ -2539,7 +2532,7 @@ export default function Payroll({ token, API_URL }) {
                   {visibleCols.total_pendapatan && <th style={{ ...S.th, color: PALETTE.success }}>Total Pendapatan</th>}
                   {visibleCols.total_pengeluaran && <th style={{ ...S.th, color: PALETTE.danger }}>Total Pengeluaran</th>}
                   {visibleCols.thp && <th style={{ ...S.th, color: PALETTE.cream }}>Gaji THP</th>}
-                  {visibleCols.log_kirim && <th style={{ ...S.th, textAlign: 'center' }}>Log</th>}
+                  {visibleCols.log_kirim && <th style={{ ...S.th, textAlign: 'center' }}>Status Notifikasi</th>}
                   {visibleCols.aksi && <th style={{ ...S.th, textAlign: 'center' }}>Aksi</th>}
                 </tr>
               </thead>
@@ -2583,7 +2576,7 @@ export default function Payroll({ token, API_URL }) {
                       <tr
                         key={slip.id}
                         style={{ background: idx % 2 === 0 ? PALETTE.bgMain : PALETTE.bgSurface, transition: 'background 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(65,45,21,0.55)'}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)'}
                         onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? PALETTE.bgMain : PALETTE.bgSurface}
                       >
                         {visibleCols.no && (
@@ -2602,7 +2595,7 @@ export default function Payroll({ token, API_URL }) {
                         {visibleCols.outlet && (
                           <td style={S.td}>
                             <span style={{
-                              background: 'rgba(65,45,21,0.5)', color: PALETTE.cream,
+                              background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-primary)',
                               padding: '3px 10px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600,
                             }}>
                               {slip.outlet || '-'}
@@ -2631,52 +2624,7 @@ export default function Payroll({ token, API_URL }) {
                         )}
                         {visibleCols.log_kirim && (
                           <td style={{ ...S.td, textAlign: 'center' }}>
-                            {(() => {
-                              const status = getSlipLogStatus(slip);
-                              if (status === 'dibaca') {
-                                return (
-                                  <span style={{
-                                    background: 'rgba(46, 204, 113, 0.15)',
-                                    color: '#2ecc71',
-                                    borderRadius: '4px',
-                                    padding: '3px 8px',
-                                    fontSize: '0.72rem',
-                                    fontWeight: '700',
-                                    border: '1px solid rgba(46, 204, 113, 0.3)'
-                                  }}>
-                                    Sudah Dibaca
-                                  </span>
-                                );
-                              }
-                              if (status === 'terkirim') {
-                                return (
-                                  <span style={{
-                                    background: 'rgba(52, 152, 219, 0.15)',
-                                    color: '#3498db',
-                                    borderRadius: '4px',
-                                    padding: '3px 8px',
-                                    fontSize: '0.72rem',
-                                    fontWeight: '700',
-                                    border: '1px solid rgba(52, 152, 219, 0.3)'
-                                  }}>
-                                    Terkirim
-                                  </span>
-                                );
-                              }
-                              return (
-                                <span style={{
-                                  background: 'rgba(238, 238, 238, 0.07)',
-                                  color: 'rgba(238, 238, 238, 0.4)',
-                                  borderRadius: '4px',
-                                  padding: '3px 8px',
-                                  fontSize: '0.72rem',
-                                  fontWeight: '700',
-                                  border: '1px solid rgba(238, 238, 238, 0.15)'
-                                }}>
-                                  Belum Dikirim
-                                </span>
-                              );
-                            })()}
+                            {getNotificationStatusBadge(slip)}
                           </td>
                         )}
                         {visibleCols.aksi && (
@@ -2703,8 +2651,8 @@ export default function Payroll({ token, API_URL }) {
                                   onClick={() => setPreviewSlip(slip)}
                                   title="Pratinjau & Kirim Slip"
                                   style={{
-                                    padding: '5px 10px', background: PALETTE.cream,
-                                    color: PALETTE.bgMain,
+                                    padding: '5px 10px', background: 'var(--accent-primary)',
+                                    color: '#fff',
                                     border: 'none',
                                     borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800,
                                     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
@@ -2719,9 +2667,9 @@ export default function Payroll({ token, API_URL }) {
                                   onClick={() => openEditModal(slip)}
                                   title="Edit Slip"
                                   style={{
-                                    width: '30px', height: '30px', background: 'rgba(65,45,21,0.5)',
-                                    border: `1px solid ${PALETTE.accent}`, borderRadius: '6px',
-                                    color: PALETTE.cream, cursor: 'pointer',
+                                    width: '30px', height: '30px', background: 'rgba(59, 130, 246, 0.1)',
+                                    border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '6px',
+                                    color: 'var(--accent-primary)', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   }}
                                 >
@@ -3394,9 +3342,9 @@ export default function Payroll({ token, API_URL }) {
                   openEditModal(slipToEdit);
                 }}
                 style={{
-                  flex: 1.2, height: '40px', background: 'rgba(65,45,21,0.5)',
-                  border: `1px solid ${PALETTE.accent}`, borderRadius: '8px',
-                  color: PALETTE.cream, fontWeight: 800, cursor: 'pointer',
+                  flex: 1.2, height: '40px', background: 'rgba(59, 130, 246, 0.1)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px',
+                  color: 'var(--accent-primary)', fontWeight: 800, cursor: 'pointer',
                   fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                 }}
               >

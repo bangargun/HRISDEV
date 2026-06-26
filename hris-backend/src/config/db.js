@@ -137,6 +137,22 @@ export async function initializeDatabase() {
       await connection.execute("ALTER TABLE mobile_user_notifications ADD COLUMN read_at TIMESTAMP NULL");
       console.log('SUCCESS: Menambahkan kolom read_at ke tabel mobile_user_notifications.');
     } catch (_) {}
+    try {
+      await connection.execute("ALTER TABLE employees ADD COLUMN photo_url VARCHAR(500) NULL");
+      console.log('SUCCESS: Menambahkan kolom photo_url ke tabel employees.');
+    } catch (_) {}
+    try {
+      await connection.execute("ALTER TABLE outlets ADD COLUMN latitude DECIMAL(11, 8) NULL");
+      console.log('SUCCESS: Menambahkan kolom latitude ke tabel outlets.');
+    } catch (_) {}
+    try {
+      await connection.execute("ALTER TABLE outlets ADD COLUMN longitude DECIMAL(11, 8) NULL");
+      console.log('SUCCESS: Menambahkan kolom longitude ke tabel outlets.');
+    } catch (_) {}
+    try {
+      await connection.execute("ALTER TABLE outlets ADD COLUMN radius INT NULL");
+      console.log('SUCCESS: Menambahkan kolom radius ke tabel outlets.');
+    } catch (_) {}
 
     connection.release();
   } catch (error) {

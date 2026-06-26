@@ -862,10 +862,68 @@ const seedInitialPolicies = () => {
     }
   });
 
+  // ── Kebijakan Baru 1: Sesi Jadwal Istirahat ──
+  const sesiIstirahatSeedData = [
+    {
+      id: 'seed-sesi-istirahat-001',
+      nama_aturan: 'Sesi Jadwal Istirahat - Outlet 3 Jam',
+      outlets: allOutlets.filter(o => !o.toUpperCase().includes('AYAM BAKAR SURABAYA')).length > 0
+        ? allOutlets.filter(o => !o.toUpperCase().includes('AYAM BAKAR SURABAYA'))
+        : ['AYAM PECAK 2001 SEAFOOD TEBING TINGGI', 'AYAM PECAK 2001 SEAFOOD KISARAN', 'AYAM PECAK 2001 SEAFOOD RANTAU PRAPAT', 'PECEL LELE PAK HAJI KISARAN'],
+      all_outlets: false,
+      deskripsi: 'Durasi istirahat 3 jam dibagi 2 sesi: Sesi 1 pukul 12.00–15.00 WIB, Sesi 2 pukul 15.00–18.00 WIB.',
+      status: 'ACTIVE',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'seed-sesi-istirahat-002',
+      nama_aturan: 'Sesi Jadwal Istirahat - Outlet 2 Jam',
+      outlets: allOutlets.filter(o => o.toUpperCase().includes('AYAM BAKAR SURABAYA')).length > 0
+        ? allOutlets.filter(o => o.toUpperCase().includes('AYAM BAKAR SURABAYA'))
+        : ['AYAM BAKAR SURABAYA TEBING TINGGI'],
+      all_outlets: false,
+      deskripsi: 'Durasi istirahat 2 jam dibagi 3 sesi: Sesi 1 pukul 12.00–14.00 WIB, Sesi 2 pukul 14.00–16.00 WIB, Sesi 3 pukul 16.00–18.00 WIB.',
+      status: 'ACTIVE',
+      created_at: new Date().toISOString(),
+    },
+  ];
+
+  sesiIstirahatSeedData.forEach(seedItem => {
+    const exists = existing.some(p => p.id === seedItem.id ||
+      (p.nama_aturan === seedItem.nama_aturan && p.deskripsi === seedItem.deskripsi));
+    if (!exists) {
+      existing.push(seedItem);
+      modified = true;
+    }
+  });
+
+  // ── Kebijakan Baru 2: Reaktivasi Karyawan ──
+  const reaktivasiSeedData = [
+    {
+      id: 'seed-reaktivasi-001',
+      nama_aturan: 'Reaktivasi Karyawan Nonaktif',
+      outlets: targetAllOutlets,
+      all_outlets: true,
+      deskripsi: 'Karyawan yang telah dinonaktifkan dapat diaktifkan kembali minimal 3 (tiga) bulan terhitung sejak tanggal dinonaktifkan.',
+      status: 'ACTIVE',
+      created_at: new Date().toISOString(),
+    },
+  ];
+
+  reaktivasiSeedData.forEach(seedItem => {
+    const exists = existing.some(p => p.id === seedItem.id ||
+      (p.nama_aturan === seedItem.nama_aturan && p.deskripsi === seedItem.deskripsi));
+    if (!exists) {
+      existing.push(seedItem);
+      modified = true;
+    }
+  });
+
   if (modified || existing.length > 0) {
     savePolicies(existing);
   }
 };
+
 
 // ─── Label Tampilan Outlet di tabel ─────────────────────────────────────────
 const formatOutletLabel = (selectedOutlets, allOutlets) => {

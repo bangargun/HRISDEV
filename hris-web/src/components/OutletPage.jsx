@@ -174,6 +174,9 @@ export default function OutletPage({ token, API_URL, user }) {
   const [formAlamat, setFormAlamat] = useState('');
   const [formPermodalan, setFormPermodalan] = useState('BOOTSTRAP');
   const [formStatus, setFormStatus] = useState('AKTIF');
+  const [formLat, setFormLat] = useState('');        // GPS Geofence
+  const [formLng, setFormLng] = useState('');        // GPS Geofence
+  const [formRadius, setFormRadius] = useState('100'); // GPS Geofence radius (meter)
   const [errorMsg, setErrorMsg] = useState('');
 
   // ── Konfirmasi & Toast ──
@@ -496,6 +499,9 @@ export default function OutletPage({ token, API_URL, user }) {
             permodalan: (o.permodalan || 'BOOTSTRAP').toUpperCase(),
             status: o.status === 'active' || o.status === 'AKTIF' ? 'AKTIF' : 'TIDAK AKTIF',
             nama_tablet: getNamaTablet({ nama: o.nama, wilayah: o.wilayah }),
+            lat: o.latitude !== undefined && o.latitude !== null ? String(o.latitude) : '',
+            lng: o.longitude !== undefined && o.longitude !== null ? String(o.longitude) : '',
+            radius: o.radius !== undefined && o.radius !== null ? String(o.radius) : '100',
             created_at: o.created_at || new Date().toISOString(),
           }));
           persistOutlets(normalized);
@@ -521,6 +527,9 @@ export default function OutletPage({ token, API_URL, user }) {
     setFormAlamat('');
     setFormPermodalan('BOOTSTRAP');
     setFormStatus('AKTIF');
+    setFormLat('');
+    setFormLng('');
+    setFormRadius('100');
     setErrorMsg('');
   };
 
@@ -604,6 +613,9 @@ export default function OutletPage({ token, API_URL, user }) {
     setFormAlamat(outlet.alamat || '');
     setFormPermodalan(outlet.permodalan || 'BOOTSTRAP');
     setFormStatus(outlet.status || 'AKTIF');
+    setFormLat(outlet.lat || '');
+    setFormLng(outlet.lng || '');
+    setFormRadius(outlet.radius || '100');
     setErrorMsg('');
     setShowModal(true);
   };
@@ -635,7 +647,10 @@ export default function OutletPage({ token, API_URL, user }) {
       alamat,
       permodalan: formPermodalan.toUpperCase(),
       status: formStatus.toUpperCase(),
-      nama_tablet: getNamaTablet({ nama, wilayah }), // ← "Kolom Nama Tablet" untuk sinkronisasi
+      lat: formLat.trim() || null,
+      lng: formLng.trim() || null,
+      radius: formRadius.trim() ? Number(formRadius.trim()) : 100,
+      nama_tablet: getNamaTablet({ nama, wilayah }),
       created_at: new Date().toISOString(),
     };
 
@@ -660,6 +675,9 @@ export default function OutletPage({ token, API_URL, user }) {
         alamat: outletObj.alamat,
         permodalan: outletObj.permodalan.toLowerCase(),
         status: outletObj.status === 'AKTIF' ? 'active' : 'inactive',
+        latitude: outletObj.lat ? parseFloat(outletObj.lat) : null,
+        longitude: outletObj.lng ? parseFloat(outletObj.lng) : null,
+        radius: outletObj.radius ? parseInt(outletObj.radius, 10) : 100,
       };
       const url = editingId && !String(editingId).startsWith('local-')
         ? `${API_URL}/outlets/${editingId}`
@@ -2063,6 +2081,56 @@ export default function OutletPage({ token, API_URL, user }) {
                     <option value="TIDAK AKTIF">TIDAK AKTIF</option>
                   </select>
                 </div>
+              </div>
+
+              {/* ─── GPS Geofence ─── */}
+              <div style={{ border: '1px solid #3B82F6', borderRadius: '10px', padding: '14px', background: 'rgba(59,130,246,0.04)', marginTop: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '1rem' }}>📍</span>
+                  <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#3B82F6' }}>Konfigurasi GPS Geofence Kehadiran</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ ...S.inputLabel, fontSize: '0.78rem' }}>Latitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="-3.585000"
+                      value={formLat}
+                      onChange={e => setFormLat(e.target.value)}
+                      style={{ ...S.input, fontSize: '0.82rem' }}
+                      onFocus={inputFocus} onBlur={inputBlur}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...S.inputLabel, fontSize: '0.78rem' }}>Longitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="98.687000"
+                      value={formLng}
+                      onChange={e => setFormLng(e.target.value)}
+                      style={{ ...S.input, fontSize: '0.82rem' }}
+                      onFocus={inputFocus} onBlur={inputBlur}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...S.inputLabel, fontSize: '0.78rem' }}>Radius (meter)</label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="5000"
+                      placeholder="100"
+                      value={formRadius}
+                      onChange={e => setFormRadius(e.target.value)}
+                      style={{ ...S.input, fontSize: '0.82rem' }}
+                      onFocus={inputFocus} onBlur={inputBlur}
+                    />
+                  </div>
+                </div>
+                <p style={{ fontSize: '0.73rem', color: '#64748B', marginTop: '8px', margin: '8px 0 0' }}>
+                  💡 Koordinat GPS digunakan mobile APK untuk validasi absensi. Isi hanya jika karyawan harus absen dalam radius tertentu dari lokasi outlet.
+                </p>
               </div>
 
               {/* Tombol Aksi */}

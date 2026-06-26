@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
 import { dbQuery } from '../config/db.js';
 import { mapPositionToRole } from '../middleware/permissionMiddleware.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Mendapatkan semua daftar karyawan aktif (Khusus Owner/Admin)
@@ -8,7 +10,7 @@ import { mapPositionToRole } from '../middleware/permissionMiddleware.js';
 export async function getAllEmployees(req, res) {
   try {
     const employees = await dbQuery.all(`
-      SELECT e.id, e.nik, e.full_name, e.position, e.department, e.basic_salary, e.status, e.joined_date, e.outlet, e.gender, u.email
+      SELECT e.id, e.nik, e.full_name, e.position, e.department, e.basic_salary, e.status, e.joined_date, e.outlet, e.gender, e.photo_url, u.email
       FROM employees e
       JOIN users u ON e.user_id = u.id
       ORDER BY e.id DESC
@@ -35,7 +37,7 @@ export async function getEmployeeById(req, res) {
 
   try {
     const employee = await dbQuery.get(`
-      SELECT e.id, e.nik, e.full_name, e.phone, e.address, e.position, e.department, e.basic_salary, e.status, e.joined_date, e.outlet, e.gender, u.email
+      SELECT e.id, e.nik, e.full_name, e.phone, e.address, e.position, e.department, e.basic_salary, e.status, e.joined_date, e.outlet, e.gender, e.photo_url, u.email
       FROM employees e
       JOIN users u ON e.user_id = u.id
       WHERE e.id = ?
@@ -79,7 +81,7 @@ export async function getEmployeeById(req, res) {
 }
 
 export async function createEmployee(req, res) {
-  const { email, password, nik, full_name, phone, address, position, department, basic_salary, joined_date, role, outlet, gender } = req.body;
+  const { email, password, nik, full_name, phone, address, position, department, basic_salary, joined_date, role, outlet, gender, photo_url } = req.body;
 
   // Validasi input wajib
   if (!email || !password || !nik || !full_name || !position || !department || basic_salary === undefined || !joined_date) {
@@ -121,8 +123,8 @@ export async function createEmployee(req, res) {
 
     // 5. Masukkan profil ke tabel employees
     const empResult = await dbQuery.run(`
-      INSERT INTO employees (user_id, nik, full_name, phone, address, position, department, basic_salary, joined_date, outlet, gender)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO employees (user_id, nik, full_name, phone, address, position, department, basic_salary, joined_date, outlet, gender, photo_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       userResult.id,
       nik.trim(),
@@ -134,7 +136,8 @@ export async function createEmployee(req, res) {
       parseFloat(basic_salary),
       joined_date,
       outlet ? outlet.trim() : null,
-      gender ? gender.trim() : 'Pria'
+      gender ? gender.trim() : 'Pria',
+      photo_url ? photo_url.trim() : null
     ]);
 
     return res.status(201).json({
@@ -160,7 +163,7 @@ export async function createEmployee(req, res) {
  */
 export async function updateEmployee(req, res) {
   const { id } = req.params;
-  const { full_name, phone, address, position, department, basic_salary, status, joined_date, outlet, gender } = req.body;
+  const { full_name, phone, address, position, department, basic_salary, status, joined_date, outlet, gender, photo_url } = req.body;
 
   try {
     // 1. Cari karyawan
@@ -194,20 +197,21 @@ export async function updateEmployee(req, res) {
       // Update terbatas untuk karyawan sendiri
       await dbQuery.run(`
         UPDATE employees
-        SET full_name = ?, phone = ?, address = ?, gender = ?
+        SET full_name = ?, phone = ?, address = ?, gender = ?, photo_url = ?
         WHERE id = ?
       `, [
         full_name ? full_name.trim() : employee.full_name,
         phone ? phone.trim() : employee.phone,
         address ? address.trim() : employee.address,
         gender ? gender.trim() : (employee.gender || 'Pria'),
+        photo_url !== undefined ? photo_url : employee.photo_url,
         id
       ]);
     } else {
       // Owner/Admin/Role berizin memiliki kontrol penuh atas jabatan, divisi, gaji, status, outlet, dan gender
       await dbQuery.run(`
         UPDATE employees
-        SET full_name = ?, phone = ?, address = ?, position = ?, department = ?, basic_salary = ?, status = ?, joined_date = ?, outlet = ?, gender = ?
+        SET full_name = ?, phone = ?, address = ?, position = ?, department = ?, basic_salary = ?, status = ?, joined_date = ?, outlet = ?, gender = ?, photo_url = ?
         WHERE id = ?
       `, [
         full_name ? full_name.trim() : employee.full_name,
@@ -220,6 +224,7 @@ export async function updateEmployee(req, res) {
         joined_date ? joined_date : employee.joined_date,
         outlet ? outlet.trim() : employee.outlet,
         gender ? gender.trim() : (employee.gender || 'Pria'),
+        photo_url !== undefined ? photo_url : employee.photo_url,
         id
       ]);
 
@@ -309,6 +314,68 @@ export async function getMyOutletColleagues(req, res) {
     return res.status(500).json({
       status: 'error',
       message: 'Gagal mengambil data rekan kerja satu outlet.'
+    });
+  }
+}
+
+/**
+ * Mengunggah foto profil karyawan (base64 string) dan menyimpannya sebagai file lokal
+ */
+export async function uploadEmployeePhoto(req, res) {
+  const { id } = req.params;
+  const { photo } = req.body; // base64 string
+
+  if (!photo) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Data foto base64 wajib dikirim.'
+    });
+  }
+
+  try {
+    const employee = await dbQuery.get("SELECT * FROM employees WHERE id = ?", [id]);
+    if (!employee) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Karyawan tidak ditemukan.'
+      });
+    }
+
+    // Convert base64 data to file and save it
+    const matches = photo.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Format data base64 tidak valid.'
+      });
+    }
+
+    const imageBuffer = Buffer.from(matches[2], 'base64');
+    const extension = matches[1].split('/')[1] || 'jpg';
+    const filename = `emp_${id}_${Date.now()}.${extension}`;
+    const uploadPath = path.resolve('uploads', filename);
+
+    // Make sure uploads folder exists
+    if (!fs.existsSync(path.resolve('uploads'))) {
+      fs.mkdirSync(path.resolve('uploads'), { recursive: true });
+    }
+
+    fs.writeFileSync(uploadPath, imageBuffer);
+    const photoUrl = `/uploads/${filename}`;
+
+    // Update photo_url in employees table
+    await dbQuery.run("UPDATE employees SET photo_url = ? WHERE id = ?", [photoUrl, id]);
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Foto profil karyawan berhasil diunggah.',
+      data: { photoUrl }
+    });
+  } catch (error) {
+    console.error('UploadEmployeePhoto error:', error.message);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Gagal mengunggah foto profil karyawan.'
     });
   }
 }

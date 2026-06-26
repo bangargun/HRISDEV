@@ -434,7 +434,11 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
         localStorage.setItem('hris_leave_requests', JSON.stringify(updatedLeaves));
 
         runApprovalCrossAutomations(id, status);
-        fetchLeaves();
+        if (status === 'approved') {
+          await handleSendNotification(id);
+        } else {
+          fetchLeaves();
+        }
       } else {
         alert(data.message);
       }
@@ -617,6 +621,35 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
     return (
       <span className="badge" style={{ background: '#FFFFFF', color: '#000000', border: '1px solid #CCCCCC', padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', whiteSpace: 'nowrap' }}>
         Belum Dibaca
+      </span>
+    );
+  };
+
+  const getNotificationStatusBadge = (lv) => {
+    if (lv.status !== 'approved') {
+      return (
+        <span className="badge" style={{ background: 'rgba(0, 0, 0, 0.1)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+          Belum
+        </span>
+      );
+    }
+    if (!lv.is_sent) {
+      return (
+        <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+          Belum
+        </span>
+      );
+    }
+    if (lv.is_read) {
+      return (
+        <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+          Terbaca
+        </span>
+      );
+    }
+    return (
+      <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+        Terkirim
       </span>
     );
   };
@@ -830,10 +863,8 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
                   <th rowSpan={2}>Outlet</th>
                   <th rowSpan={2}>Jenis Pengajuan</th>
                   <th colSpan={2} style={{ textAlign: 'center' }}>Tanggal Pengajuan</th>
+                  <th rowSpan={2} style={{ textAlign: 'center' }}>Status Notifikasi</th>
                   <th rowSpan={2} style={{ textAlign: 'center' }}>Aksi</th>
-                  <th rowSpan={2} style={{ textAlign: 'center' }}>Kirim</th>
-                  <th rowSpan={2} style={{ textAlign: 'center' }}>Keterangan</th>
-                  <th rowSpan={2} style={{ textAlign: 'center' }}>Log Dibaca</th>
                 </tr>
                 <tr>
                   <th style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', fontSize: '0.8rem' }}>Mulai</th>
@@ -847,7 +878,7 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
               }}>
                 {currentRows.length === 0 ? (
                   <tr>
-                    <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Tidak ada pengajuan cuti/izin ditemukan.</td>
+                    <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Tidak ada pengajuan cuti/izin ditemukan.</td>
                   </tr>
                 ) : (
                   currentRows.map((lv, index) => {
@@ -873,121 +904,84 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
                         <td>{getLeaveTypeBadge(lv.leave_type)}</td>
                         <td style={{ textAlign: 'center' }}>{formatDate(lv.start_date)}</td>
                         <td style={{ textAlign: 'center' }}>{formatDate(lv.end_date)}</td>
+                        <td style={{ textAlign: 'center' }}>{getNotificationStatusBadge(lv)}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <button
-                            onClick={() => setPreviewModal({ isOpen: true, leave: lv })}
-                            style={{
-                              background: 'rgba(255, 255, 255, 0.06)',
-                              color: '#fff',
-                              border: '1px solid var(--border-color)',
-                              padding: '6px 12px',
-                              borderRadius: '6px',
-                              fontSize: '0.8rem',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              fontWeight: '600',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                              e.currentTarget.style.borderColor = 'var(--border-color)';
-                            }}
-                          >
-                            <Eye size={13} />
-                            <span>Proses</span>
-                          </button>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          {lv.status === 'approved' ? (
-                            lv.is_sent ? (
-                              <button
-                                disabled
-                                style={{
-                                  background: 'rgba(255, 255, 255, 0.02)',
-                                  color: 'rgba(255, 255, 255, 0.2)',
-                                  border: '1px solid rgba(255, 255, 255, 0.05)',
-                                  padding: '6px 12px',
-                                  borderRadius: '6px',
-                                  fontSize: '0.8rem',
-                                  cursor: 'not-allowed',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  fontWeight: '600'
-                                }}
-                              >
-                                <CheckCircle2 size={13} color="#2ECC71" />
-                                <span>Terkirim</span>
-                              </button>
-                            ) : (
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
+                            <button
+                              onClick={() => setPreviewModal({ isOpen: true, leave: lv })}
+                              title="Proses"
+                              style={{
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                color: '#3B82F6',
+                                borderRadius: '6px',
+                                padding: '6px 8px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(lv)}
+                              title="Edit"
+                              style={{
+                                background: 'rgba(245, 158, 11, 0.1)',
+                                border: '1px solid rgba(245, 158, 11, 0.3)',
+                                color: '#f59e0b',
+                                borderRadius: '6px',
+                                padding: '6px 8px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button
+                              onClick={() => triggerDelete(lv.id)}
+                              title="Hapus"
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                color: '#ef4444',
+                                borderRadius: '6px',
+                                padding: '6px 8px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                            {lv.status === 'approved' && !lv.is_sent && (
                               <button
                                 onClick={() => handleSendNotification(lv.id)}
+                                title="Kirim Notifikasi"
                                 style={{
-                                  background: '#3498DB',
-                                  color: '#fff',
-                                  border: 'none',
-                                  padding: '6px 12px',
+                                  background: 'rgba(16, 185, 129, 0.1)',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  color: '#10b981',
                                   borderRadius: '6px',
-                                  fontSize: '0.8rem',
+                                  padding: '6px 8px',
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '6px',
-                                  fontWeight: '600',
-                                  transition: 'all 0.2s ease',
-                                  boxShadow: '0 4px 10px rgba(52, 152, 219, 0.3)'
-                                }}
-                                onMouseOver={(e) => {
-                                  e.currentTarget.style.background = '#2980B9';
-                                  e.currentTarget.style.transform = 'translateY(-1px)';
-                                }}
-                                onMouseOut={(e) => {
-                                  e.currentTarget.style.background = '#3498DB';
-                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  justifyContent: 'center',
+                                  transition: 'all 0.2s'
                                 }}
                               >
-                                <Send size={13} />
-                                <span>Kirim</span>
+                                <Send size={14} />
                               </button>
-                            )
-                          ) : (
-                            <button
-                              disabled
-                              style={{
-                                background: 'rgba(255, 255, 255, 0.02)',
-                                color: 'rgba(255, 255, 255, 0.15)',
-                                border: '1px solid rgba(255, 255, 255, 0.03)',
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                fontSize: '0.8rem',
-                                cursor: 'not-allowed',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                              }}
-                            >
-                              <Send size={13} />
-                              <span>Kirim</span>
-                            </button>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
-                            {getApprovalBadge(lv.status)}
-                            {lv.status === 'approved' && getSentBadge(lv.is_sent)}
+                            )}
                           </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          {lv.status === 'approved' && getReadBadge(lv.is_read)}
-                          {lv.status !== 'approved' && (
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>-</span>
-                          )}
                         </td>
                       </tr>
                     );
@@ -1005,10 +999,8 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
                   <th>Jabatan</th>
                   <th style={{ textAlign: 'right' }}>Jumlah Kasbon</th>
                   <th style={{ textAlign: 'center' }}>Tanggal Kasbon</th>
+                  <th style={{ textAlign: 'center' }}>Status Notifikasi</th>
                   <th style={{ textAlign: 'center' }}>Aksi</th>
-                  <th style={{ textAlign: 'center' }}>Kirim</th>
-                  <th style={{ textAlign: 'center' }}>Keterangan</th>
-                  <th style={{ textAlign: 'center' }}>Log Dibaca</th>
                 </tr>
               </thead>
               <tbody style={{
@@ -1018,7 +1010,7 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
               }}>
                 {currentRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Tidak ada pengajuan kasbon ditemukan.</td>
+                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Tidak ada pengajuan kasbon ditemukan.</td>
                   </tr>
                 ) : (
                   currentRows.map((lv, index) => {
@@ -1043,121 +1035,84 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
                         </td>
                         <td style={{ textAlign: 'right', fontWeight: '700', color: 'var(--accent-primary)' }}>{amountFormatted}</td>
                         <td style={{ textAlign: 'center' }}>{formatDate(lv.start_date)}</td>
+                        <td style={{ textAlign: 'center' }}>{getNotificationStatusBadge(lv)}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <button
-                            onClick={() => setPreviewModal({ isOpen: true, leave: lv })}
-                            style={{
-                              background: 'rgba(255, 255, 255, 0.06)',
-                              color: '#fff',
-                              border: '1px solid var(--border-color)',
-                              padding: '6px 12px',
-                              borderRadius: '6px',
-                              fontSize: '0.8rem',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              fontWeight: '600',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                              e.currentTarget.style.borderColor = 'var(--border-color)';
-                            }}
-                          >
-                            <Eye size={13} />
-                            <span>Proses</span>
-                          </button>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          {lv.status === 'approved' ? (
-                            lv.is_sent ? (
-                              <button
-                                disabled
-                                style={{
-                                  background: 'rgba(255, 255, 255, 0.02)',
-                                  color: 'rgba(255, 255, 255, 0.2)',
-                                  border: '1px solid rgba(255, 255, 255, 0.05)',
-                                  padding: '6px 12px',
-                                  borderRadius: '6px',
-                                  fontSize: '0.8rem',
-                                  cursor: 'not-allowed',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  fontWeight: '600'
-                                }}
-                              >
-                                <CheckCircle2 size={13} color="#2ECC71" />
-                                <span>Terkirim</span>
-                              </button>
-                            ) : (
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
+                            <button
+                              onClick={() => setPreviewModal({ isOpen: true, leave: lv })}
+                              title="Proses"
+                              style={{
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                color: '#3B82F6',
+                                borderRadius: '6px',
+                                padding: '6px 8px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(lv)}
+                              title="Edit"
+                              style={{
+                                background: 'rgba(245, 158, 11, 0.1)',
+                                border: '1px solid rgba(245, 158, 11, 0.3)',
+                                color: '#f59e0b',
+                                borderRadius: '6px',
+                                padding: '6px 8px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button
+                              onClick={() => triggerDelete(lv.id)}
+                              title="Hapus"
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                color: '#ef4444',
+                                borderRadius: '6px',
+                                padding: '6px 8px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                            {lv.status === 'approved' && !lv.is_sent && (
                               <button
                                 onClick={() => handleSendNotification(lv.id)}
+                                title="Kirim Notifikasi"
                                 style={{
-                                  background: '#3498DB',
-                                  color: '#fff',
-                                  border: 'none',
-                                  padding: '6px 12px',
+                                  background: 'rgba(16, 185, 129, 0.1)',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  color: '#10b981',
                                   borderRadius: '6px',
-                                  fontSize: '0.8rem',
+                                  padding: '6px 8px',
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '6px',
-                                  fontWeight: '600',
-                                  transition: 'all 0.2s ease',
-                                  boxShadow: '0 4px 10px rgba(52, 152, 219, 0.3)'
-                                }}
-                                onMouseOver={(e) => {
-                                  e.currentTarget.style.background = '#2980B9';
-                                  e.currentTarget.style.transform = 'translateY(-1px)';
-                                }}
-                                onMouseOut={(e) => {
-                                  e.currentTarget.style.background = '#3498DB';
-                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  justifyContent: 'center',
+                                  transition: 'all 0.2s'
                                 }}
                               >
-                                <Send size={13} />
-                                <span>Kirim</span>
+                                <Send size={14} />
                               </button>
-                            )
-                          ) : (
-                            <button
-                              disabled
-                              style={{
-                                background: 'rgba(255, 255, 255, 0.02)',
-                                color: 'rgba(255, 255, 255, 0.15)',
-                                border: '1px solid rgba(255, 255, 255, 0.03)',
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                fontSize: '0.8rem',
-                                cursor: 'not-allowed',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                              }}
-                            >
-                              <Send size={13} />
-                              <span>Kirim</span>
-                            </button>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
-                            {getApprovalBadge(lv.status)}
-                            {lv.status === 'approved' && getSentBadge(lv.is_sent)}
+                            )}
                           </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          {lv.status === 'approved' && getReadBadge(lv.is_read)}
-                          {lv.status !== 'approved' && (
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>-</span>
-                          )}
                         </td>
                       </tr>
                     );

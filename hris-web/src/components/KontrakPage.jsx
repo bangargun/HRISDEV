@@ -25,7 +25,7 @@ export default function KontrakPage({ token, API_URL }) {
   // Form Modal States
   const [showModal, setShowModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [jenisKontrak, setJenisKontrak] = useState('Surat Perjanjian Kontrak');
+  const [jenisKontrak, setJenisKontrak] = useState('Kontrak 1 Tahun');
   const [employeeId, setEmployeeId] = useState('');
   const [gajiPokok, setGajiPokok] = useState(1000000);
   
@@ -144,15 +144,24 @@ export default function KontrakPage({ token, API_URL }) {
   useEffect(() => {
     if (!tanggalPembuatan) return;
 
-    // finished date is +1 year
+    // Hitung tanggal selesai berdasarkan jenis kontrak
     const start = new Date(tanggalPembuatan);
-    start.setFullYear(start.getFullYear() + 1);
+    if (jenisKontrak === 'Surat Magang') {
+      start.setMonth(start.getMonth() + 1);
+    } else if (jenisKontrak === 'Kontrak 3 Bulan') {
+      start.setMonth(start.getMonth() + 3);
+    } else {
+      start.setFullYear(start.getFullYear() + 1);
+    }
     setTanggalSelesai(start.toISOString().split('T')[0]);
 
-    // calculate sequential contract number
+    // Nomor surat
     const year = dateGetYear(tanggalPembuatan);
     const month = dateGetMonth(tanggalPembuatan);
-    const code = jenisKontrak === 'Surat Perjanjian Kontrak' ? 'SPSK' : 'SPK';
+    let code = 'SPK';
+    if (jenisKontrak === 'Surat Magang') code = 'SPKG';
+    else if (jenisKontrak === 'Kontrak 3 Bulan') code = 'SPSK';
+    else code = 'SPK';
     const romanMonths = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
     const romanStr = romanMonths[month] || 'I';
 
@@ -943,11 +952,12 @@ export default function KontrakPage({ token, API_URL }) {
                     className="input-field"
                     value={jenisKontrak}
                     onChange={(e) => setJenisKontrak(e.target.value)}
-                    style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}
+                    style={{ background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}
                     required
                   >
-                    <option value="Surat Perjanjian Kontrak">Surat Perjanjian Kontrak (SPSK)</option>
-                    <option value="Surat Pengangkatan">Surat Pengangkatan (SPK)</option>
+                    <option value="Surat Magang">📄 Surat Magang (Durasi 1 Bulan)</option>
+                    <option value="Kontrak 3 Bulan">📄 Kontrak Kerja 3 Bulan (Terhitung dari Awal Masuk)</option>
+                    <option value="Kontrak 1 Tahun">📄 Kontrak Kerja 1 Tahun</option>
                   </select>
                 </div>
 
@@ -1237,7 +1247,49 @@ export default function KontrakPage({ token, API_URL }) {
               </div>
             </div>
 
+            {/* Pasal-pasal Kontrak */}
+            <div style={{ border: '1px solid var(--border-color)', borderRadius: '10px', padding: '16px', background: 'var(--bg-main)', marginBottom: '14px', fontSize: '0.78rem', lineHeight: '1.7', color: 'var(--text-main)', maxHeight: '280px', overflowY: 'auto' }}>
+              <p style={{ fontWeight: 800, fontSize: '0.85rem', marginBottom: '10px', textAlign: 'center' }}>ISI PERJANJIAN KERJA</p>
+              <p><strong>Pasal 1 \u2014 Ketentuan Umum</strong><br/>
+                Dengan ditandatanganinya perjanjian ini, Pihak Kedua telah mengetahui dan patuh terhadap peraturan perusahaan demi kepentingan bersama.</p>
+              <p style={{ marginTop: '8px' }}><strong>Pasal 2 \u2014 Penunjukan Sebagai Karyawan</strong><br/>
+                Pihak Pertama memberikan tanggung jawab sebagai karyawan di outlet {(() => { const emp = employees.find(e => String(e.id) === String(employeeId)); return emp ? emp.outlet : '-'; })()} aktif sejak {tanggalPembuatan} s/d {tanggalSelesai}.</p>
+              <p style={{ marginTop: '8px' }}><strong>Pasal 3 \u2014 Hak dan Kewajiban Pihak Pertama</strong><br/>
+                Pembayaran gaji, tunjangan, dan insentif; pelatihan sesuai kapasitas; pengawasan kinerja.</p>
+              <p style={{ marginTop: '8px' }}><strong>Pasal 4 \u2014 Hak dan Kewajiban Pihak Kedua</strong><br/>
+                Berhak atas: Gaji Pokok, Uang Makan, Uang Lembur, Tunjangan Lama Bekerja, Tunjangan Keluarga.<br/>
+                Wajib: melaksanakan SOP, menjaga kerahasiaan perusahaan (denda Rp25.000.000 jika dilanggar), bersedia ditempatkan di mana saja.</p>
+              <p style={{ marginTop: '8px' }}><strong>Pasal 5 \u2014 Kontrak Berakhir</strong><br/>
+                Berakhir karena durasi, pemutusan Pihak Pertama (setelah SP I/II/III), atau Pihak Kedua (wajib 1 bulan pemberitahuan; denda Rp25.000.000 jika keluar dalam 3 tahun setelah pelatihan berbayar).</p>
+              <p style={{ marginTop: '8px' }}><strong>Pasal 6 \u2014 Dan Lain-Lain</strong><br/>
+                Perjanjian mengikat tanpa paksaan. Perselisihan diselesaikan kekeluargaan atau melalui jalur hukum dengan surat ini sebagai acuan.</p>
+              <div style={{ marginTop: '10px', padding: '8px 12px', background: 'rgba(59,130,246,0.06)', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.2)', fontSize: '0.75rem' }}>
+                ⚠️ <strong>Pernyataan Digital:</strong> Perjanjian ini bersifat digital. Dengan menekan tombol OK, Pihak Kedua menyetujui seluruh isi kontrak ini.
+              </div>
+            </div>
+
+            {/* Tanda Tangan */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div style={{ textAlign: 'center', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Pihak Pertama (General Manager)</p>
+                <div style={{ height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #3B82F6', borderRadius: '6px', background: 'rgba(59,130,246,0.04)' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#3B82F6', fontWeight: 700, fontStyle: 'italic' }}>✍ TTD General Manager</span>
+                </div>
+                <p style={{ fontSize: '0.74rem', marginTop: '6px', fontWeight: 700 }}>Harry Setiawan</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>General Manager — Barokah Group</p>
+              </div>
+              <div style={{ textAlign: 'center', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Pihak Kedua (Karyawan)</p>
+                <div style={{ height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #10b981', borderRadius: '6px', background: 'rgba(16,185,129,0.04)' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 700, fontStyle: 'italic' }}>⏳ Menunggu Persetujuan</span>
+                </div>
+                <p style={{ fontSize: '0.74rem', marginTop: '6px', fontWeight: 700 }}>{(() => { const emp = employees.find(e => String(e.id) === String(employeeId)); return emp ? emp.full_name : '-'; })()}</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{(() => { const emp = employees.find(e => String(e.id) === String(employeeId)); return emp ? emp.outlet : '-'; })()}</p>
+              </div>
+            </div>
+
             <div style={{ display: 'flex', gap: '12px' }}>
+
               <button 
                 type="button"
                 className="btn-primary" 

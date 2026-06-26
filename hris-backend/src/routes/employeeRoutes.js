@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deactivateEmployee, getMyOutletColleagues } from '../controllers/employeeController.js';
+import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deactivateEmployee, getMyOutletColleagues, uploadEmployeePhoto } from '../controllers/employeeController.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
 
@@ -18,6 +18,7 @@ router.get('/my-outlet', getMyOutletColleagues);
 // Mengambil profil tunggal dan update profil (Karyawan bersangkutan atau Owner/Admin/Role berizin)
 router.get('/:id', getEmployeeById);
 router.put('/:id', updateEmployee);
+router.post('/:id/photo', checkPermission('employees', 'edit'), uploadEmployeePhoto);
 
 // Menonaktifkan karyawan
 router.delete('/:id', checkPermission('employees', 'delete'), deactivateEmployee);

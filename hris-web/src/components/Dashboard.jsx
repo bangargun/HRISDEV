@@ -374,6 +374,137 @@ export default function Dashboard({ token, API_URL, userPermissions, setActiveTa
   const [showConfirmReset, setShowConfirmReset] = useState(false);
   const [isApplyingFilter, setIsApplyingFilter] = useState(false);
 
+  // --- Monthly Attendance Calendar States & Helpers ---
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calOutlet, setCalOutlet] = useState('');
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatIndonesianDateTime = (date) => {
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    
+    const dayName = days[date.getDay()];
+    const day = date.getDate();
+    const monthName = months[date.getMonth()];
+    const year = date.getFullYear();
+    const time = date.toTimeString().split(' ')[0];
+    
+    return `${dayName}, ${day} ${monthName} ${year} - ${time}`;
+  };
+
+  const getDaysInMonth = (month, year) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (month, year) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const getStatsForDay = (dayNum) => {
+    const yyyy = calYear;
+    const mm = String(calMonth + 1).padStart(2, '0');
+    const dd = String(dayNum).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+
+    const activeEmps = employees.filter(emp => {
+      const isActive = (emp.employee_status || emp.status || '').toLowerCase() === 'active';
+      if (!isActive) return false;
+      if (calOutlet) {
+        return (emp.outlet || '').trim().toUpperCase() === calOutlet.trim().toUpperCase();
+      }
+      return true;
+    });
+
+    if (activeEmps.length === 0) {
+      return { hadir: 0, absen: 0, total: 0 };
+    }
+
+    const targetRealtime = realtimeLogs.filter(log => {
+      const logDate = log.tanggal || log.date || '';
+      if (logDate !== dateStr) return false;
+      if (calOutlet) {
+        return (log.outlet || '').trim().toUpperCase() === calOutlet.trim().toUpperCase();
+      }
+      return true;
+    });
+
+    const targetHistory = attendanceLogs.filter(log => {
+      const logDate = log.date || log.tanggal || '';
+      if (logDate !== dateStr) return false;
+      if (calOutlet) {
+        return (log.outlet || '').trim().toUpperCase() === calOutlet.trim().toUpperCase();
+      }
+      return true;
+    });
+
+    const logMap = new Map();
+
+    targetHistory.forEach(log => {
+      const key = String(log.employee_id || log.employeeId || log.nik || '').toLowerCase().trim();
+      if (key) {
+        logMap.set(key, log);
+      }
+    });
+
+    targetRealtime.forEach(log => {
+      const key = String(log.employee_id || log.employeeId || log.nik || '').toLowerCase().trim();
+      if (key) {
+        logMap.set(key, log);
+      }
+    });
+
+    const targetLeaves = leaves.filter(l => {
+      if ((l.status || '').toLowerCase() !== 'approved') return false;
+      const d = new Date(dateStr);
+      const from = l.start_date ? new Date(l.start_date) : null;
+      const to = l.end_date ? new Date(l.end_date) : from;
+      if (!from) return false;
+      d.setHours(0,0,0,0);
+      from.setHours(0,0,0,0);
+      if (to) to.setHours(0,0,0,0);
+      return d >= from && d <= (to || from);
+    });
+
+    const leaveEmployeeNames = new Set(
+      targetLeaves.map(l => (l.employee_name || l.nama_karyawan || '').toLowerCase().trim())
+    );
+
+    let hadir = 0;
+    let absen = 0;
+
+    activeEmps.forEach(emp => {
+      const empKey = String(emp.id || emp.nik || '').toLowerCase().trim();
+      const empName = (emp.full_name || emp.nama || '').toLowerCase().trim();
+      
+      if (leaveEmployeeNames.has(empName)) {
+        absen++;
+        return;
+      }
+
+      const log = logMap.get(empKey);
+      if (log) {
+        const status = (log.status || log.status_in || log.realtimeStatus || '').toLowerCase();
+        if (['absen', 'absent', 'alpha', 'mangkir'].includes(status)) {
+          absen++;
+        } else {
+          hadir++;
+        }
+      } else {
+        absen++;
+      }
+    });
+
+    return { hadir, absen, total: activeEmps.length };
+  };
+
   const triggerFilterLoading = () => {
     setIsFilterLoading(true);
     setTimeout(() => {
@@ -1414,6 +1545,184 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
           .sector-grid-2col {
             grid-template-columns: 1.25fr 0.75fr;
           }
+        }
+
+        /* Monthly Attendance Calendar Style */
+        .calendar-wrapper {
+          background: rgba(57, 62, 70, 0.6);
+          border: 1px solid var(--accent-primary);
+          border-radius: 16px;
+          padding: 24px;
+          margin-top: 24px;
+        }
+
+        .calendar-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 16px;
+          margin-bottom: 20px;
+          border-bottom: 1px solid rgba(165, 182, 141, 0.1);
+          padding-bottom: 16px;
+        }
+
+        .calendar-title-sec {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .calendar-title-sec h4 {
+          font-size: 1rem;
+          font-weight: 800;
+          color: var(--text-main);
+          margin: 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .calendar-clock {
+          font-size: 0.78rem;
+          font-weight: 700;
+          color: var(--accent-primary);
+          background: rgba(59, 130, 246, 0.08);
+          padding: 4px 10px;
+          border-radius: 20px;
+          display: inline-block;
+        }
+
+        .calendar-filters {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .calendar-select {
+          height: 36px;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          background: var(--bg-surface);
+          color: var(--text-main);
+          font-size: 0.8rem;
+          padding: 0 10px;
+          font-weight: 600;
+          outline: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .calendar-select:focus {
+          border-color: var(--accent-primary);
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+
+        .calendar-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 10px;
+        }
+
+        .calendar-day-name {
+          text-align: center;
+          font-weight: 800;
+          font-size: 0.7rem;
+          text-transform: uppercase;
+          color: var(--text-muted);
+          padding: 8px 0;
+          border-bottom: 2px solid var(--border-color);
+        }
+
+        .calendar-cell {
+          aspect-ratio: 1.15;
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(165, 182, 141, 0.06);
+          border-radius: 12px;
+          padding: 8px 10px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          position: relative;
+          min-height: 75px;
+          transition: all 0.2s ease;
+        }
+
+        .calendar-cell.empty {
+          background: transparent;
+          border: none;
+          pointer-events: none;
+        }
+
+        .calendar-cell:hover:not(.empty) {
+          background: rgba(59, 130, 246, 0.08);
+          border-color: var(--accent-primary);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .calendar-date-num {
+          font-size: 0.85rem;
+          font-weight: 800;
+          color: var(--text-dark);
+        }
+
+        .calendar-cell.today .calendar-date-num {
+          color: var(--accent-primary);
+          background: rgba(59, 130, 246, 0.12);
+          padding: 2px 6px;
+          border-radius: 6px;
+          display: inline-block;
+        }
+
+        .calendar-stats-container {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin-top: 8px;
+        }
+
+        .calendar-stat-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 0.68rem;
+          font-weight: 700;
+          border-radius: 4px;
+          padding: 2px 4px;
+        }
+
+        .calendar-stat-item.hadir {
+          color: #10b981;
+          background: rgba(16, 185, 129, 0.08);
+        }
+
+        .calendar-stat-item.absen {
+          color: #ef4444;
+          background: rgba(239, 68, 68, 0.08);
+        }
+
+        .calendar-legend {
+          display: flex;
+          gap: 16px;
+          margin-top: 16px;
+          font-size: 0.72rem;
+          font-weight: 600;
+          color: var(--text-muted);
+          justify-content: flex-end;
+        }
+
+        .calendar-legend-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .calendar-legend-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
         }
       `}</style>
 
@@ -2515,6 +2824,112 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
                 <div style={{ width: '100%', height: '6px', background: 'rgba(165, 182, 141, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
                   <div style={{ width: `${averageAttendanceRate}%`, height: '100%', background: 'linear-gradient(to right, #2ecc71, #27ae60)', borderRadius: '3px' }} />
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly Attendance Calendar */}
+          <div className="calendar-wrapper">
+            <div className="calendar-header">
+              <div className="calendar-title-sec">
+                <h4>
+                  <Calendar size={18} color="var(--accent-primary)" /> Kalender Kehadiran Bulanan
+                </h4>
+                <div className="calendar-clock">
+                  {formatIndonesianDateTime(currentDateTime)}
+                </div>
+              </div>
+
+              <div className="calendar-filters">
+                {/* Outlet filter */}
+                <select 
+                  className="calendar-select"
+                  value={calOutlet}
+                  onChange={(e) => setCalOutlet(e.target.value)}
+                >
+                  <option value="">Semua Outlet</option>
+                  {getActiveOutletsList().map((outletName) => (
+                    <option key={outletName} value={outletName}>
+                      {outletName}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Month filter */}
+                <select 
+                  className="calendar-select"
+                  value={calMonth}
+                  onChange={(e) => setCalMonth(parseInt(e.target.value))}
+                >
+                  {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((mName, idx) => (
+                    <option key={idx} value={idx}>{mName}</option>
+                  ))}
+                </select>
+
+                {/* Year filter */}
+                <select 
+                  className="calendar-select"
+                  value={calYear}
+                  onChange={(e) => setCalYear(parseInt(e.target.value))}
+                >
+                  {Array.from({ length: 21 }, (_, i) => 2020 + i).map((yr) => (
+                    <option key={yr} value={yr}>{yr}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="calendar-grid">
+              {/* Weekday Names */}
+              {['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].map((day) => (
+                <div key={day} className="calendar-day-name">
+                  {day}
+                </div>
+              ))}
+
+              {/* Empty days before 1st of month */}
+              {Array.from({ length: getFirstDayOfMonth(calMonth, calYear) }).map((_, idx) => (
+                <div key={`empty-prev-${idx}`} className="calendar-cell empty"></div>
+              ))}
+
+              {/* Actual days of month */}
+              {Array.from({ length: getDaysInMonth(calMonth, calYear) }).map((_, idx) => {
+                const dayNum = idx + 1;
+                const stats = getStatsForDay(dayNum);
+                const isToday = 
+                  new Date().getDate() === dayNum && 
+                  new Date().getMonth() === calMonth && 
+                  new Date().getFullYear() === calYear;
+
+                return (
+                  <div 
+                    key={`day-${dayNum}`} 
+                    className={`calendar-cell${isToday ? ' today' : ''}`}
+                  >
+                    <span className="calendar-date-num">{dayNum}</span>
+                    <div className="calendar-stats-container">
+                      <div className="calendar-stat-item hadir" title="Jumlah Karyawan Hadir">
+                        <span>✓</span>
+                        <span>{stats.hadir}</span>
+                      </div>
+                      <div className="calendar-stat-item absen" title="Jumlah Karyawan Tidak Hadir / Cuti / Mangkir">
+                        <span>✗</span>
+                        <span>{stats.absen}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="calendar-legend">
+              <div className="calendar-legend-item">
+                <span className="calendar-legend-dot" style={{ background: '#10b981' }}></span>
+                <span>✓ Hadir</span>
+              </div>
+              <div className="calendar-legend-item">
+                <span className="calendar-legend-dot" style={{ background: '#ef4444' }}></span>
+                <span>✗ Tidak Hadir</span>
               </div>
             </div>
           </div>

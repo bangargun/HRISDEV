@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, Plus, FileText, Trash2, Edit, ExternalLink, Filter, Search, Users, CheckCircle, Clock, AlertCircle, Download, Upload, Send } from 'lucide-react';
+import jsPDF from 'jspdf';
 import { getLiveOutletList } from '../utils/outletUtils';
 
 export default function SopPage({ token, API_URL }) {
@@ -32,33 +33,14 @@ export default function SopPage({ token, API_URL }) {
     setCurrentDocPage(1);
   }, [search]);
   
-  const [warningModal, setWarningModal] = useState({
-    isOpen: false,
-    message: '',
-    onConfirm: null
-  });
+  const [warningModal] = useState({ isOpen: false, message: '', onConfirm: null });
 
+  // Silent redirect on auth error (tidak ada popup warning)
   const showWarning = (message) => {
-    let redirected = false;
-    const doRedirect = () => {
-      if (!redirected) {
-        redirected = true;
-        window.location.href = "/login";
-      }
-    };
-    
-    // Auto redirect after 2 seconds
-    const timer = setTimeout(doRedirect, 2000);
-
-    setWarningModal({
-      isOpen: true,
-      message,
-      onConfirm: () => {
-        clearTimeout(timer);
-        doRedirect();
-      }
-    });
+    console.warn('[SOP Auth]', message);
+    setTimeout(() => { window.location.href = '/login'; }, 300);
   };
+
 
   const checkAuthError = (res, data) => {
     if (res.status === 401) {
@@ -186,7 +168,8 @@ export default function SopPage({ token, API_URL }) {
   const loadLocalSops = async () => {
     const localToken = localStorage.getItem('auth_token') || sessionStorage.getItem('token') || token;
     if (!localToken) {
-      showWarning("Sesi Anda telah berakhir. Silakan login kembali untuk mengakses dokumen SOP.");
+      // Token tidak ada — muat dari localStorage saja, tidak redirect
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -801,10 +784,56 @@ export default function SopPage({ token, API_URL }) {
     }
   };
 
+  const handleDownloadPdf = (sop) => {
+    const doc = new jsPDF();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("STANDAR OPERASIONAL PROSEDUR (SOP)", 14, 20);
+    
+    doc.setDrawColor(59, 130, 246);
+    doc.setLineWidth(1);
+    doc.line(14, 24, 196, 24);
+    
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Nomor SOP: ${sop.nomor || '-'}`, 14, 32);
+    doc.text(`Tanggal Terbit: ${sop.created_at ? new Date(sop.created_at).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'}) : '-'}`, 14, 38);
+    
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(14);
+    doc.text(sop.judul, 14, 48);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Berlaku Di: ${Array.isArray(sop.berlaku_di) ? sop.berlaku_di.join(', ') : (sop.berlaku_di || '-')}`, 14, 55);
+    doc.text(`Jabatan Terkait: ${Array.isArray(sop.jabatan_terkait) ? sop.jabatan_terkait.join(', ') : (sop.jabatan_terkait || '-')}`, 14, 61);
+    
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(14, 66, 196, 66);
+    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("KONTEN / PROSEDUR:", 14, 76);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    
+    // Split the text to fit page width
+    const textLines = doc.splitTextToSize(sop.isi_sop || '', 180);
+    doc.text(textLines, 14, 84);
+    
+    doc.save(`SOP_${(sop.judul || 'SOP').replace(/\s+/g, '_')}.pdf`);
+  };
+
   const handleSendSop = async (id) => {
     const localToken = localStorage.getItem('auth_token') || sessionStorage.getItem('token') || token;
     if (!localToken) {
-      showToast('error', 'Sesi berakhir. Silakan login kembali.');
+      window.location.href = '/login';
       return;
     }
     
@@ -842,7 +871,7 @@ export default function SopPage({ token, API_URL }) {
   const handleSendDoc = async (id) => {
     const localToken = localStorage.getItem('auth_token') || sessionStorage.getItem('token') || token;
     if (!localToken) {
-      showToast('error', 'Sesi berakhir. Silakan login kembali.');
+      window.location.href = '/login';
       return;
     }
     
@@ -1379,6 +1408,26 @@ export default function SopPage({ token, API_URL }) {
                               Kirim
                             </button>
                           )}
+                          <button
+                            onClick={() => handleDownloadPdf(s)}
+                            style={{ 
+                              background: 'rgba(16, 185, 129, 0.15)', 
+                              border: 'none', 
+                              color: '#10B981', 
+                              padding: '6px 12px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontSize: '0.8rem', 
+                              fontWeight: 600, 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '4px' 
+                            }}
+                            title="Unduh SOP sebagai berkas PDF"
+                          >
+                            <Download size={14} />
+                            PDF
+                          </button>
                           <button
                             onClick={() => handleEdit(s)}
                             style={{ background: 'var(--primary-glow)', border: 'none', color: 'var(--primary-solid)', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}

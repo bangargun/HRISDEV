@@ -544,6 +544,9 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
     instagram_account: ''
   });
 
+  const [photoBase64, setPhotoBase64] = useState('');
+  const [photoPreview, setPhotoPreview] = useState('');
+
 
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -769,6 +772,8 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
     }
     setEditMode(false);
     setSelectedId(null);
+    setPhotoBase64('');
+    setPhotoPreview('');
     
     const defaultOutlet = outlets.length > 0 ? outlets[0] : '';
     const nextSeq = getNextSequenceNumber();
@@ -847,6 +852,8 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
     }
     setEditMode(true);
     setSelectedId(emp.id);
+    setPhotoBase64('');
+    setPhotoPreview(emp.photo_url ? (emp.photo_url.startsWith('http') ? emp.photo_url : API_URL.replace('/api', '') + emp.photo_url) : '');
 
     if (emp.start_working_date) {
       const parts = emp.start_working_date.split('-');
@@ -1389,6 +1396,26 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                 const data = await res.json();
                 if (data.status === 'success') {
                   apiSuccess = true;
+                  if (photoBase64) {
+                    try {
+                      const resPhoto = await fetch(`${API_URL}/employees/${selectedId}/photo`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ photo: photoBase64 })
+                      });
+                      if (resPhoto.status === 200) {
+                        const dPhoto = await resPhoto.json();
+                        if (dPhoto.status === 'success' && dPhoto.data && dPhoto.data.photoUrl) {
+                          updatedEmp.photo_url = dPhoto.data.photoUrl;
+                        }
+                      }
+                    } catch (photoErr) {
+                      console.error('Failed to upload photo during update:', photoErr);
+                    }
+                  }
                 } else {
                   setErrorMsg(data.message || 'Gagal memperbarui data karyawan di server.');
                   showToast('error', data.message || 'Gagal di server.');
@@ -1483,6 +1510,26 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                 apiSuccess = true;
                 if (data.data && data.data.employeeId) {
                   finalEmp.id = data.data.employeeId; // Assign real database integer ID
+                  if (photoBase64) {
+                    try {
+                      const resPhoto = await fetch(`${API_URL}/employees/${finalEmp.id}/photo`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ photo: photoBase64 })
+                      });
+                      if (resPhoto.status === 200) {
+                        const dPhoto = await resPhoto.json();
+                        if (dPhoto.status === 'success' && dPhoto.data && dPhoto.data.photoUrl) {
+                          finalEmp.photo_url = dPhoto.data.photoUrl;
+                        }
+                      }
+                    } catch (photoErr) {
+                      console.error('Failed to upload photo during registration:', photoErr);
+                    }
+                  }
                 }
               } else {
                 setErrorMsg(data.message || 'Gagal mendaftarkan karyawan baru di server.');
@@ -2050,6 +2097,69 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
               <div className="glass-card" style={{ padding: '24px', background: 'rgba(15, 23, 42, 0.4)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
                 <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary-solid)', textTransform: 'uppercase', marginBottom: '16px', letterSpacing: '0.5px' }}>INFORMASI PRIBADI</h3>
                 
+                {/* Unggah Foto Profil */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px' }}>
+                  <div style={{
+                    width: '110px',
+                    height: '110px',
+                    borderRadius: '10px',
+                    border: '2px dashed var(--accent-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    background: 'rgba(0,0,0,0.2)',
+                    marginBottom: '10px',
+                    position: 'relative'
+                  }}>
+                    {photoPreview ? (
+                      <img 
+                        src={photoPreview} 
+                        alt="Foto Profil" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      />
+                    ) : (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.72rem', padding: '10px' }}>
+                        Belum Ada Foto
+                      </div>
+                    )}
+                  </div>
+                  <input 
+                    type="file" 
+                    id="employee-photo-input"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setPhotoBase64(reader.result);
+                          setPhotoPreview(reader.result);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    style={{ display: 'none' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('employee-photo-input').click()}
+                    style={{
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      color: 'var(--accent-primary)',
+                      border: '1px solid var(--accent-primary)',
+                      borderRadius: '8px',
+                      padding: '6px 12px',
+                      fontSize: '0.78rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Unggah Foto Profil
+                  </button>
+                </div>
+
                 <div className="input-group" style={{ marginBottom: '16px' }}>
                   <label>ID KARYAWAN (OTOMATIS)</label>
                   <input 
@@ -2911,7 +3021,33 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                         )}
                         {visibleColumns.full_name && (
                           <td className={!visibleColumns.employee_id ? 'sticky-col-1' : 'sticky-col-2'} style={{ color: isInactive ? '#ffffff' : 'inherit' }}>
-                            {toTitleCase(emp.full_name)}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                overflow: 'hidden',
+                                background: 'rgba(165,182,141,0.2)',
+                                border: '1px solid var(--border-color)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                {emp.photo_url ? (
+                                  <img 
+                                    src={emp.photo_url.startsWith('http') ? emp.photo_url : API_URL.replace('/api', '') + emp.photo_url} 
+                                    alt="" 
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                  />
+                                ) : (
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>
+                                    {(emp.full_name || 'K').charAt(0).toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                              <span>{toTitleCase(emp.full_name)}</span>
+                            </div>
                           </td>
                         )}
                         {visibleColumns.nickname && (

@@ -28,8 +28,20 @@ export default function Attendances({ token, API_URL }) {
   const [availableOutlets, setAvailableOutlets] = useState([]);
 
   // ─── NAVIGATION STATE ──────────────────────────────────────────────────────
-  const [activeSubTab, setActiveSubTab] = useState('realtime');
-  // 'realtime' | 'history' | 'recap' | 'break_schedule' | 'break_eval'
+  const [activeSubTab, setActiveSubTab] = useState('attendance');
+  // 'attendance' | 'break_schedule' | 'break_eval' | 'peak_days'
+
+  // ─── PAPAN INPUT KEHADIRAN (Tab Kehadiran Karyawan) ─────────────────────────
+  const [showInputBoard, setShowInputBoard] = useState(false);
+  const [inputBoardDate, setInputBoardDate] = useState(new Date().toISOString().split('T')[0]);
+  const [inputBoardOutlet, setInputBoardOutlet] = useState('');
+  const [inputBoardRows, setInputBoardRows] = useState([]);
+  const [showAttPreview, setShowAttPreview] = useState(false);
+  const [attFilterOutlet, setAttFilterOutlet] = useState('');
+  const [attFilterStatus, setAttFilterStatus] = useState('');
+  const [attFilterMonth, setAttFilterMonth] = useState(new Date().getMonth() + 1);
+  const [attFilterYear, setAttFilterYear] = useState(new Date().getFullYear());
+  const [attFilterDate, setAttFilterDate] = useState('');
 
   // ─── REALTIME FILTERS (reactive — no confirm dialog) ───────────────────────
   const [searchRealtime, setSearchRealtime]   = useState('');
@@ -385,6 +397,127 @@ export default function Attendances({ token, API_URL }) {
     if (e < s) e += 1440;
     const outlet = resolveOutlet(log);
     return Math.max(0, (e - s) - getOfficialBreakDuration(outlet));
+  };
+
+  // ─── STATUS KEHADIRAN OTOMATIS ─────────────────────────────────────────────
+  const getAttendanceStatus = (log) => {
+    if (!log) return '-';
+    // Karyawan absen dari leaves approved
+    if (log._fromLeave || log.status_in === 'leave_approved') {
+      return log.leave_type || log.jenis_absen || 'Tidak Hadir';
+    }
+    // Absen manual
+    if (log.realtimeStatus === 'absen' || log.status_in === 'absent' || log.is_absent) {
+      return log.leave_type || 'Absen';
+    }
+    const clockInMins = parseToMinutes(log.jam_masuk || log.clock_in || '');
+    const clockOutMins = parseToMinutes(log.jam_keluar || log.clock_out || '');
+    const policyOut = getPolicyClockOutTime(resolveOutlet(log));
+    const policyOutMins = parseToMinutes(policyOut);
+    // Setengah hari: pulang sebelum jam keluar policy
+    if (clockOutMins > 0 && clockInMins > 0) {
+      let co = clockOutMins, po = policyOutMins;
+      if (po < parseToMinutes('12:00')) po += 1440;
+      if (co < parseToMinutes('12:00') && co > 0) co += 1440;
+      if (co < po - 60) return 'Setengah Hari';
+    }
+    // Terlambat: masuk > 10:00
+    const masukLimit = 10 * 60; // 10:00 = 600 menit
+    if (clockInMins > masukLimit) return 'Hadir & Terlambat';
+    return 'Hadir & Tepat Waktu';
+  };
+
+  const getMenitTerlambat = (log) => {
+    const clockIn = log.jam_masuk || log.clock_in || '';
+    if (!clockIn) return 0;
+    const masukMins = parseToMinutes(clockIn);
+    const limitMins = 10 * 60;
+    return Math.max(0, masukMins - limitMins);
+  };
+
+  const getBreakDurationStr = (log) => {
+    const s = log.jam_mulai_istirahat || log.jam_mulai_istirahat || '';
+    const e = log.jam_akhir_istirahat || log.jam_akhir_istirahat || '';
+    if (!s || !e) return '-';
+    let sm = parseToMinutes(s), em = parseToMinutes(e);
+    if (em < sm) em += 1440;
+    const diff = em - sm;
+    if (diff <= 0) return '-';
+    return `${Math.floor(diff/60)}j ${diff%60}m`;
+  };
+
+  // ─── PAPAN INPUT: generate karyawan dari outlet ─────────────────────────────
+  const generateInputBoardRows = (outlet) => {
+    if (!outlet) { setInputBoardRows([]); return; }
+    // Ambil leaves yang sudah approved
+    const leaves = JSON.parse(localStorage.getItem('hris_leaves') || '[]');
+    const approvedLeaveNames = new Set(
+      leaves
+        .filter(l => l.status === 'approved' || l.status === 'APPROVED')
+        .filter(l => {
+          const d = new Date(inputBoardDate);
+          const from = l.start_date ? new Date(l.start_date) : null;
+          const to = l.end_date ? new Date(l.end_date) : from;
+          return from && d >= from && d <= (to || from);
+        })
+        .map(l => (l.employee_name || l.nama_karyawan || '').toLowerCase().trim())
+    );
+
+    const outletEmps = employees.filter(e =>
+      (e.outlet || '').toUpperCase().trim() === outlet.toUpperCase().trim() &&
+      (e.employee_status || e.status || '').toLowerCase() === 'active'
+    );
+
+    const rows = outletEmps
+      .filter(e => !approvedLeaveNames.has((e.full_name || e.nama || '').toLowerCase().trim()))
+      .map(e => ({
+        emp_id: e.id,
+        emp_name: e.full_name || e.nama || '',
+        jabatan: e.jabatan || e.position || '',
+        status: 'hadir',
+        jam_masuk: '10:00',
+        jam_keluar: '',
+      }));
+    setInputBoardRows(rows);
+  };
+
+  const updateInputRow = (idx, field, value) => {
+    setInputBoardRows(prev => prev.map((r, i) =>
+      i === idx ? { ...r, [field]: value } : r
+    ));
+  };
+
+  const handleSaveInputBoard = () => {
+    if (!inputBoardOutlet) { showToast('error', 'Pilih outlet terlebih dahulu.'); return; }
+    if (inputBoardRows.length === 0) { showToast('error', 'Tidak ada karyawan untuk disimpan.'); return; }
+    setShowAttPreview(true);
+  };
+
+  const handleConfirmInputBoard = () => {
+    const existing = JSON.parse(localStorage.getItem('hris_attendances_realtime') || '[]');
+    const newLogs = inputBoardRows.map(row => ({
+      id: `att-${Date.now()}-${row.emp_id}`,
+      employee_id: row.emp_id,
+      full_name: row.emp_name,
+      nama_karyawan: row.emp_name,
+      jabatan: row.jabatan,
+      outlet: inputBoardOutlet,
+      tanggal: inputBoardDate,
+      jam_masuk: row.status === 'absen' ? '' : row.jam_masuk,
+      jam_keluar: row.status === 'absen' ? '' : row.jam_keluar,
+      realtimeStatus: row.status,
+      status_in: row.status === 'absen' ? 'absent' : 'ontime',
+      sent_status: 'sent',
+      created_at: new Date().toISOString(),
+    }));
+    const updated = [...existing, ...newLogs];
+    localStorage.setItem('hris_attendances_realtime', JSON.stringify(updated));
+    setRealtimeLogs(updated);
+    setShowAttPreview(false);
+    setShowInputBoard(false);
+    setInputBoardRows([]);
+    setInputBoardOutlet('');
+    showToast('success', `✅ ${newLogs.length} data kehadiran berhasil disimpan dan dikirim ke mobile APK!`);
   };
 
   // ─── AUTO-POPULATE TIMES IN REALTIME MODAL ─────────────────────────────────
@@ -855,11 +988,9 @@ export default function Attendances({ token, API_URL }) {
     </div>
   );
 
-  // ─── TABS CONFIG ───────────────────────────────────────────────────────────
+  // ─── TABS CONFIG (4 Tab Baru) ───────────────────────────────────────────────
   const tabs = [
-    { id:'realtime',       label:'Kehadiran Real Time',       emoji:'📅' },
-    { id:'history',        label:'Riwayat Lengkap',           emoji:'📜' },
-    { id:'recap',          label:'Rekapan Kehadiran',         emoji:'📊' },
+    { id:'attendance',     label:'Kehadiran Karyawan',        emoji:'📋' },
     { id:'break_schedule', label:'Jadwal Istirahat',          emoji:'🕒' },
     { id:'break_eval',     label:'Evaluasi Denda Istirahat',  emoji:'💸' },
     { id:'peak_days',      label:'Master Hari Sibuk',         emoji:'🗓️' },
@@ -900,7 +1031,346 @@ export default function Attendances({ token, API_URL }) {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 1: KEHADIRAN REAL TIME
+          TAB 1: KEHADIRAN KARYAWAN
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeSubTab === 'attendance' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
+
+          {/* Tombol Tambahkan Kehadiran */}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <h3 style={{ fontSize:'1rem', fontWeight:700, color:'var(--text-main)', margin:0 }}>📋 Data Kehadiran Karyawan</h3>
+            <button
+              onClick={() => { setShowInputBoard(true); setInputBoardRows([]); setInputBoardOutlet(''); }}
+              style={{ background:'var(--primary-solid)', color:'#fff', border:'none', borderRadius:'10px',
+                padding:'10px 20px', fontWeight:700, fontSize:'0.85rem', cursor:'pointer',
+                display:'flex', alignItems:'center', gap:'8px', boxShadow:'0 4px 12px rgba(59,130,246,0.3)' }}
+            >
+              <Plus size={16}/> Tambahkan Kehadiran Karyawan
+            </button>
+          </div>
+
+          {/* Filter Bar */}
+          <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'center',
+            background:'var(--bg-card)', border:'1px solid var(--border-color)', borderRadius:'12px', padding:'12px 16px' }}>
+            <Filter size={15} color='var(--text-muted)'/>
+            <select value={attFilterOutlet} onChange={e=>setAttFilterOutlet(e.target.value)}
+              style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
+                background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px', minWidth:'160px' }}>
+              <option value=''>Semua Outlet</option>
+              {availableOutlets.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+            <input type='date' value={attFilterDate} onChange={e=>setAttFilterDate(e.target.value)}
+              style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
+                background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px' }}/>
+            <select value={attFilterMonth} onChange={e=>setAttFilterMonth(Number(e.target.value))}
+              style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
+                background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px' }}>
+              {BULAN.map((b,i)=><option key={i+1} value={i+1}>{b}</option>)}
+            </select>
+            <select value={attFilterYear} onChange={e=>setAttFilterYear(Number(e.target.value))}
+              style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
+                background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px' }}>
+              {Array.from({length:20},(_,i)=>2020+i).map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+            <select value={attFilterStatus} onChange={e=>setAttFilterStatus(e.target.value)}
+              style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
+                background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px', minWidth:'160px' }}>
+              <option value=''>Semua Status</option>
+              <option value='Hadir & Tepat Waktu'>Hadir & Tepat Waktu</option>
+              <option value='Hadir & Terlambat'>Hadir & Terlambat</option>
+              <option value='Setengah Hari'>Setengah Hari</option>
+              <option value='Absen'>Absen</option>
+            </select>
+          </div>
+
+          {/* Tabel Kehadiran */}
+          <div style={{ background:'var(--bg-card)', border:'1px solid var(--border-color)', borderRadius:'14px', overflow:'hidden' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 18px', borderBottom:'1px solid var(--border-color)' }}>
+              <span style={{ fontWeight:700, fontSize:'0.92rem', color:'var(--text-main)' }}>📄 Tabel Kehadiran Karyawan</span>
+              <button onClick={() => {
+                const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+                doc.setFontSize(14); doc.text('Laporan Kehadiran Karyawan', 14, 15);
+                const filtered = realtimeLogs.filter(l => {
+                  if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
+                  return true;
+                });
+                autoTable(doc, {
+                  startY: 22, styles:{fontSize:7.5},
+                  head: [['No','Nama','Outlet','Tanggal','Jam Masuk','Jam Keluar','Status Kehadiran','Durasi Kerja','Terlambat (menit)','Status Kirim']],
+                  body: filtered.map((l,i) => [
+                    i+1, l.full_name||l.nama_karyawan||'-', l.outlet||'-',
+                    l.tanggal||l.date||'-', l.jam_masuk||l.clock_in||'-', l.jam_keluar||l.clock_out||'-',
+                    getAttendanceStatus(l),
+                    calculateWorkDuration(l.jam_masuk||l.clock_in, l.jam_keluar||l.clock_out, l.jam_mulai_istirahat, l.jam_akhir_istirahat),
+                    getMenitTerlambat(l) > 0 ? getMenitTerlambat(l) : '-',
+                    l.sent_status === 'sent' ? 'Terkirim' : 'Belum'
+                  ])
+                });
+                doc.save(`kehadiran_karyawan_${new Date().toISOString().slice(0,10)}.pdf`);
+              }} style={{ background:'var(--primary-solid)', color:'#fff', border:'none', borderRadius:'8px',
+                padding:'7px 14px', fontWeight:600, fontSize:'0.78rem', cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
+                <FileText size={14}/> Download PDF
+              </button>
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.8rem' }}>
+                <thead>
+                  <tr style={{ background:'var(--bg-main)' }}>
+                    {['No','Nama Karyawan','Outlet','Tanggal','Jam Masuk','Jam Keluar','Status Kehadiran','Durasi Kerja','Durasi Istirahat','Terlambat','Status Kirim','Aksi']
+                      .map(h => <th key={h} style={{ padding:'10px 12px', textAlign:'left', fontWeight:700, fontSize:'0.73rem', textTransform:'uppercase', color:'var(--text-muted)', whiteSpace:'nowrap' }}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {realtimeLogs
+                    .filter(l => {
+                      if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
+                      if (attFilterDate && (l.tanggal||l.date||'') !== attFilterDate) return false;
+                      if (attFilterStatus) { const s = getAttendanceStatus(l); if (!s.toLowerCase().includes(attFilterStatus.toLowerCase())) return false; }
+                      const d = new Date(l.tanggal||l.date||l.created_at||'');
+                      if (!isNaN(d.getTime())) {
+                        if (attFilterMonth && d.getMonth()+1 !== attFilterMonth) return false;
+                        if (attFilterYear && d.getFullYear() !== attFilterYear) return false;
+                      }
+                      return true;
+                    })
+                    .map((log, idx) => {
+                      const status = getAttendanceStatus(log);
+                      const terlambat = getMenitTerlambat(log);
+                      const statusColor = status.includes('Tepat') ? '#10b981' : status.includes('Terlambat') ? '#f59e0b' : status.includes('Setengah') ? '#a78bfa' : '#ef4444';
+                      return (
+                        <tr key={log.id||idx} style={{ borderTop:'1px solid var(--border-color)', background: idx%2===0?'transparent':'rgba(59,130,246,0.02)' }}>
+                          <td style={{ padding:'10px 12px' }}>{idx+1}</td>
+                          <td style={{ padding:'10px 12px', fontWeight:600 }}>{log.full_name||log.nama_karyawan||'-'}</td>
+                          <td style={{ padding:'10px 12px' }}>{log.outlet||'-'}</td>
+                          <td style={{ padding:'10px 12px' }}>{log.tanggal||log.date||'-'}</td>
+                          <td style={{ padding:'10px 12px' }}>{log.jam_masuk||log.clock_in||'-'}</td>
+                          <td style={{ padding:'10px 12px' }}>{log.jam_keluar||log.clock_out||'-'}</td>
+                          <td style={{ padding:'10px 12px' }}>
+                            <span style={{ padding:'3px 8px', borderRadius:'20px', fontSize:'0.72rem', fontWeight:700, background:`${statusColor}18`, color:statusColor, border:`1px solid ${statusColor}40` }}>{status}</span>
+                          </td>
+                          <td style={{ padding:'10px 12px' }}>{calculateWorkDuration(log.jam_masuk||log.clock_in, log.jam_keluar||log.clock_out, log.jam_mulai_istirahat, log.jam_akhir_istirahat)}</td>
+                          <td style={{ padding:'10px 12px' }}>{getBreakDurationStr(log)}</td>
+                          <td style={{ padding:'10px 12px', color: terlambat > 0 ? '#f59e0b' : 'var(--text-muted)' }}>
+                            {terlambat > 0 ? `+${terlambat} menit` : '-'}
+                          </td>
+                          <td style={{ padding:'10px 12px' }}>
+                            <span style={{ padding:'3px 8px', borderRadius:'20px', fontSize:'0.71rem', fontWeight:600,
+                              background: log.sent_status === 'sent' ? 'rgba(16,185,129,0.12)' : 'rgba(100,116,139,0.12)',
+                              color: log.sent_status === 'sent' ? '#10b981' : '#64748b',
+                              border: `1px solid ${log.sent_status === 'sent' ? '#10b98140' : '#64748b40'}` }}>
+                              {log.sent_status === 'sent' ? '✅ Terkirim' : '⏳ Belum'}
+                            </span>
+                          </td>
+                          <td style={{ padding:'10px 12px' }}>
+                            <div style={{ display:'flex', gap:'6px' }}>
+                              <button onClick={() => showToast('success', 'Fitur edit kehadiran tersedia di tab ini.')
+                              } style={{ background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', color:'#3B82F6', borderRadius:'6px', padding:'4px 8px', fontSize:'0.72rem', cursor:'pointer', fontWeight:600 }}>Edit</button>
+                              <button onClick={() => {
+                                if (!window.confirm('Hapus data kehadiran ini?')) return;
+                                const updated = realtimeLogs.filter(r => r.id !== log.id);
+                                setRealtimeLogs(updated);
+                                localStorage.setItem('hris_attendances_realtime', JSON.stringify(updated));
+                                showToast('success', 'Data kehadiran dihapus.');
+                              }} style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', color:'#ef4444', borderRadius:'6px', padding:'4px 8px', fontSize:'0.72rem', cursor:'pointer', fontWeight:600 }}>Hapus</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+              {realtimeLogs.filter(l => {
+                if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
+                return true;
+              }).length === 0 && (
+                <div style={{ textAlign:'center', padding:'40px', color:'var(--text-muted)', fontSize:'0.88rem' }}>📋 Belum ada data kehadiran.</div>
+              )}
+            </div>
+          </div>
+
+          {/* ── PAPAN INPUT MODAL ── */}
+          {showInputBoard && (
+            <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.55)', zIndex:9000,
+              display:'flex', alignItems:'flex-start', justifyContent:'center', overflowY:'auto', padding:'30px 16px' }}>
+              <div style={{ background:'var(--bg-surface)', border:'2px solid var(--accent-primary)', borderRadius:'18px',
+                width:'100%', maxWidth:'800px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', animation:'scaleUp 0.3s ease' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                  padding:'18px 24px', borderBottom:'1px solid var(--border-color)',
+                  background:'linear-gradient(135deg,rgba(59,130,246,0.08),transparent)', borderRadius:'18px 18px 0 0' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                    <span style={{ fontSize:'1.3rem' }}>📋</span>
+                    <div>
+                      <h3 style={{ margin:0, fontSize:'1rem', fontWeight:800, color:'var(--text-main)' }}>Tambahkan Kehadiran Karyawan</h3>
+                      <p style={{ margin:0, fontSize:'0.78rem', color:'var(--text-muted)' }}>Isi data kehadiran berdasarkan outlet dan tanggal</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowInputBoard(false)} style={{ background:'transparent', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:'4px' }}><X size={20}/></button>
+                </div>
+
+                <div style={{ padding:'24px', display:'flex', flexDirection:'column', gap:'16px' }}>
+                  {/* Tanggal & Outlet */}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+                    <div>
+                      <label style={{ fontSize:'0.82rem', fontWeight:600, color:'var(--text-muted)', display:'block', marginBottom:'6px' }}>📅 Tanggal Kehadiran</label>
+                      <input type='date' value={inputBoardDate}
+                        min='2020-01-01' max='2040-12-31'
+                        onChange={e => setInputBoardDate(e.target.value)}
+                        style={{ width:'100%', height:'40px', border:'1px solid var(--border-color)', borderRadius:'8px',
+                          background:'var(--bg-main)', color:'var(--text-main)', padding:'0 12px', fontSize:'0.88rem' }}/>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:'0.82rem', fontWeight:600, color:'var(--text-muted)', display:'block', marginBottom:'6px' }}>🏪 Pilih Outlet</label>
+                      <select value={inputBoardOutlet}
+                        onChange={e => { setInputBoardOutlet(e.target.value); generateInputBoardRows(e.target.value); }}
+                        style={{ width:'100%', height:'40px', border:'1px solid var(--border-color)', borderRadius:'8px',
+                          background:'var(--bg-main)', color:'var(--text-main)', padding:'0 12px', fontSize:'0.88rem' }}>
+                        <option value=''>-- Pilih Outlet --</option>
+                        {availableOutlets.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Tabel Input Karyawan */}
+                  {inputBoardRows.length > 0 ? (
+                    <div style={{ border:'1px solid var(--border-color)', borderRadius:'10px', overflow:'hidden' }}>
+                      <div style={{ overflowX:'auto' }}>
+                        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.82rem' }}>
+                          <thead>
+                            <tr style={{ background:'rgba(59,130,246,0.08)' }}>
+                              {['Nama Karyawan','Jabatan','Status','Jam Masuk','Jam Keluar'].map(h =>
+                                <th key={h} style={{ padding:'10px 12px', textAlign:'left', fontWeight:700, fontSize:'0.73rem', textTransform:'uppercase', color:'#3B82F6', whiteSpace:'nowrap' }}>{h}</th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {inputBoardRows.map((row, idx) => (
+                              <tr key={idx} style={{ borderTop:'1px solid var(--border-color)' }}>
+                                <td style={{ padding:'10px 12px', fontWeight:600 }}>{row.emp_name}</td>
+                                <td style={{ padding:'10px 12px', color:'var(--text-muted)', fontSize:'0.78rem' }}>{row.jabatan||'-'}</td>
+                                <td style={{ padding:'10px 12px' }}>
+                                  <select value={row.status} onChange={e => updateInputRow(idx,'status',e.target.value)}
+                                    style={{ height:'32px', border:'1px solid var(--border-color)', borderRadius:'6px',
+                                      background:row.status==='hadir'?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)',
+                                      color:row.status==='hadir'?'#10b981':'#ef4444', fontWeight:700, padding:'0 8px', fontSize:'0.8rem' }}>
+                                    <option value='hadir'>Hadir</option>
+                                    <option value='absen'>Absen</option>
+                                  </select>
+                                </td>
+                                <td style={{ padding:'10px 12px' }}>
+                                  {row.status === 'hadir' ? (
+                                    <input type='time' value={row.jam_masuk} onChange={e => updateInputRow(idx,'jam_masuk',e.target.value)}
+                                      style={{ height:'32px', border:'1px solid var(--border-color)', borderRadius:'6px', background:'var(--bg-main)', color:'var(--text-main)', padding:'0 8px', fontSize:'0.8rem' }}/>
+                                  ) : <span style={{ color:'var(--text-muted)', fontSize:'0.78rem' }}>-</span>}
+                                </td>
+                                <td style={{ padding:'10px 12px' }}>
+                                  {row.status === 'hadir' ? (
+                                    <input type='time' value={row.jam_keluar} onChange={e => updateInputRow(idx,'jam_keluar',e.target.value)}
+                                      style={{ height:'32px', border:'1px solid var(--border-color)', borderRadius:'6px', background:'var(--bg-main)', color:'var(--text-main)', padding:'0 8px', fontSize:'0.8rem' }}/>
+                                  ) : <span style={{ color:'var(--text-muted)', fontSize:'0.78rem' }}>-</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : inputBoardOutlet ? (
+                    <div style={{ textAlign:'center', padding:'30px', color:'var(--text-muted)', fontSize:'0.88rem' }}>
+                      ✅ Semua karyawan outlet ini sedang dalam status cuti/izin yang disetujui, atau tidak ada karyawan aktif.
+                    </div>
+                  ) : (
+                    <div style={{ textAlign:'center', padding:'30px', color:'var(--text-muted)', fontSize:'0.88rem' }}>
+                      👆 Pilih outlet untuk menampilkan daftar karyawan
+                    </div>
+                  )}
+
+                  {/* Tombol Aksi */}
+                  <div style={{ display:'flex', gap:'12px', justifyContent:'flex-end' }}>
+                    <button onClick={() => setShowInputBoard(false)}
+                      style={{ padding:'10px 20px', border:'1px solid var(--border-color)', borderRadius:'10px',
+                        background:'transparent', color:'var(--text-muted)', cursor:'pointer', fontWeight:600, fontSize:'0.85rem' }}>Batal</button>
+                    <button onClick={handleSaveInputBoard}
+                      style={{ padding:'10px 24px', background:'var(--primary-solid)', color:'#fff', border:'none',
+                        borderRadius:'10px', fontWeight:700, fontSize:'0.85rem', cursor:'pointer',
+                        boxShadow:'0 4px 12px rgba(59,130,246,0.3)', display:'flex', alignItems:'center', gap:'8px' }}>
+                      <CheckCircle size={16}/> Simpan & Preview
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── PREVIEW SEBELUM KIRIM ── */}
+          {showAttPreview && (
+            <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.65)', zIndex:9500,
+              display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+              <div style={{ background:'var(--bg-surface)', border:'2px solid #10b981', borderRadius:'18px', width:'100%', maxWidth:'680px',
+                boxShadow:'0 20px 60px rgba(0,0,0,0.4)', maxHeight:'80vh', overflow:'auto' }}>
+                <div style={{ padding:'20px 24px', borderBottom:'1px solid var(--border-color)', background:'rgba(16,185,129,0.06)', borderRadius:'18px 18px 0 0' }}>
+                  <h3 style={{ margin:0, fontSize:'1rem', fontWeight:800, color:'#10b981' }}>✅ Preview Data Kehadiran</h3>
+                  <p style={{ margin:'4px 0 0', fontSize:'0.8rem', color:'var(--text-muted)' }}>Periksa data sebelum menyimpan dan mengirim ke mobile APK karyawan</p>
+                </div>
+                <div style={{ padding:'20px 24px' }}>
+                  <div style={{ fontSize:'0.85rem', color:'var(--text-muted)', marginBottom:'12px' }}>
+                    📅 <strong>Tanggal:</strong> {inputBoardDate} &nbsp;|&nbsp;
+                    🏪 <strong>Outlet:</strong> {inputBoardOutlet} &nbsp;|&nbsp;
+                    👥 <strong>Total:</strong> {inputBoardRows.length} karyawan
+                  </div>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.82rem' }}>
+                    <thead>
+                      <tr style={{ background:'rgba(16,185,129,0.08)' }}>
+                        {['Nama','Status','Jam Masuk','Jam Keluar','Status Kehadiran'].map(h =>
+                          <th key={h} style={{ padding:'8px 12px', textAlign:'left', fontWeight:700, color:'#10b981', fontSize:'0.73rem', textTransform:'uppercase' }}>{h}</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inputBoardRows.map((row,idx) => {
+                        const fakeLog = { jam_masuk: row.jam_masuk, jam_keluar: row.jam_keluar, realtimeStatus: row.status, outlet: inputBoardOutlet };
+                        const s = row.status === 'absen' ? 'Absen' : getAttendanceStatus(fakeLog);
+                        const sColor = s.includes('Tepat') ? '#10b981' : s.includes('Terlambat') ? '#f59e0b' : s === 'Absen' ? '#ef4444' : '#a78bfa';
+                        return (
+                          <tr key={idx} style={{ borderTop:'1px solid var(--border-color)' }}>
+                            <td style={{ padding:'8px 12px', fontWeight:600 }}>{row.emp_name}</td>
+                            <td style={{ padding:'8px 12px' }}>
+                              <span style={{ padding:'2px 8px', borderRadius:'20px', fontSize:'0.72rem', fontWeight:700,
+                                background: row.status==='hadir'?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)',
+                                color: row.status==='hadir'?'#10b981':'#ef4444' }}>
+                                {row.status === 'hadir' ? 'Hadir' : 'Absen'}
+                              </span>
+                            </td>
+                            <td style={{ padding:'8px 12px' }}>{row.status==='absen'?'-':row.jam_masuk||'-'}</td>
+                            <td style={{ padding:'8px 12px' }}>{row.status==='absen'?'-':row.jam_keluar||'-'}</td>
+                            <td style={{ padding:'8px 12px' }}>
+                              <span style={{ padding:'2px 8px', borderRadius:'20px', fontSize:'0.72rem', fontWeight:700,
+                                background:`${sColor}18`, color:sColor, border:`1px solid ${sColor}40` }}>{s}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ padding:'16px 24px', borderTop:'1px solid var(--border-color)', display:'flex', gap:'12px', justifyContent:'flex-end' }}>
+                  <button onClick={() => setShowAttPreview(false)}
+                    style={{ padding:'10px 20px', border:'1px solid var(--border-color)', borderRadius:'10px',
+                      background:'transparent', color:'var(--text-muted)', cursor:'pointer', fontWeight:600, fontSize:'0.85rem' }}>Edit Lagi</button>
+                  <button onClick={handleConfirmInputBoard}
+                    style={{ padding:'10px 24px', background:'#10b981', color:'#fff', border:'none',
+                      borderRadius:'10px', fontWeight:700, fontSize:'0.85rem', cursor:'pointer',
+                      boxShadow:'0 4px 12px rgba(16,185,129,0.35)', display:'flex', alignItems:'center', gap:'8px' }}>
+                    <CheckCircle size={16}/> OK — Simpan & Kirim ke APK
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 1 (LAMA): KEHADIRAN REAL TIME — tersimpan untuk backward compat
       ══════════════════════════════════════════════════════════════════════ */}
       {activeSubTab === 'realtime' && (
         <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>

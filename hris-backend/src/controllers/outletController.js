@@ -19,7 +19,7 @@ export async function getOutlets(req, res) {
 }
 
 export async function createOutlet(req, res) {
-  const { nama, wilayah, alamat, permodalan, status } = req.body;
+  const { nama, wilayah, alamat, permodalan, status, latitude, longitude, radius } = req.body;
 
   if (!nama || !wilayah || !alamat || !permodalan) {
     return res.status(400).json({
@@ -39,20 +39,23 @@ export async function createOutlet(req, res) {
     }
 
     const result = await dbQuery.run(
-      "INSERT INTO outlets (nama, wilayah, alamat, permodalan, status) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO outlets (nama, wilayah, alamat, permodalan, status, latitude, longitude, radius) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       [
         nama.trim(),
         wilayah.trim(),
         alamat.trim(),
         permodalan.trim(),
-        status ? status.trim() : 'active'
+        status ? status.trim() : 'active',
+        latitude !== undefined && latitude !== null && latitude !== '' ? parseFloat(latitude) : null,
+        longitude !== undefined && longitude !== null && longitude !== '' ? parseFloat(longitude) : null,
+        radius !== undefined && radius !== null && radius !== '' ? parseInt(radius, 10) : null
       ]
     );
 
     return res.status(201).json({
       status: 'success',
       message: 'Outlet baru berhasil ditambahkan.',
-      data: { id: result.id, nama, wilayah, alamat, permodalan, status: status || 'active' }
+      data: { id: result.id, nama, wilayah, alamat, permodalan, status: status || 'active', latitude, longitude, radius }
     });
   } catch (error) {
     console.error('createOutlet error:', error.message);
@@ -66,7 +69,7 @@ export async function createOutlet(req, res) {
 
 export async function updateOutlet(req, res) {
   const { id } = req.params;
-  const { nama, wilayah, alamat, permodalan, status } = req.body;
+  const { nama, wilayah, alamat, permodalan, status, latitude, longitude, radius } = req.body;
 
   if (!nama || !wilayah || !alamat || !permodalan) {
     return res.status(400).json({
@@ -94,13 +97,16 @@ export async function updateOutlet(req, res) {
     }
 
     await dbQuery.run(
-      "UPDATE outlets SET nama = ?, wilayah = ?, alamat = ?, permodalan = ?, status = ? WHERE id = ?",
+      "UPDATE outlets SET nama = ?, wilayah = ?, alamat = ?, permodalan = ?, status = ?, latitude = ?, longitude = ?, radius = ? WHERE id = ?",
       [
         nama.trim(),
         wilayah.trim(),
         alamat.trim(),
         permodalan.trim(),
         status ? status.trim() : 'active',
+        latitude !== undefined && latitude !== null && latitude !== '' ? parseFloat(latitude) : null,
+        longitude !== undefined && longitude !== null && longitude !== '' ? parseFloat(longitude) : null,
+        radius !== undefined && radius !== null && radius !== '' ? parseInt(radius, 10) : null,
         id
       ]
     );

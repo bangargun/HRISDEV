@@ -15,6 +15,8 @@ class PrayerService {
   
   static Function(String)? onPrayerTimeArrived;
 
+  static Map<String, String>? get timings => _timings;
+  static String? get currentCity => _currentCity;
   static String get nextPrayerName => _nextPrayerName;
   static String get nextPrayerTime => _nextPrayerTime;
   static String get timeToNextPrayerStr {

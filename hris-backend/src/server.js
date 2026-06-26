@@ -108,6 +108,7 @@ app.use('/api/documentations', docRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/contracts', contractRoutes);
 app.use('/api/informations', informationRoutes);
+app.use('/uploads', express.static(path.resolve('uploads')));
 
 // File-based database for training materials and DISC results
 import fs from 'fs';

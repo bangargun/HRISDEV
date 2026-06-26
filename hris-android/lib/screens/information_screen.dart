@@ -7,7 +7,8 @@ import '../models/models.dart';
 import '../config/api_client.dart';
 
 class InformationScreen extends StatefulWidget {
-  const InformationScreen({super.key});
+  final int initialIndex;
+  const InformationScreen({super.key, this.initialIndex = 0});
 
   @override
   State<InformationScreen> createState() => _InformationScreenState();
@@ -169,6 +170,7 @@ class _InformationScreenState extends State<InformationScreen> {
 
     return DefaultTabController(
       length: 4,
+      initialIndex: widget.initialIndex,
       child: Scaffold(
         backgroundColor: darkBg,
         appBar: AppBar(

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Users, BarChart3, Plus, Trash2, Calendar, Clipboard, 
   MapPin, CheckCircle, AlertTriangle, ShieldAlert, Award, 
-  Clock, Eye, Sparkles, RefreshCw, ChevronRight, CheckSquare, Square
+  Clock, Eye, Sparkles, RefreshCw, ChevronRight, CheckSquare, Square, X
 } from 'lucide-react';
 import { useHRIS } from '../context/HRISContext';
 import jsPDF from 'jspdf';
@@ -10,22 +10,22 @@ import autoTable from 'jspdf-autotable';
 import PDFCompileOverlay from './PDFCompileOverlay';
 
 
-// ─── Palet Warna Resmi (Color Hunt Palette) ──────────────────────────────────
+// ─── Palet Warna Resmi (Menggunakan Light Theme Variables) ───────────────────
 const C = {
-  bg:          '#222831',
-  surface:     '#393E46',
-  cyan:        '#00ADB5',
-  cyanDim:     'rgba(0,173,181,0.12)',
-  cyanBorder:  'rgba(0,173,181,0.3)',
-  text:        '#EEEEEE',
-  muted:       '#9EA8B3',
-  border:      'rgba(238,238,238,0.1)',
-  danger:      '#E05C5C',
-  dangerDim:   'rgba(224,92,92,0.12)',
-  dangerBorder:'rgba(224,92,92,0.3)',
-  success:     '#4ECDC4',
-  successDim:  'rgba(78,205,196,0.12)',
-  warn:        '#F5A623',
+  bg:          'var(--bg-main)',
+  surface:     'var(--bg-surface)',
+  cyan:        'var(--accent-primary)',
+  cyanDim:     'rgba(59, 130, 246, 0.08)',
+  cyanBorder:  'rgba(59, 130, 246, 0.25)',
+  text:        'var(--text-main)',
+  muted:       'var(--text-muted)',
+  border:      'var(--border-color)',
+  danger:      'var(--status-error)',
+  dangerDim:   'rgba(239, 68, 68, 0.1)',
+  dangerBorder:'rgba(239, 68, 68, 0.2)',
+  success:     'var(--status-success)',
+  successDim:  'rgba(16, 185, 129, 0.1)',
+  warn:        'var(--warning)',
 };
 
 // ─── Helper Utils ────────────────────────────────────────────────────────────
@@ -43,6 +43,12 @@ export default function PenilaianKPI({ token, API_URL }) {
   // ─── States ────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState('survei-form'); // 'survei-form', 'hasil-survei', 'kpi-akumulatif', 'leaderboard'
   const [employees, setEmployees] = useState([]);
+
+  // Briefing Log States
+  const [showBriefingModal, setShowBriefingModal] = useState(false);
+  const [briefingModalEmpId, setBriefingModalEmpId] = useState(null);
+  const [briefingModalEmpName, setBriefingModalEmpName] = useState('');
+  const [briefingDaysState, setBriefingDaysState] = useState([]);
   
   // Data State
   const [surveys, setSurveys] = useState([]);
@@ -77,6 +83,78 @@ export default function PenilaianKPI({ token, API_URL }) {
   useEffect(() => {
     setLbPage(1);
   }, [lbSelectedOutlets, lbMonth, lbYear]);
+
+  // ─── Briefing Log Helper Methods ───────────────────────────────────────────
+  const handleOpenBriefingModal = (empId, empName) => {
+    setBriefingModalEmpId(empId);
+    setBriefingModalEmpName(empName);
+    
+    // Generate dates for filterMonth / filterYear
+    const daysInMonth = new Date(filterYear, filterMonth, 0).getDate();
+    const briefingLogs = JSON.parse(localStorage.getItem('hris_briefing_logs') || '[]');
+    const attLogs = JSON.parse(localStorage.getItem('hris_attendances_history') || localStorage.getItem('hris_attendance_history') || localStorage.getItem('attendance_logs') || '[]');
+
+    const days = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      
+      // Check if present
+      const isPresent = attLogs.some(l => {
+        const matchesEmp = String(l.employee_id) === String(empId) || l.nik === employees.find(e => e.id === empId)?.nik;
+        return matchesEmp && l.date === dateStr && (l.clock_in || l.status === 'Hadir' || l.status === 'Terlambat');
+      });
+
+      // Check if briefing completed
+      const logEntry = briefingLogs.find(b => String(b.employee_id) === String(empId) && b.date === dateStr);
+      const completed = logEntry ? logEntry.completed : false;
+
+      days.push({
+        day: d,
+        dateStr,
+        completed,
+        isPresent
+      });
+    }
+
+    setBriefingDaysState(days);
+    setShowBriefingModal(true);
+  };
+
+  const handleSaveBriefing = () => {
+    let briefingLogs = JSON.parse(localStorage.getItem('hris_briefing_logs') || '[]');
+    
+    // Remove existing entries for this employee in the current month
+    briefingLogs = briefingLogs.filter(b => {
+      const matchesEmp = String(b.employee_id) === String(briefingModalEmpId);
+      if (!matchesEmp) return true;
+      const d = new Date(b.date);
+      const inCurrentMonth = d.getMonth() + 1 === Number(filterMonth) && d.getFullYear() === Number(filterYear);
+      return !inCurrentMonth;
+    });
+
+    // Add new entries
+    briefingDaysState.forEach(day => {
+      briefingLogs.push({
+        employee_id: briefingModalEmpId,
+        date: day.dateStr,
+        completed: day.completed
+      });
+    });
+
+    localStorage.setItem('hris_briefing_logs', JSON.stringify(briefingLogs));
+    
+    // Dispatch event to sync state
+    window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'hris_briefing_logs', value: briefingLogs } }));
+
+    setShowBriefingModal(false);
+  };
+
+  const handleAutoCheckPresentDays = () => {
+    setBriefingDaysState(prev => prev.map(d => ({
+      ...d,
+      completed: d.isPresent ? true : d.completed
+    })));
+  };
 
   // ─── Seed Data & Data Loading ──────────────────────────────────────────────
   const loadData = useCallback(() => {
@@ -382,7 +460,7 @@ export default function PenilaianKPI({ token, API_URL }) {
       : employees.filter(e => e.outlet === filterOutlet);
 
     return activeEmps.map(emp => {
-      // 1. Absensi (25%)
+      // 1. Absensi (25% or 20% for Kepala Cabang)
       const empAttLogs = attLogs.filter(l => {
         const d = new Date(l.date || '');
         const matchesEmp = String(l.employee_id) === String(emp.id) || l.nik === emp.nik;
@@ -400,12 +478,10 @@ export default function PenilaianKPI({ token, API_URL }) {
 
       const presentDays = empAttLogs.filter(l => l.clock_in || l.status === 'Hadir' || l.status === 'Terlambat').length;
       const attendancePct = totalWorkingDays > 0 ? Math.min(100, Math.round((presentDays / totalWorkingDays) * 100)) : 0;
-      const weightedAttendance = parseFloat((attendancePct * 0.25).toFixed(1));
 
-      // 2. Keterlambatan (25%)
+      // 2. Keterlambatan / Disiplin (25% or 20% for Kepala Cabang)
       const lateDays = empAttLogs.filter(l => l.status_in === 'late' || l.status === 'Terlambat' || (l.notes && /terlambat|late/i.test(l.notes))).length;
       const disciplinePct = presentDays > 0 ? Math.max(0, Math.round(100 - (lateDays / presentDays) * 100)) : 100;
-      const weightedDiscipline = parseFloat((disciplinePct * 0.25).toFixed(1));
 
       // 3. Survei 360 (30%)
       const empResponses = responses.filter(r => {
@@ -440,8 +516,31 @@ export default function PenilaianKPI({ token, API_URL }) {
         : 80; // default 80 jika kuis kosong
       const weightedQuiz = parseFloat((quizPct * 0.10).toFixed(1));
 
-      // Final Score KPI
-      const finalScore = parseFloat((weightedAttendance + weightedDiscipline + weightedSurvey + weightedTraining + weightedQuiz).toFixed(1));
+      // 6. Briefing Log (Khusus Kepala Cabang - 10% Bobot)
+      const isKepalaCabang = String(emp.position || emp.jabatan || '').toLowerCase().trim().includes('kepala cabang');
+      const briefingLogs = JSON.parse(localStorage.getItem('hris_briefing_logs') || '[]');
+      const empBriefings = briefingLogs.filter(b => {
+        const matchesEmp = String(b.employee_id) === String(emp.id);
+        if (!matchesEmp) return false;
+        const d = new Date(b.date);
+        return d.getMonth() + 1 === Number(filterMonth) && d.getFullYear() === Number(filterYear) && b.completed;
+      });
+      const completedCount = empBriefings.length;
+      const briefingPct = totalWorkingDays > 0 ? Math.min(100, Math.round((completedCount / totalWorkingDays) * 100)) : 0;
+
+      let weightedAttendance, weightedDiscipline, weightedBriefing, finalScore;
+
+      if (isKepalaCabang) {
+        weightedAttendance = parseFloat((attendancePct * 0.20).toFixed(1));
+        weightedDiscipline = parseFloat((disciplinePct * 0.20).toFixed(1));
+        weightedBriefing = parseFloat((briefingPct * 0.10).toFixed(1));
+        finalScore = parseFloat((weightedAttendance + weightedDiscipline + weightedSurvey + weightedTraining + weightedQuiz + weightedBriefing).toFixed(1));
+      } else {
+        weightedAttendance = parseFloat((attendancePct * 0.25).toFixed(1));
+        weightedDiscipline = parseFloat((disciplinePct * 0.25).toFixed(1));
+        weightedBriefing = 0;
+        finalScore = parseFloat((weightedAttendance + weightedDiscipline + weightedSurvey + weightedTraining + weightedQuiz).toFixed(1));
+      }
 
       return {
         id: emp.id,
@@ -458,6 +557,9 @@ export default function PenilaianKPI({ token, API_URL }) {
         weightedTraining,
         quizPct,
         weightedQuiz,
+        isKepalaCabang,
+        briefingPct,
+        weightedBriefing,
         finalScore
       };
     });
@@ -523,13 +625,43 @@ export default function PenilaianKPI({ token, API_URL }) {
         ? Math.round(empQuizzes.reduce((sum, q) => sum + (q.skor || q.score || 0), 0) / empQuizzes.length)
         : 80;
 
-      const finalScore = parseFloat((
-        (attendancePct * 0.25) + 
-        (disciplinePct * 0.25) + 
-        (surveyPct * 0.30) + 
-        (trainingPct * 0.10) + 
-        (quizPct * 0.10)
-      ).toFixed(1));
+      // Briefing Log (Khusus Kepala Cabang - 10% Bobot)
+      const isKepalaCabang = String(emp.position || emp.jabatan || '').toLowerCase().trim().includes('kepala cabang');
+      const briefingLogs = JSON.parse(localStorage.getItem('hris_briefing_logs') || '[]');
+      const empBriefings = briefingLogs.filter(b => {
+        const matchesEmp = String(b.employee_id) === String(emp.id);
+        if (!matchesEmp) return false;
+        const d = new Date(b.date);
+        return d.getMonth() + 1 === Number(lbMonth) && d.getFullYear() === Number(lbYear) && b.completed;
+      });
+      const completedCount = empBriefings.length;
+      const briefingPct = totalWorkingDays > 0 ? Math.min(100, Math.round((completedCount / totalWorkingDays) * 100)) : 0;
+
+      let weightedAttendance, weightedDiscipline, finalScore;
+
+      if (isKepalaCabang) {
+        weightedAttendance = parseFloat((attendancePct * 0.20).toFixed(1));
+        weightedDiscipline = parseFloat((disciplinePct * 0.20).toFixed(1));
+        const weightedBriefing = parseFloat((briefingPct * 0.10).toFixed(1));
+        finalScore = parseFloat((
+          weightedAttendance + 
+          weightedDiscipline + 
+          (surveyPct * 0.30) + 
+          (trainingPct * 0.10) + 
+          (quizPct * 0.10) + 
+          weightedBriefing
+        ).toFixed(1));
+      } else {
+        weightedAttendance = parseFloat((attendancePct * 0.25).toFixed(1));
+        weightedDiscipline = parseFloat((disciplinePct * 0.25).toFixed(1));
+        finalScore = parseFloat((
+          weightedAttendance + 
+          weightedDiscipline + 
+          (surveyPct * 0.30) + 
+          (trainingPct * 0.10) + 
+          (quizPct * 0.10)
+        ).toFixed(1));
+      }
 
       // Dynamic Bonus Recommendation
       let bonusRecommendation = '❌ Tidak Ada Bonus (Pembinaan)';
@@ -604,6 +736,19 @@ export default function PenilaianKPI({ token, API_URL }) {
       try {
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
+        const kpiAccumulativeRowsWithBriefing = (rows) => rows.map(row => [
+          cap(row.name),
+          cap(row.outlet),
+          cap(row.position),
+          `${row.attendancePct}% (+${row.weightedAttendance} Poin)`,
+          `${row.disciplinePct}% (+${row.weightedDiscipline} Poin)`,
+          `${row.surveyPct} Poin (+${row.weightedSurvey} Poin)`,
+          `${row.trainingPct} Poin (+${row.weightedTraining} Poin)`,
+          `${row.quizPct} Poin (+${row.weightedQuiz} Poin)`,
+          row.isKepalaCabang ? `${row.briefingPct}% (+${row.weightedBriefing} Poin)` : '—',
+          `${row.finalScore} Poin`
+        ]);
+
         const writeHeader = (titleText) => {
           doc.setFillColor(0, 0, 0);
           doc.rect(0, 0, 297, 38, 'F');
@@ -644,25 +789,15 @@ export default function PenilaianKPI({ token, API_URL }) {
         // PAGE 2: STANDINGS KPI STAF
         doc.addPage();
         writeHeader('LAPORAN STANDINGS KPI STAF');
-        const tableKpiData = kpiAkumulatifRows.map(row => [
-          cap(row.name),
-          cap(row.outlet),
-          cap(row.position),
-          `${row.attendancePct}% (+${row.weightedAttendance} Poin)`,
-          `${row.disciplinePct}% (+${row.weightedDiscipline} Poin)`,
-          `${row.surveyPct} Poin (+${row.weightedSurvey} Poin)`,
-          `${row.trainingPct} Poin (+${row.weightedTraining} Poin)`,
-          `${row.quizPct} Poin (+${row.weightedQuiz} Poin)`,
-          `${row.finalScore} Poin`
-        ]);
+        const tableKpiData = kpiAccumulativeRowsWithBriefing(kpiAkumulatifRows);
 
         autoTable(doc, {
           startY: 42,
-          head: [[cap('Nama Karyawan'), cap('Outlet'), cap('Jabatan'), cap('Absensi (25%)'), cap('Disiplin (25%)'), cap('Survei 360 (30%)'), cap('Training (10%)'), cap('Kuis (10%)'), cap('Final Score KPI')]],
+          head: [[cap('Nama Karyawan'), cap('Outlet'), cap('Jabatan'), cap('Absensi (25%*)'), cap('Disiplin (25%*)'), cap('Survei 360 (30%)'), cap('Training (10%)'), cap('Kuis (10%)'), cap('Briefing (10%*)'), cap('Final Score KPI')]],
           body: tableKpiData,
           theme: 'grid',
-          styles: { fontSize: 8, cellPadding: 3 },
-          headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+          styles: { fontSize: 7.5, cellPadding: 2.5 },
+          headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
         });
 
         // PAGE 3: LEADERBOARD PERFORMA
@@ -1207,11 +1342,12 @@ export default function PenilaianKPI({ token, API_URL }) {
                     <tr>
                       <th>NAMA KARYAWAN & OUTLET</th>
                       <th>JABATAN</th>
-                      <th style={{ textAlign: 'center' }}>ABSENSI (25%)</th>
-                      <th style={{ textAlign: 'center' }}>DISIPLIN (25%)</th>
+                      <th style={{ textAlign: 'center' }}>ABSENSI (25%*)</th>
+                      <th style={{ textAlign: 'center' }}>DISIPLIN (25%*)</th>
                       <th style={{ textAlign: 'center' }}>SURVEI 360 (30%)</th>
                       <th style={{ textAlign: 'center' }}>TRAINING (10%)</th>
                       <th style={{ textAlign: 'center' }}>KUIS (10%)</th>
+                      <th style={{ textAlign: 'center' }}>BRIEFING (10%*)</th>
                       <th style={{ textAlign: 'center', color: C.cyan }}>FINAL SCORE KPI</th>
                     </tr>
                   </thead>
@@ -1230,18 +1366,48 @@ export default function PenilaianKPI({ token, API_URL }) {
                             )}
                             <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '3px' }}>📍 {row.outlet}</div>
                           </td>
-                          <td style={{ textTransform: 'capitalize', fontWeight: 600 }}>{row.position}</td>
+                          <td style={{ textTransform: 'capitalize', fontWeight: 600 }}>
+                            {row.position}
+                            {row.isKepalaCabang && (
+                              <button
+                                onClick={() => handleOpenBriefingModal(row.id, row.name)}
+                                style={{
+                                  display: 'block',
+                                  marginTop: '6px',
+                                  padding: '4px 8px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  background: 'rgba(59, 130, 246, 0.1)',
+                                  border: '1.5px solid rgba(59, 130, 246, 0.3)',
+                                  borderRadius: '6px',
+                                  color: '#3B82F6',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s'
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
+                                onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
+                              >
+                                📝 Briefing Log
+                              </button>
+                            )}
+                          </td>
                           
                           {/* Absensi */}
                           <td style={{ textAlign: 'center' }}>
                             <div style={{ fontWeight: 700 }}>{row.attendancePct}%</div>
-                            <div style={{ fontSize: '0.68rem', color: C.muted }}>+{row.weightedAttendance} Poin</div>
+                            <div style={{ fontSize: '0.68rem', color: C.muted }}>
+                              +{row.weightedAttendance} Poin
+                              {row.isKepalaCabang && <span style={{ display: 'block', fontSize: '0.6rem', color: C.cyan }}>(Bobot 20%)</span>}
+                            </div>
                           </td>
 
                           {/* Disiplin */}
                           <td style={{ textAlign: 'center' }}>
                             <div style={{ fontWeight: 700 }}>{row.disciplinePct}%</div>
-                            <div style={{ fontSize: '0.68rem', color: C.muted }}>+{row.weightedDiscipline} Poin</div>
+                            <div style={{ fontSize: '0.68rem', color: C.muted }}>
+                              +{row.weightedDiscipline} Poin
+                              {row.isKepalaCabang && <span style={{ display: 'block', fontSize: '0.6rem', color: C.cyan }}>(Bobot 20%)</span>}
+                            </div>
                           </td>
 
                           {/* Survei 360 */}
@@ -1260,6 +1426,18 @@ export default function PenilaianKPI({ token, API_URL }) {
                           <td style={{ textAlign: 'center' }}>
                             <div style={{ fontWeight: 700 }}>{row.quizPct} Poin</div>
                             <div style={{ fontSize: '0.68rem', color: C.muted }}>+{row.weightedQuiz} Poin</div>
+                          </td>
+
+                          {/* Briefing */}
+                          <td style={{ textAlign: 'center' }}>
+                            {row.isKepalaCabang ? (
+                              <>
+                                <div style={{ fontWeight: 700 }}>{row.briefingPct}%</div>
+                                <div style={{ fontSize: '0.68rem', color: C.muted }}>+{row.weightedBriefing} Poin</div>
+                              </>
+                            ) : (
+                              <div style={{ color: C.muted, fontSize: '0.78rem' }}>—</div>
+                            )}
                           </td>
 
                           {/* Final Score */}
@@ -1283,6 +1461,13 @@ export default function PenilaianKPI({ token, API_URL }) {
                 </table>
               </div>
             )}
+            <div style={{ marginTop: '16px', padding: '12px', background: C.bg, borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '0.74rem', color: C.muted, lineHeight: '1.4' }}>
+              💡 <strong>Keterangan Bobot Formula:</strong>
+              <ul style={{ margin: '4px 0 0 0', paddingLeft: '16px' }}>
+                <li><strong>Karyawan / Staf Biasa:</strong> Absensi (25%) + Disiplin (25%) + Survei 360 (30%) + Training (10%) + Kuis (10%)</li>
+                <li><strong>Kepala Cabang:</strong> Absensi (20%) + Disiplin (20%) + Survei 360 (30%) + Training (10%) + Kuis (10%) + Kegiatan Briefing (10%)</li>
+              </ul>
+            </div>
           </div>
         </div>
       )}
@@ -1512,9 +1697,109 @@ export default function PenilaianKPI({ token, API_URL }) {
           </div>
         </div>
       )}
-
       {/* PDF Exporter Compiler Overlay */}
       <PDFCompileOverlay isOpen={isExportingPDF} />
+
+      {/* =======================================================================
+          MODAL 3: INPUT BRIEFING HARIAN (KEPALA CABANG ONLY)
+          ======================================================================= */}
+      {showBriefingModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: C.surface, borderRadius: '16px', border: `2px solid ${C.cyan}`, padding: '24px', width: '600px', maxWidth: '95vw', display: 'flex', flexDirection: 'column', maxHeight: '90vh', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: `1.5px solid ${C.border}`, paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={22} color={C.cyan} />
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: C.text }}>
+                    Briefing Log: {briefingModalEmpName}
+                  </h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '0.74rem', color: C.muted }}>
+                    Periode: {monthsList.find(m => m.value === Number(filterMonth))?.label} {filterYear}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowBriefingModal(false)} 
+                style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', background: C.bg, padding: '10px 14px', borderRadius: '8px', marginBottom: '16px' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: C.text }}>
+                Total Terlaksana: {briefingDaysState.filter(d => d.completed).length} / {briefingDaysState.length} Hari ({Math.round((briefingDaysState.filter(d => d.completed).length / Math.max(1, briefingDaysState.length)) * 100)}%)
+              </span>
+              <button 
+                onClick={handleAutoCheckPresentDays}
+                style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '6px', color: C.success, fontSize: '0.74rem', padding: '5px 10px', cursor: 'pointer', fontWeight: 700 }}
+              >
+                ⚡ Centang Hari Hadir
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px', paddingRight: '6px', marginBottom: '16px' }}>
+              {briefingDaysState.map((day) => {
+                const dateObj = new Date(day.dateStr);
+                const dayName = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][dateObj.getDay()];
+                return (
+                  <div 
+                    key={day.day} 
+                    onClick={() => {
+                      setBriefingDaysState(prev => prev.map(d => d.day === day.day ? { ...d, completed: !d.completed } : d));
+                    }}
+                    style={{ 
+                      background: day.completed ? 'rgba(59, 130, 246, 0.08)' : C.bg, 
+                      border: `1.5px solid ${day.completed ? C.cyan : C.border}`, 
+                      borderRadius: '8px', 
+                      padding: '10px', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      cursor: 'pointer',
+                      position: 'relative',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: C.text }}>Hari {day.day}</span>
+                    <span style={{ fontSize: '0.68rem', color: C.muted, marginTop: '2px' }}>{dayName}, {day.day} {monthsList.find(m => m.value === Number(filterMonth))?.label.slice(0, 3)}</span>
+                    <div style={{ marginTop: '8px' }}>
+                      {day.completed ? (
+                        <span style={{ color: C.success, display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', fontWeight: 700 }}>
+                          ✓ Done
+                        </span>
+                      ) : (
+                        <span style={{ color: C.muted, display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', fontWeight: 500 }}>
+                          ✗ Pending
+                        </span>
+                      )}
+                    </div>
+                    {day.isPresent && (
+                      <span style={{ position: 'absolute', top: '4px', right: '4px', width: '6px', height: '6px', borderRadius: '50%', background: C.success }} title="Hadir kerja" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: `1.5px solid ${C.border}`, paddingTop: '12px' }}>
+              <button 
+                className="action-btn" 
+                style={{ background: 'transparent', border: `1.5px solid ${C.border}`, color: C.muted }} 
+                onClick={() => setShowBriefingModal(false)}
+              >
+                Batal
+              </button>
+              <button className="action-btn btn-cyan" onClick={handleSaveBriefing}>
+                Simpan Briefing Log
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
