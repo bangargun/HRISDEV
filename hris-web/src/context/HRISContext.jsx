@@ -20,7 +20,7 @@ const trackedKeys = new Set([
   'hris_training_results', 'hris_training_materials', 'hris_user_passwords', 
   'hris_custom_usernames', 'hris_user_roles', 'hris_disc_results', 
   'hris_360_ratings', 'hris_payroll_mobile_slips', 'filter_karyawan_state',
-  'user_credentials', 'rbac_settings'
+  'user_credentials', 'rbac_settings', 'organizational_roles'
 ]);
 
 const memoryStorage = {};
@@ -29,6 +29,14 @@ if (typeof window !== 'undefined') {
   const originalGetItem = localStorage.getItem.bind(localStorage);
   const originalSetItem = localStorage.setItem.bind(localStorage);
   const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+
+  // Initialize memoryStorage with existing values from actual localStorage
+  trackedKeys.forEach(key => {
+    const val = originalGetItem(key);
+    if (val !== null) {
+      memoryStorage[key] = val;
+    }
+  });
 
   localStorage.getItem = function(key) {
     if (trackedKeys.has(key)) {
@@ -41,6 +49,7 @@ if (typeof window !== 'undefined') {
     if (trackedKeys.has(key)) {
       memoryStorage[key] = String(value);
       window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key, value } }));
+      originalSetItem(key, value);
       return;
     }
     return originalSetItem(key, value);
@@ -50,6 +59,7 @@ if (typeof window !== 'undefined') {
     if (trackedKeys.has(key)) {
       delete memoryStorage[key];
       window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key, value: null } }));
+      originalRemoveItem(key);
       return;
     }
     return originalRemoveItem(key);
@@ -115,6 +125,8 @@ export const SYNC_MESSAGES = {
   FILTER_CHANGED:   'Menyinkronkan Laporan Card Global & Menyusun Ulang Struktur Dashboard...',
   SYNC_INT:         'Menyinkronkan Integritas Data Lintas Platform...',
   DISPATCH_EVENT:   'Menembakkan Sinyal Event ke Server & Membangunkan Notifikasi Mobile...',
+  ROLE_CHANGED:     'Menyinkronkan Struktur Jabatan & Divisi...',
+  POLICY_CHANGED:   'Menyinkronkan Kebijakan Perusahaan...',
 };
 
 const KEY_TO_ACTION = {
@@ -134,6 +146,8 @@ const KEY_TO_ACTION = {
   'hris_trainings':           'TRAINING_SAVED',
   'hris_training_results':    'TRAINING_SAVED',
   'hris_training_materials':  'TRAINING_SAVED',
+  'organizational_roles':     'ROLE_CHANGED',
+  'corporate_policies':       'POLICY_CHANGED',
 };
 
 const HRISContext = createContext(null);
@@ -167,6 +181,8 @@ export function HRISProvider({ children }) {
   const [targetOmzet, setTargetOmzet]     = useState(() => lsRead('target_omzet_data', []));
   const [dailyRevenue, setDailyRevenue]   = useState(() => lsRead('daily_revenue_logs', []));
   const [targetStaf, setTargetStaf]       = useState(() => lsRead('target_staf_data', []));
+  const [roles, setRoles]                 = useState(() => lsRead('organizational_roles', []));
+  const [policies, setPolicies]           = useState(() => lsRead('corporate_policies', []));
   const [syncStatus, setSyncStatus]       = useState({ active: false, message: '', type: '' });
   const syncTimer = useRef(null);
 
@@ -196,6 +212,10 @@ export function HRISProvider({ children }) {
     } else if (key === 'target_staf_data') {
       // Accept both array and object formats
       setTargetStaf(Array.isArray(parsed) ? parsed : (typeof parsed === 'object' && parsed !== null ? parsed : []));
+    } else if (key === 'organizational_roles') {
+      setRoles(Array.isArray(parsed) ? parsed : []);
+    } else if (key === 'corporate_policies') {
+      setPolicies(Array.isArray(parsed) ? parsed : []);
     }
     const duration = actionType === 'QUIZ_GENERATING' ? 300 : 800;
     triggerSync(actionType, duration);
@@ -454,6 +474,20 @@ export function HRISProvider({ children }) {
         triggerSync('TRAINING_SAVED', duration);
         break;
       }
+      case 'ROLE_CHANGED': {
+        const list = Array.isArray(data) ? data : [];
+        setRoles(list);
+        lsWrite('organizational_roles', list);
+        triggerSync('ROLE_CHANGED', duration);
+        break;
+      }
+      case 'POLICY_CHANGED': {
+        const list = Array.isArray(data) ? data : [];
+        setPolicies(list);
+        lsWrite('corporate_policies', list);
+        triggerSync('POLICY_CHANGED', duration);
+        break;
+      }
       case 'FILTER_CHANGED': {
         triggerSync('FILTER_CHANGED', duration ?? 200);
         break;
@@ -491,9 +525,10 @@ export function HRISProvider({ children }) {
   const value = useMemo(() => ({
     employees, outlets, targetOmzet, dailyRevenue, targetStaf, syncStatus,
     activeEmployees, employeesByOutlet, totalMonthlyRevenue,
+    roles, setRoles, policies, setPolicies,
     dispatch, LS_KEYS, SYNC_MESSAGES, triggerSync
   }), [employees, outlets, targetOmzet, dailyRevenue, targetStaf, syncStatus,
-      activeEmployees, employeesByOutlet, totalMonthlyRevenue, dispatch, triggerSync]);
+      activeEmployees, employeesByOutlet, totalMonthlyRevenue, roles, policies, dispatch, triggerSync]);
 
   return <HRISContext.Provider value={value}>{children}</HRISContext.Provider>;
 }

@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, Plus, FileText, Trash2, Edit, ExternalLink, Filter, Search, Users, CheckCircle, Clock, AlertCircle, Download, Upload, Send } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { getLiveOutletList } from '../utils/outletUtils';
+import { useHRIS } from '../context/HRISContext';
 
 export default function SopPage({ token, API_URL }) {
+  const { roles: ctxRoles, outlets: ctxOutlets } = useHRIS();
   const toTitleCase = (str) => {
     if (!str) return '';
     return str
@@ -123,8 +125,27 @@ export default function SopPage({ token, API_URL }) {
   };
 
   useEffect(() => {
-    setGroupedRoles(loadGroupedRoles());
-  }, []);
+    if (ctxRoles && ctxRoles.length > 0) {
+      const groups = {};
+      ctxRoles.forEach(r => {
+        const div = `[${(r.divisi || '').toUpperCase()}]`;
+        if (!groups[div]) groups[div] = [];
+        if (r.jabatan && !groups[div].includes(r.jabatan)) {
+          groups[div].push(r.jabatan);
+        }
+      });
+      setGroupedRoles(groups);
+    } else {
+      setGroupedRoles(loadGroupedRoles());
+    }
+  }, [ctxRoles]);
+
+  useEffect(() => {
+    if (ctxOutlets && ctxOutlets.length > 0) {
+      const list = ctxOutlets.map(o => o.nama_tablet || `${(o.nama || '').trim()} ${(o.wilayah || '').trim()}`.trim().toUpperCase()).filter(Boolean);
+      setAvailableOutlets(list);
+    }
+  }, [ctxOutlets]);
 
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,

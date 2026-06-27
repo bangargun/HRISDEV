@@ -4,6 +4,7 @@ import {
   AlertCircle, X, ChevronDown, Store
 } from 'lucide-react';
 import { getLiveOutletList } from '../utils/outletUtils';
+import { useHRIS } from '../context/HRISContext';
 import { checkAccess, getRoleFromPosition } from '../utils/security';
 
 // ─── Konstanta Palet (Modern Professional Light Tech) ───────────────────────
@@ -1119,6 +1120,7 @@ const renderDescription = (text) => {
 
 // ─── Komponen Utama ───────────────────────────────────────────────────────────
 export default function PolicyPage({ token, API_URL, userPermissions, user }) {
+  const { policies: ctxPolicies, outlets: ctxOutlets, dispatch: hrisDispatch } = useHRIS();
 
   // ── State data ──
   const [policies, setPolicies]           = useState([]);
@@ -1131,6 +1133,20 @@ export default function PolicyPage({ token, API_URL, userPermissions, user }) {
   useEffect(() => {
     setCurrentPage(1);
   }, [search]);
+
+  useEffect(() => {
+    if (ctxPolicies && ctxPolicies.length > 0) {
+      setPolicies(ctxPolicies);
+      setLoading(false);
+    }
+  }, [ctxPolicies]);
+
+  useEffect(() => {
+    if (ctxOutlets && ctxOutlets.length > 0) {
+      const list = ctxOutlets.map(o => o.nama_tablet || `${(o.nama || '').trim()} ${(o.wilayah || '').trim()}`.trim().toUpperCase()).filter(Boolean);
+      setOutletOptions(list);
+    }
+  }, [ctxOutlets]);
 
   // ── State form modal ──
   const [showModal, setShowModal]             = useState(false);
@@ -1270,6 +1286,7 @@ export default function PolicyPage({ token, API_URL, userPermissions, user }) {
 
     savePolicies(updated);
     setPolicies(updated);
+    hrisDispatch('POLICY_CHANGED', updated);
     syncPoliciesWithBackend(updated);
     recalculateDraftPayrolls(updated, token, API_URL);
     setShowModal(false);
@@ -1290,6 +1307,7 @@ export default function PolicyPage({ token, API_URL, userPermissions, user }) {
         const updated = loadPolicies().filter(p => p.id !== id);
         savePolicies(updated);
         setPolicies(updated);
+        hrisDispatch('POLICY_CHANGED', updated);
         syncPoliciesWithBackend(updated);
         recalculateDraftPayrolls(updated, token, API_URL);
         showToast('success', `🗑️ Kebijakan "${nama}" berhasil dihapus.`);

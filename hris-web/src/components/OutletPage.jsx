@@ -472,6 +472,7 @@ export default function OutletPage({ token, API_URL, user }) {
 
   const persistRoles = (data) => {
     localStorage.setItem('organizational_roles', JSON.stringify(data));
+    hrisDispatch('ROLE_CHANGED', data);
   };
 
   // ── Muat data dari localStorage (sumber utama), fallback ke API ──
