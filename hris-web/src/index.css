@@ -574,3 +574,27 @@ body, header, .sidebar, .glass-card, .main-content, input, select, textarea, but
   animation: pulseText 1.5s ease-in-out infinite;
 }
 
+/* Force all form, modal, and input overlays to position at top-center */
+.confirm-overlay,
+.modal-backdrop,
+.error-modal-overlay,
+div[style*="position: fixed"][style*="display: flex"]:has(input),
+div[style*="position: fixed"][style*="display: flex"]:has(select),
+div[style*="position: fixed"][style*="display: flex"]:has(form),
+div[style*="position: fixed"][style*="display: flex"]:has(.glass-card),
+div[style*="position: fixed"][style*="display: flex"]:has(.confirm-card) {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  padding-top: 60px !important;
+  padding-bottom: 40px !important;
+  overflow-y: auto !important;
+}
+
+/* Ensure the modal cards themselves have clean top margin spacing */
+.confirm-card,
+.modal-content,
+.glass-card {
+  margin-top: 0 !important;
+}
+

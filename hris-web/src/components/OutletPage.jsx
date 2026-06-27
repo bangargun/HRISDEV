@@ -441,8 +441,15 @@ export default function OutletPage({ token, API_URL, user }) {
     try {
       const raw = localStorage.getItem('organizational_roles');
       if (raw) {
-        const parsed = JSON.parse(raw);
+        let parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasKasir = parsed.some(r => r.jabatan.toLowerCase() === 'kasir');
+          if (!hasKasir) {
+            parsed.push({ id: 'role-7', divisi: 'Pelayanan', jabatan: 'Kasir' });
+          } else {
+            parsed = parsed.map(r => r.jabatan.toLowerCase() === 'kasir' ? { ...r, divisi: 'Pelayanan' } : r);
+          }
+          localStorage.setItem('organizational_roles', JSON.stringify(parsed));
           return parsed;
         }
       }
@@ -1772,6 +1779,28 @@ export default function OutletPage({ token, API_URL, user }) {
                     <X size={20} />
                   </button>
                 </div>
+
+                {/* Live Staf Target Preview */}
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(223, 177, 91, 0.15), rgba(16, 23, 38, 0.8))',
+                  border: '1px solid var(--accent-primary)',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  marginBottom: '18px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <div style={{ fontSize: '0.62rem', fontWeight: 800, color: P.cream, textTransform: 'uppercase', letterSpacing: '1px' }}>PREVIEW TARGET STAF</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff' }}>🏠 {formStafOutlet || '—'}</div>
+                  <div style={{ display: 'flex', gap: '12px', fontSize: '0.74rem', color: P.creamMuted, marginTop: '4px' }}>
+                    <span>Periode: <strong>{formStafMonth || '—'} {formStafYear || '—'}</strong></span>
+                    <span>•</span>
+                    <span>Target Staf: <strong style={{ color: P.cream }}>{formStafCount || '0'} Karyawan</strong></span>
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: P.creamMuted }}>NAMA OUTLET</label>
@@ -1867,6 +1896,28 @@ export default function OutletPage({ token, API_URL, user }) {
                     <X size={20} />
                   </button>
                 </div>
+
+                {/* Live Omzet Target Preview */}
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(223, 177, 91, 0.15), rgba(16, 23, 38, 0.8))',
+                  border: '1px solid var(--accent-primary)',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  marginBottom: '18px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <div style={{ fontSize: '0.62rem', fontWeight: 800, color: P.cream, textTransform: 'uppercase', letterSpacing: '1px' }}>PREVIEW TARGET OMZET</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff' }}>🏠 {formOmzetOutlet || '—'}</div>
+                  <div style={{ display: 'flex', gap: '12px', fontSize: '0.74rem', color: P.creamMuted, marginTop: '4px' }}>
+                    <span>Periode: <strong>{formOmzetMonth || '—'} {formOmzetYear || '—'}</strong></span>
+                    <span>•</span>
+                    <span>Target Omzet: <strong style={{ color: P.success }}>{formOmzetAmount ? formatRp(parseFloat(formOmzetAmount)) : 'Rp 0'}</strong></span>
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: P.creamMuted }}>NAMA OUTLET</label>
@@ -1986,20 +2037,29 @@ export default function OutletPage({ token, API_URL, user }) {
               </div>
             )}
 
-            {/* Preview Nama Tablet */}
-            {(formNama || formWilayah) && (
-              <div style={{
-                background: 'rgba(65,45,21,0.3)', border: `1px dashed ${P.accent}`,
-                borderRadius: '8px', padding: '10px 14px', marginBottom: '18px',
-              }}>
-                <div style={{ fontSize: '0.68rem', color: P.creamMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '3px' }}>
-                  Preview Nama Tablet (Pengenal Unik):
-                </div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: P.cream }}>
-                  🔗 {getNamaTablet({ nama: formNama, wilayah: formWilayah }) || '—'}
-                </div>
+            {/* Live Outlet Card Preview */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(223, 177, 91, 0.15), rgba(16, 23, 38, 0.8))',
+              border: `1px solid ${P.accent}`,
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '18px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ fontSize: '0.62rem', fontWeight: 800, color: P.cream, textTransform: 'uppercase', letterSpacing: '1px' }}>PREVIEW KARTU OUTLET</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#fff' }}>🔗 {getNamaTablet({ nama: formNama, wilayah: formWilayah }) || '—'}</div>
+              <div style={{ fontSize: '0.74rem', color: P.creamMuted }}>Alamat: <strong style={{ color: '#fff' }}>{formAlamat || '—'}</strong></div>
+              <div style={{ display: 'flex', gap: '12px', fontSize: '0.72rem', color: P.creamMuted, marginTop: '4px' }}>
+                <span>ID: <strong style={{ color: P.cream }}>{formId || '—'}</strong></span>
+                <span>•</span>
+                <span>Modal: <strong>{formPermodalan || '—'}</strong></span>
+                <span>•</span>
+                <span>Status: <strong style={{ color: formStatus === 'aktif' ? '#10B981' : '#EF4444' }}>{formStatus ? formStatus.toUpperCase() : '—'}</strong></span>
               </div>
-            )}
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {/* ID Outlet */}
@@ -2220,6 +2280,23 @@ export default function OutletPage({ token, API_URL, user }) {
               <button onClick={() => setRoleModal(false)} style={{ background: 'transparent', border: 'none', color: P.cream, cursor: 'pointer' }}>
                 <X size={20} />
               </button>
+            </div>
+
+            {/* Live Jabatan Card Preview */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(223, 177, 91, 0.15), rgba(16, 23, 38, 0.8))',
+              border: '1px solid var(--accent-primary)',
+              borderRadius: '12px',
+              padding: '14px',
+              marginBottom: '18px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}>
+              <div style={{ fontSize: '0.62rem', fontWeight: 800, color: P.cream, textTransform: 'uppercase', letterSpacing: '1px' }}>PREVIEW JABATAN</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#fff' }}>💼 {formRoleJabatan || '—'}</div>
+              <div style={{ fontSize: '0.74rem', color: P.creamMuted }}>Divisi: <strong style={{ color: P.cream }}>{formRoleDivisi || '—'}</strong></div>
             </div>
 
             {/* Error message */}

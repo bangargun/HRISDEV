@@ -1545,6 +1545,29 @@ export default function SopPage({ token, API_URL }) {
               {editingId ? 'Ubah Dokumen SOP' : 'Tambah SOP Baru'}
             </h3>
 
+            {/* Live SOP Preview */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(223, 177, 91, 0.15), rgba(16, 23, 38, 0.8))',
+              border: '1px solid var(--accent-primary)',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '18px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              textAlign: 'left'
+            }}>
+              <div style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>PREVIEW SOP</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#fff' }}>📝 {sopTitle || 'JUDUL DOKUMEN SOP'}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Nomor: <strong style={{ color: 'var(--accent-primary)' }}>{sopNumber || '—'}</strong></div>
+              <div style={{ display: 'flex', gap: '12px', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', flexWrap: 'wrap' }}>
+                <span>Outlet: <strong>{selectedOutlets.length > 0 ? selectedOutlets.join(', ') : 'Semua'}</strong></span>
+                <span>•</span>
+                <span>Divisi/Jabatan: <strong>{selectedRoles.length > 0 ? selectedRoles.join(', ') : 'Semua'}</strong></span>
+              </div>
+            </div>
+
             {errorMsg && (
               <p style={{ color: 'var(--danger)', background: 'var(--danger-glow)', padding: '10px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.85rem' }}>
                 {errorMsg}

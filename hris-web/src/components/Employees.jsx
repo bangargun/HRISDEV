@@ -2105,6 +2105,46 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
               {errorMsg && <p style={{ color: 'var(--danger)', background: 'var(--danger-glow)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.9rem', border: '1px solid hsla(0, 84%, 60%, 0.2)' }}>{errorMsg}</p>}
               {successMsg && <p style={{ color: 'var(--success)', background: 'var(--success-glow)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid hsla(142, 70%, 45%, 0.2)' }}><CheckCircle size={16} /> {successMsg}</p>}
 
+              {/* Live ID Card Preview */}
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(223, 177, 91, 0.15), rgba(16, 23, 38, 0.8))',
+                border: '1px solid var(--accent-primary)',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '20px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+              }}>
+                <div style={{
+                  width: '70px',
+                  height: '70px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--accent-primary)',
+                  overflow: 'hidden',
+                  background: 'rgba(0,0,0,0.3)',
+                  flexShrink: 0
+                }}>
+                  {photoPreview ? (
+                    <img src={photoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.62rem', fontWeight: 700 }}>NO FOTO</div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>PREVIEW KARYAWAN</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>{formData.full_name || 'NAMA KARYAWAN'}</div>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    <span>ID: <strong style={{ color: 'var(--accent-primary)' }}>{formData.employee_id || 'AUTO_ID'}</strong></span>
+                    <span>•</span>
+                    <span>Jabatan: <strong>{formData.position ? toTitleCase(formData.position) : '—'}</strong></span>
+                    <span>•</span>
+                    <span>Outlet: <strong>{formData.outlet || '—'}</strong></span>
+                  </div>
+                </div>
+              </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px', marginBottom: '24px' }}>
               {/* Bagian Kiri: Identitas Utama */}
               <div className="glass-card" style={{ padding: '24px', background: 'rgba(15, 23, 42, 0.4)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>

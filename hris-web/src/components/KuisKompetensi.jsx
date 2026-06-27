@@ -1753,6 +1753,28 @@ export default function KuisKompetensi() {
               </h2>
               <button onClick={() => setShowTambahSurveyModal(false)} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer' }}><X size={20} /></button>
             </div>
+
+            {/* Live Survey Preview */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(223, 177, 91, 0.15), rgba(16, 23, 38, 0.8))',
+              border: `1px solid ${C.border}`,
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '18px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}>
+              <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#DFB15B', textTransform: 'uppercase', letterSpacing: '1px' }}>PREVIEW SURVEY</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#fff' }}>📋 {surveyFormTitle || 'JUDUL SURVEY'}</div>
+              <div style={{ display: 'flex', gap: '12px', fontSize: '0.72rem', color: C.muted, marginTop: '4px' }}>
+                <span>Target: <strong>{surveyFormDivisi || 'Semua Divisi'}</strong></span>
+                <span>•</span>
+                <span>Pertanyaan: <strong>{surveyFormQuestions.filter(q => q.trim().length > 0).length} Pertanyaan terisi</strong></span>
+              </div>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', color: C.muted, marginBottom: '6px', fontWeight: 600 }}>Judul Survey</label>

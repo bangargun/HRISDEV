@@ -1738,6 +1738,30 @@ export default function PolicyPage({ token, API_URL, userPermissions, user }) {
               </button>
             </div>
 
+            {/* Live Policy Preview */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(223, 177, 91, 0.15), rgba(16, 23, 38, 0.8))',
+              border: `1px solid ${P.accent}`,
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '18px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}>
+              <div style={{ fontSize: '0.62rem', fontWeight: 800, color: P.cream, textTransform: 'uppercase', letterSpacing: '1px' }}>PREVIEW KEBIJAKAN</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#fff' }}>🛡️ {formNama || 'NAMA ATURAN'}</div>
+              <div style={{ fontSize: '0.78rem', color: P.creamMuted }}>{formDeskripsi || 'Deskripsi aturan...'}</div>
+              <div style={{ display: 'flex', gap: '12px', fontSize: '0.72rem', color: P.creamMuted, marginTop: '4px', flexWrap: 'wrap' }}>
+                <span>Jabatan: <strong style={{ color: P.cream }}>{formJabatan || 'Semua Jabatan'}</strong></span>
+                <span>•</span>
+                <span>Sanksi: <strong style={{ color: '#EF4444' }}>{formSanksi || 'Tidak Ada'}</strong></span>
+                <span>•</span>
+                <span>Denda: <strong style={{ color: '#EF4444' }}>{formDenda ? 'Rp ' + Number(formDenda).toLocaleString('id-ID') : 'Rp 0'}</strong></span>
+              </div>
+            </div>
+
             {/* Error message */}
             {errorMsg && (
               <div style={{
