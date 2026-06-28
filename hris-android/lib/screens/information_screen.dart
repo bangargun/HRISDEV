@@ -115,7 +115,7 @@ class _InformationScreenState extends State<InformationScreen> {
                                   Navigator.pop(context);
                                 }
                               },
-                              child: const Text('Siap', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 12, fontWeight: FontWeight.bold)),
+                              child: const Text('Siap', style: TextStyle(color: Color(0xFF222831), fontSize: 12, fontWeight: FontWeight.bold)),
                             ),
                           ),
                           const SizedBox(width: 10),

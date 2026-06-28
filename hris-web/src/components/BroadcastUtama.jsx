@@ -371,6 +371,127 @@ export default function BroadcastUtama() {
   // ── State Data
   const [broadcasts, setBroadcasts] = useState(() => lsGet('hris_broadcasts', []));
   const [receipts, setReceipts] = useState(() => lsGet('hris_broadcast_receipts', []));
+  const [activeTab, setActiveTab] = useState('siaran');
+  const [quoteText, setQuoteText] = useState('');
+  const [quoteAuthor, setQuoteAuthor] = useState('');
+  const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
+
+  const quotesList = [
+    { text: "Pekerjaan yang dilakukan dengan keikhlasan akan mendatangkan keberkahan yang berlipat ganda.", author: "Barokah AI" },
+    { text: "Senyuman tulus kepada pelanggan adalah kunci pembuka pintu rezeki yang berkah.", author: "Barokah AI" },
+    { text: "Kedisiplinan hari ini adalah fondasi kesuksesan bersama di masa depan.", author: "Barokah AI" },
+    { text: "Kebersihan outlet dan kelezatan hidangan adalah cerminan dari profesionalisme kerja kita.", author: "Barokah AI" },
+    { text: "Jangan pernah meremehkan langkah kecil, karena dari sanalah perjalanan besar dimulai.", author: "Barokah AI" },
+    { text: "Kerja sama tim yang solid dapat mengubah tantangan berat menjadi peluang emas.", author: "Barokah AI" },
+    { text: "Kejujuran dalam menakar rasa dan melayani adalah ibadah nyata kita dalam bekerja.", author: "Barokah AI" },
+    { text: "Setiap pagi adalah lembaran baru untuk memberikan pelayanan terbaik bagi pelanggan kita.", author: "Barokah AI" },
+    { text: "Bekerja bukan hanya mencari nafkah, melainkan ladang amal untuk menebar manfaat.", author: "Barokah AI" },
+    { text: "Kualitas rasa yang konsisten lahir dari kedisiplinan dan kecintaan pada profesi.", author: "Barokah AI" },
+    { text: "Rezeki yang berkah mengalir kepada mereka yang melayani dengan ikhlas dan teliti.", author: "Barokah AI" },
+    { text: "Kerja adalah ibadah. Lakukan tugasmu dengan standar kualitas terbaik.", author: "Barokah AI" }
+  ];
+
+  const handleGenerateQuoteAI = () => {
+    setIsGeneratingQuote(true);
+    setTimeout(() => {
+      const randomQuote = quotesList[Math.floor(Math.random() * quotesList.length)];
+      setQuoteText(randomQuote.text);
+      setQuoteAuthor(randomQuote.author);
+      setIsGeneratingQuote(false);
+    }, 800);
+  };
+
+  const handleKirimQuote = async () => {
+    if (!quoteText.trim()) return;
+    setIsSendingEvent(true);
+
+    const now = new Date().toISOString();
+    const bcId = uid();
+    const judulQuote = "[Sapaan AI] Quote Hari Ini";
+    const fullContent = `${quoteText.trim()} ~ ${quoteAuthor.trim() || 'Barokah AI'}`;
+
+    // Local fallback save so it stays in history
+    const newBc = {
+      id: bcId,
+      judul: judulQuote,
+      kategori: 'Info Umum',
+      target_outlets: ['Semua Outlet'],
+      target_jabatan: ['Semua Jabatan'],
+      pesan: fullContent,
+      created_at: now,
+      sender: 'Admin Super',
+      total_target: activeEmployees.length
+    };
+
+    const newReceipts = activeEmployees.map(emp => ({
+      id: uid(),
+      broadcast_id: bcId,
+      employee_id: emp.id,
+      employee_name: capitalEachWord(emp.full_name || emp.nama || ''),
+      outlet: capitalEachWord(emp.outlet || ''),
+      jabatan: capitalEachWord(emp.position || ''),
+      status: 'unread',
+      sent_at: now,
+      read_at: null
+    }));
+
+    const saveLocal = () => {
+      const updatedBc = [newBc, ...broadcasts];
+      const updatedReceipts = [...receipts, ...newReceipts];
+      lsSet('hris_broadcasts', updatedBc);
+      lsSet('hris_broadcast_receipts', updatedReceipts);
+      
+      const existingNotifs = lsGet('hris_notifications', []);
+      const notifEntries = activeEmployees.map(emp => ({
+        id: uid(),
+        type: 'broadcast',
+        broadcast_id: bcId,
+        employee_id: emp.id,
+        employee_name: capitalEachWord(emp.full_name || emp.nama || ''),
+        outlet: capitalEachWord(emp.outlet || ''),
+        judul: judulQuote,
+        kategori: 'Info Umum',
+        pesan: fullContent,
+        status: 'unread',
+        sent_at: now,
+        read_at: null
+      }));
+      lsSet('hris_notifications', [...existingNotifs, ...notifEntries]);
+
+      setBroadcasts(updatedBc);
+      setReceipts(updatedReceipts);
+      hrisDispatch('BROADCAST_SENT');
+    };
+
+    try {
+      const response = await fetch(`${getApiUrl()}/v1/dispatch-event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'broadcast',
+          targetOutlet: 'Semua Outlet',
+          targetJabatan: 'Semua Jabatan',
+          messageTitle: judulQuote,
+          content: fullContent
+        })
+      });
+
+      if (response.ok) {
+        saveLocal();
+        alert('Quote Motivasi AI berhasil diaktifkan & dikirim ke seluruh HP karyawan!');
+      } else {
+        throw new Error('Server error');
+      }
+    } catch (err) {
+      console.warn('Real-time dispatcher failed, writing locally:', err);
+      saveLocal();
+      alert('Sinyal AI offline. Quote disimpan secara lokal.');
+    } finally {
+      setIsSendingEvent(false);
+      setQuoteText('');
+      setQuoteAuthor('');
+    }
+  };
 
   // ── Form State
   const [judul, setJudul] = useState('');
