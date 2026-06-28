@@ -6,17 +6,40 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiClient {
   static const String defaultBaseUrl = 'https://api.barokahgroupindonesia.tech/api';
   static bool isTabletEdition = false;
+  static String? _customBaseUrl;
 
   static Future<String> getBaseUrl() async {
-    return defaultBaseUrl;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _customBaseUrl = prefs.getString('custom_api_url');
+    } catch (e) {
+      print('ApiClient getBaseUrl error: $e');
+    }
+    return baseUrl;
   }
 
-  static Future<void> setCustomBaseUrl(String url) async {}
+  static Future<void> setCustomBaseUrl(String url) async {
+    _customBaseUrl = url;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('custom_api_url', url);
+    } catch (e) {
+      print('ApiClient setCustomBaseUrl error: $e');
+    }
+  }
 
-  static Future<void> resetCustomBaseUrl() async {}
+  static Future<void> resetCustomBaseUrl() async {
+    _customBaseUrl = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('custom_api_url');
+    } catch (e) {
+      print('ApiClient resetCustomBaseUrl error: $e');
+    }
+  }
 
   static String get baseUrl {
-    return defaultBaseUrl;
+    return _customBaseUrl ?? defaultBaseUrl;
   }
 
   // Callback statis yang akan di-register oleh AuthProvider untuk melempar user ke login
