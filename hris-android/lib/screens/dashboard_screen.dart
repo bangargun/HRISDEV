@@ -44,6 +44,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (mounted) setState(() {});
       });
+
+      _checkAppVersion();
     });
   }
 
@@ -52,6 +54,90 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _countdownTimer?.cancel();
     PrayerService.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkAppVersion() async {
+    try {
+      final res = await ApiClient.get('app-version');
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        if (body['status'] == 'success' && body['data'] != null) {
+          final latest = body['data']['latest_version'].toString();
+          final downloadUrl = body['data']['download_url'].toString();
+          final changelog = body['data']['changelog'] ?? '';
+          
+          const currentVersion = '1.8';
+          if (latest != currentVersion) {
+            _showUpdateDialog(latest, downloadUrl, changelog);
+          }
+        }
+      }
+    } catch (e) {
+      print('Gagal memeriksa pembaruan aplikasi: $e');
+    }
+  }
+
+  void _showUpdateDialog(String latest, String downloadUrl, String changelog) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF393E46),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: Color(0xFF00ADB5), width: 2),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.system_update, color: Color(0xFF00ADB5)),
+              SizedBox(width: 8),
+              Text(
+                'UPDATE TERSEDIA',
+                style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Versi terbaru ($latest) telah dirilis. Silakan unduh pembaruan untuk menjaga sinkronisasi data.',
+                style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Catatan Perubahan:',
+                style: TextStyle(color: Color(0xFF00ADB5), fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                changelog,
+                style: const TextStyle(color: Color(0x8DEEEEEE), fontSize: 11, height: 1.4),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Nanti', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00ADB5)),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: downloadUrl));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Link download berhasil disalin ke clipboard!')),
+                );
+                Navigator.pop(context);
+              },
+              child: const Text('Salin Link', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            )
+          ],
+        );
+      },
+    );
   }
 
   void _showAdzanAlarmDialog(String prayerName) {

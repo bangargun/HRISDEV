@@ -722,7 +722,16 @@ app.post('/api/v1/dispatch-event', async (req, res) => {
     console.error('[Notification Dispatcher] Error database writing:', err.message);
   }
 
-  res.status(200).json({ success: true, message: "Sinyal Event Terdistribusi ke Perangkat Lapangan" });
+  // Endpoint untuk cek versi aplikasi seluler terbaru (UAT / In-App Update)
+app.get('/api/app-version', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    data: {
+      latest_version: '1.8',
+      download_url: 'https://hris.barokahgroupindonesia.tech/BarokahGrup_Karyawan_Mobile_v1.8.apk',
+      changelog: 'Pembaruan fitur survei angket karyawan, broadcast instan, integrasi motivasi AI, dan peningkatan kontras tombol.'
+    }
+  });
 });
 
 
