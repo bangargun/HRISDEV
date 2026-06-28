@@ -270,7 +270,80 @@ export function HRISProvider({ children }) {
 
     const syncWithMainBackend = async () => {
       try {
-        // 1. Fetch materials from main backend
+        // Fetch token for authorized queries
+        const tokenVal = sessionStorage.getItem('token');
+        if (tokenVal) {
+          const authHeaders = { 'Authorization': `Bearer ${tokenVal}` };
+          
+          // 1. Centralized Sync for Employees
+          try {
+            const resEmp = await fetch(`${API_URL}/employees`, { headers: authHeaders });
+            const jsonEmp = await resEmp.json();
+            if (resEmp.status === 200 && jsonEmp.status === 'success') {
+              const dbList = jsonEmp.data.map(emp => ({
+                id: emp.id,
+                employee_id: emp.email || emp.nik || '',
+                nik: emp.nik || '',
+                full_name: emp.full_name || '',
+                nickname: (emp.full_name || '').split(' ')[0] || 'USR',
+                employee_status: emp.status === 'inactive' ? 'inactive' : 'active',
+                end_working_date: emp.end_working_date || '',
+                position: emp.position || '',
+                basic_salary: emp.basic_salary || 0,
+                start_working_date: emp.joined_date || new Date().toISOString().split('T')[0],
+                outlet: emp.outlet || '',
+                marital_status: 'Belum Kawin',
+                address: emp.address || '',
+                gender: emp.gender || 'Pria',
+                whatsapp_number: emp.phone || '',
+                facebook_account: '',
+                instagram_account: ''
+              }));
+              
+              const localEmp = lsRead('hris_employees', []);
+              if (JSON.stringify(localEmp) !== JSON.stringify(dbList)) {
+                Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'hris_employees', JSON.stringify(dbList));
+                Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'karyawan_data', JSON.stringify(dbList));
+                window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'hris_employees', value: dbList } }));
+                setEmployees(dbList);
+              }
+            }
+          } catch (err) {
+            console.error('[HRIS] Gagal sync karyawan:', err.message);
+          }
+
+          // 2. Centralized Sync for Outlets
+          try {
+            const resOut = await fetch(`${API_URL}/outlets`, { headers: authHeaders });
+            const jsonOut = await resOut.json();
+            if (jsonOut.status === 'success' && Array.isArray(jsonOut.data)) {
+              const normalized = jsonOut.data.map(o => ({
+                id: o.id || `api-${Date.now()}-${Math.random()}`,
+                nama: (o.nama || '').toUpperCase(),
+                wilayah: (o.wilayah || '').toUpperCase(),
+                alamat: (o.alamat || '').toUpperCase(),
+                permodalan: (o.permodalan || 'BOOTSTRAP').toUpperCase(),
+                status: o.status === 'active' || o.status === 'AKTIF' ? 'AKTIF' : 'TIDAK AKTIF',
+                nama_tablet: `${(o.nama || '').trim()} ${(o.wilayah || '').trim()}`.trim().toUpperCase(),
+                lat: o.latitude !== undefined && o.latitude !== null ? String(o.latitude) : '',
+                lng: o.longitude !== undefined && o.longitude !== null ? String(o.longitude) : '',
+                radius: o.radius !== undefined && o.radius !== null ? String(o.radius) : '100',
+                created_at: o.created_at || new Date().toISOString(),
+              }));
+
+              const localOut = lsRead('outlet_cabang_data', []);
+              if (JSON.stringify(localOut) !== JSON.stringify(normalized)) {
+                Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'outlet_cabang_data', JSON.stringify(normalized));
+                window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'outlet_cabang_data', value: normalized } }));
+                setOutlets(normalized);
+              }
+            }
+          } catch (err) {
+            console.error('[HRIS] Gagal sync outlets:', err.message);
+          }
+        }
+
+        // 3. Fetch materials from main backend
         const resMat = await fetch(`${API_URL}/training-media`);
         const jsonMat = await resMat.json();
         if (jsonMat.status === 'success' && jsonMat.materials) {

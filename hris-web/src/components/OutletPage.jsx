@@ -489,9 +489,9 @@ export default function OutletPage({ token, API_URL, user }) {
 
     if (localData.length > 0) {
       setOutlets(localData);
-      setLoading(false);
-    } else if (token && API_URL) {
-      // 2. Fallback: tarik dari API dan simpan ke localStorage
+    }
+
+    if (token && API_URL) {
       try {
         const res = await fetch(`${API_URL}/outlets`, {
           headers: { 'Authorization': `Bearer ${token}` },
@@ -506,7 +506,7 @@ export default function OutletPage({ token, API_URL, user }) {
             alamat: (o.alamat || '').toUpperCase(),
             permodalan: (o.permodalan || 'BOOTSTRAP').toUpperCase(),
             status: o.status === 'active' || o.status === 'AKTIF' ? 'AKTIF' : 'TIDAK AKTIF',
-            nama_tablet: getNamaTablet({ nama: o.nama, wilayah: o.wilayah }),
+            nama_tablet: `${(o.nama || '').trim()} ${(o.wilayah || '').trim()}`.trim().toUpperCase(),
             lat: o.latitude !== undefined && o.latitude !== null ? String(o.latitude) : '',
             lng: o.longitude !== undefined && o.longitude !== null ? String(o.longitude) : '',
             radius: o.radius !== undefined && o.radius !== null ? String(o.radius) : '100',
