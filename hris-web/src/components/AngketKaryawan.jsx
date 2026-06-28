@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BarChart2, Trash2, Eye, X, Send, Users, ClipboardList, Check } from 'lucide-react';
+import { Plus, BarChart2, Trash2, Eye, X, Send, Users, ClipboardList, Check, Edit2, Play } from 'lucide-react';
 import { useHRIS } from '../context/HRISContext';
 
 const C = {
@@ -43,7 +43,6 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
   // Sync back to localStorage when states change
   useEffect(() => {
     localStorage.setItem('hris_surveys_manual', JSON.stringify(surveys));
-    // Trigger storage event for mobile sync simulator
     window.dispatchEvent(new CustomEvent('local_storage_sync', { detail: { key: 'hris_surveys_manual' } }));
   }, [surveys]);
 
@@ -59,6 +58,7 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
   const [formStartDate, setFormStartDate] = useState('');
   const [formEndDate, setFormEndDate] = useState('');
   const [formOutlets, setFormOutlets] = useState([]);
+  const [formJabatans, setFormJabatans] = useState([]);
   const [formQuestions, setFormQuestions] = useState(
     Array(10).fill(null).map((_, i) => ({
       id: `q${i}`,
@@ -66,6 +66,18 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
       options: { a: '', b: '', c: '', d: '' }
     }))
   );
+
+  // Preview before saving modal
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewSurveyData, setPreviewSurveyData] = useState(null);
+
+  // Quick Preview modal (read-only)
+  const [showQuickPreviewModal, setShowQuickPreviewModal] = useState(false);
+  const [quickPreviewData, setQuickPreviewData] = useState(null);
+
+  // Hover preview tooltip state
+  const [hoveredSurveyPreview, setHoveredSurveyPreview] = useState(null);
+  const [hoveredSurveyPos, setHoveredSurveyPos] = useState({ x: 0, y: 0 });
 
   // Stats / Results view states
   const [selectedSurveyForResult, setSelectedSurveyForResult] = useState(null);
@@ -78,12 +90,39 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem('outlet_cabang_data');
+      let list = [];
       if (stored) {
         const parsed = JSON.parse(stored);
-        setOutletsList(parsed.map(o => o.nama_tablet || o.nama_outlet).filter(Boolean));
+        list = parsed.map(o => o.nama_tablet || o.nama_outlet).filter(Boolean);
       }
+      if (list.length === 0) {
+        list = [...new Set(activeEmployees.map(e => e.outlet).filter(Boolean))].sort();
+      }
+      setOutletsList(list);
     } catch {}
-  }, []);
+  }, [activeEmployees]);
+
+  // List of jabatans
+  const [jabatansList, setJabatansList] = useState([]);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('organizational_roles');
+      let list = [];
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        list = [...new Set(parsed.map(r => r.jabatan).filter(Boolean))].sort();
+      }
+      if (list.length === 0) {
+        list = [...new Set(activeEmployees.map(e => e.position || e.jabatan).filter(Boolean))].sort();
+      }
+      if (list.length === 0) {
+        list = ['Kasir', 'Koki', 'Waiter', 'Kepala Outlet', 'Owner', 'Admin'];
+      }
+      setJabatansList(list);
+    } catch {
+      setJabatansList(['Kasir', 'Koki', 'Waiter', 'Kepala Outlet', 'Owner', 'Admin']);
+    }
+  }, [activeEmployees]);
 
   const handleOpenAddSurvey = () => {
     setEditingSurveyId(null);
@@ -91,7 +130,8 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
     const today = new Date().toISOString().split('T')[0];
     setFormStartDate(today);
     setFormEndDate('');
-    setFormOutlets([]);
+    setFormOutlets([...outletsList]); // Default select all
+    setFormJabatans([...jabatansList]); // Default select all
     setFormQuestions(
       Array(10).fill(null).map((_, i) => ({
         id: `q${i}`,
@@ -102,13 +142,36 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
     setShowAddModal(true);
   };
 
-  const handleSaveSurvey = () => {
+  const handleEditSurvey = (srv) => {
+    setEditingSurveyId(srv.id);
+    setFormTitle(srv.title);
+    setFormStartDate(srv.startDate);
+    setFormEndDate(srv.endDate);
+    setFormOutlets(srv.outlets || []);
+    setFormJabatans(srv.jabatans || []);
+    setFormQuestions(srv.questions.map(q => ({
+      id: q.id,
+      text: q.text,
+      options: { ...q.options }
+    })));
+    setShowAddModal(true);
+  };
+
+  const handleInitiateSave = () => {
     if (!formTitle.trim()) {
       alert('Judul angket wajib diisi!');
       return;
     }
     if (!formStartDate || !formEndDate) {
       alert('Tanggal Mulai dan Tanggal Akhir wajib diisi!');
+      return;
+    }
+    if (formOutlets.length === 0) {
+      alert('Pilih minimal satu target outlet!');
+      return;
+    }
+    if (formJabatans.length === 0) {
+      alert('Pilih minimal satu target jabatan!');
       return;
     }
     const emptyQ = formQuestions.some(
@@ -119,23 +182,41 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
       return;
     }
 
+    const targetStatus = editingSurveyId ? (surveys.find(s => s.id === editingSurveyId)?.status || 'draft') : 'draft';
+
     const surveyObj = {
       id: editingSurveyId || uid(),
       title: formTitle.trim(),
       startDate: formStartDate,
       endDate: formEndDate,
-      outlets: formOutlets.length > 0 ? formOutlets : outletsList,
+      outlets: formOutlets,
+      jabatans: formJabatans,
       questions: formQuestions,
-      status: 'aktif',
+      status: targetStatus,
       created_at: new Date().toISOString()
     };
 
+    setPreviewSurveyData(surveyObj);
+    setShowPreviewModal(true);
+  };
+
+  const handleConfirmSaveSurvey = () => {
+    if (!previewSurveyData) return;
     if (editingSurveyId) {
-      setSurveys(surveys.map(s => s.id === editingSurveyId ? surveyObj : s));
+      setSurveys(surveys.map(s => s.id === editingSurveyId ? previewSurveyData : s));
     } else {
-      setSurveys([...surveys, surveyObj]);
+      setSurveys([...surveys, previewSurveyData]);
     }
+    setShowPreviewModal(false);
     setShowAddModal(false);
+    setPreviewSurveyData(null);
+  };
+
+  const handleSendSurvey = (id) => {
+    if (window.confirm('Kirim dan aktifkan angket ini ke seluruh target karyawan?')) {
+      setSurveys(surveys.map(s => s.id === id ? { ...s, status: 'aktif' } : s));
+      alert('Angket berhasil dikirim/diaktifkan!');
+    }
   };
 
   const handleDeleteSurvey = (id) => {
@@ -205,8 +286,39 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
     return { stats, totalResponses, responses: resps };
   };
 
+  const getSurveyTargetEmployeesCount = (survey) => {
+    const outlets = survey.outlets || [];
+    const jabatans = survey.jabatans || [];
+    return activeEmployees.filter(emp => 
+      outlets.includes(emp.outlet) && 
+      jabatans.includes(emp.position || emp.jabatan)
+    ).length;
+  };
+
+  const getSurveyProgressText = (survey) => {
+    const resCount = surveyResponses.filter(r => r.surveyId === survey.id).length;
+    const targetCount = getSurveyTargetEmployeesCount(survey);
+    const pct = targetCount > 0 ? Math.round((resCount / targetCount) * 100) : 0;
+    return `${resCount} / ${targetCount} (${pct}%)`;
+  };
+
+  const handleShowHoverPreview = (e, srv) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredSurveyPreview(srv);
+    setHoveredSurveyPos({ x: rect.left + window.scrollX, y: rect.bottom + window.scrollY });
+  };
+
+  const handleHideHoverPreview = () => {
+    setHoveredSurveyPreview(null);
+  };
+
+  const handleOpenQuickPreview = (srv) => {
+    setQuickPreviewData(srv);
+    setShowQuickPreviewModal(true);
+  };
+
   return (
-    <div style={{ padding: '24px', boxSizing: 'border-box', color: C.text, fontFamily: 'sans-serif' }}>
+    <div style={{ padding: '24px', boxSizing: 'border-box', color: C.text, fontFamily: 'sans-serif', position: 'relative' }}>
       {/* Header */}
       <div style={{
         display: 'flex',
@@ -221,7 +333,7 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
         <div>
           <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0, color: '#fff' }}>📝 MODUL ANGKET KARYAWAN</h2>
           <p style={{ color: C.muted, fontSize: '0.82rem', marginTop: '4px' }}>
-            Buat dan kelola kuesioner manual 10 soal pilihan ganda untuk umpan balik dan jajak pendapat staf outlet.
+            Buat kuesioner umpan balik, filter target outlet dan jabatan, serta tinjau hasil analisis responden secara real-time.
           </p>
         </div>
         <button
@@ -289,7 +401,7 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
                           return (
                             <div key={opt} style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.78rem' }}>
                               <span style={{ width: '18px', fontWeight: 800, color: barColor, textTransform: 'uppercase' }}>{opt}</span>
-                              <span style={{ width: '140px', color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.options[opt]}</span>
+                              <span style={{ width: '140px', color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.options[opt]}</span>
                               <div style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
                                 <div style={{ width: `${q.pct[opt]}%`, height: '100%', background: barColor, borderRadius: '4px' }} />
                               </div>
@@ -350,51 +462,78 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
                   <tr style={{ background: C.bg }}>
                     <th style={{ padding: '12px 16px', textAlign: 'left', color: C.cyan }}>Judul Angket</th>
                     <th style={{ padding: '12px 16px', textAlign: 'left', color: C.cyan }}>Target Outlet</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', color: C.cyan }}>Responden</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', color: C.cyan }}>Periode Aktif</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', color: C.cyan }}>Target Jabatan</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', color: C.cyan }}>Pengerjaan (Progress)</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', color: C.cyan }}>Status</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', color: C.cyan }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {surveys.map((srv) => {
-                    const resCount = surveyResponses.filter(r => r.surveyId === srv.id).length;
+                    const isDraft = srv.status === 'draft';
+                    const targetOutletText = srv.outlets.length === outletsList.length ? 'Semua Outlet' : srv.outlets.map(o => o.replace('AYAM PECAK 2001 SEAFOOD ', '').replace('PECEL LELE ', '')).join(', ');
+                    const targetJabatanText = srv.jabatans.length === jabatansList.length ? 'Semua Jabatan' : srv.jabatans.join(', ');
+
                     return (
                       <tr key={srv.id} style={{ borderBottom: `1px solid ${C.border}`, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                        <td style={{ padding: '14px 16px', fontWeight: 700 }}>{srv.title}</td>
-                        <td style={{ padding: '14px 16px', color: C.muted, maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {srv.outlets.join(', ')}
+                        <td style={{ padding: '14px 16px', fontWeight: 700 }}>
+                          <a
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); handleOpenQuickPreview(srv); }}
+                            onMouseEnter={(e) => handleShowHoverPreview(e, srv)}
+                            onMouseLeave={handleHideHoverPreview}
+                            style={{ color: C.cyan, textDecoration: 'underline', cursor: 'pointer' }}
+                          >
+                            {srv.title}
+                          </a>
                         </td>
-                        <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                          <span style={{ background: C.cyanDim, color: C.cyan, padding: '3px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 700 }}>
-                            {resCount} Respon
-                          </span>
+                        <td style={{ padding: '14px 16px', color: C.text, fontSize: '0.78rem', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={srv.outlets.join(', ')}>
+                          {targetOutletText}
                         </td>
-                        <td style={{ padding: '14px 16px', textAlign: 'center', color: C.muted, fontSize: '0.75rem' }}>
-                          {srv.startDate} s/d {srv.endDate}
+                        <td style={{ padding: '14px 16px', color: C.text, fontSize: '0.78rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={srv.jabatans.join(', ')}>
+                          {targetJabatanText}
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 'bold', color: C.success }}>
+                          {getSurveyProgressText(srv)}
                         </td>
                         <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                           <span style={{
-                            background: srv.status === 'aktif' ? 'rgba(78,205,196,0.12)' : 'rgba(224,92,92,0.12)',
-                            color: srv.status === 'aktif' ? C.success : C.danger,
+                            background: srv.status === 'aktif' ? 'rgba(78,205,196,0.12)' : 'rgba(245,166,35,0.12)',
+                            color: srv.status === 'aktif' ? C.success : C.warn,
                             padding: '3px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 800
                           }}>
-                            {srv.status === 'aktif' ? 'Aktif' : 'Selesai'}
+                            {srv.status === 'aktif' ? 'Aktif / Sent' : 'Draft'}
                           </span>
                         </td>
                         <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            {isDraft && (
+                              <button
+                                onClick={() => handleSendSurvey(srv.id)}
+                                style={{ background: 'rgba(0,173,181,0.15)', border: `1px solid ${C.cyan}`, color: C.cyan, padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '3px' }}
+                              >
+                                <Send size={11} /> Kirim
+                              </button>
+                            )}
                             <button
                               onClick={() => setSelectedSurveyForResult(srv)}
-                              style={{ background: 'rgba(78,205,196,0.12)', border: 'none', color: C.success, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              style={{ background: 'rgba(78,205,196,0.12)', border: 'none', color: C.success, padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '3px' }}
                             >
-                              <BarChart2 size={13} /> Analisis
+                              <BarChart2 size={11} /> Hasil
+                            </button>
+                            <button
+                              onClick={() => handleEditSurvey(srv)}
+                              style={{ background: 'rgba(245,166,35,0.12)', border: 'none', color: C.warn, padding: '5px 8px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                              title="Edit Angket"
+                            >
+                              <Edit2 size={11} />
                             </button>
                             <button
                               onClick={() => handleDeleteSurvey(srv.id)}
-                              style={{ background: 'rgba(224,92,92,0.12)', border: 'none', color: C.danger, padding: '6px 10px', borderRadius: '6px', cursor: 'pointer' }}
+                              style={{ background: 'rgba(224,92,92,0.12)', border: 'none', color: C.danger, padding: '5px 8px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                              title="Hapus Angket"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={11} />
                             </button>
                           </div>
                         </td>
@@ -408,19 +547,94 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
         </div>
       )}
 
-      {/* ── ADD SURVEY MODAL ── */}
+      {/* ── HOVER PREVIEW TOOLTIP ── */}
+      {hoveredSurveyPreview && (
+        <div style={{
+          position: 'absolute',
+          top: hoveredSurveyPos.y - 120,
+          left: hoveredSurveyPos.x + 30,
+          width: '340px',
+          backgroundColor: '#1E222B',
+          border: `1.5px solid ${C.cyan}`,
+          borderRadius: '12px',
+          padding: '16px',
+          boxShadow: '0 12px 36px rgba(0,0,0,0.6)',
+          zIndex: 99999,
+          pointerEvents: 'none',
+          animation: 'fadeIn 0.15s ease-out'
+        }}>
+          <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: C.cyan, margin: '0 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '6px' }}>
+            📋 Pratinjau Pertanyaan ({hoveredSurveyPreview.title}):
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto' }}>
+            {hoveredSurveyPreview.questions.map((q, idx) => (
+              <div key={idx} style={{ fontSize: '0.74rem', color: '#fff', lineHeight: '1.4' }}>
+                <span style={{ color: C.cyan, fontWeight: 'bold' }}>{idx + 1}.</span> {q.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── QUICK PREVIEW MODAL (ON CLICK TITLE) ── */}
+      {showQuickPreviewModal && quickPreviewData && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
+          <div style={{ background: C.surface, border: `1.5px solid ${C.cyanBorder}`, borderRadius: '18px', padding: '28px', width: '700px', maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '12px' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: C.cyan, margin: 0 }}>📋 Detail Soal Angket</h3>
+              <button onClick={() => setShowQuickPreviewModal(false)} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer' }}><X size={22} /></button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ background: C.bg, padding: '14px 18px', borderRadius: '12px', border: `1px solid ${C.border}` }}>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '1rem', color: '#fff' }}>{quickPreviewData.title}</h4>
+                <div style={{ display: 'flex', gap: '20px', fontSize: '0.78rem', color: C.muted, marginTop: '8px', flexWrap: 'wrap' }}>
+                  <span>Periode: <strong>{quickPreviewData.startDate} s/d {quickPreviewData.endDate}</strong></span>
+                  <span>Target Outlet: <strong>{quickPreviewData.outlets.length === outletsList.length ? 'Semua' : quickPreviewData.outlets.length} Terpilih</strong></span>
+                  <span>Target Jabatan: <strong>{quickPreviewData.jabatans.length === jabatansList.length ? 'Semua' : quickPreviewData.jabatans.length} Terpilih</strong></span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {quickPreviewData.questions.map((q, idx) => (
+                  <div key={idx} style={{ background: 'rgba(0,0,0,0.15)', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '14px' }}>
+                    <p style={{ fontWeight: 700, fontSize: '0.84rem', color: '#fff', margin: '0 0 10px 0' }}>
+                      {idx + 1}. {q.text}
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingLeft: '16px' }}>
+                      {['a', 'b', 'c', 'd'].map(opt => (
+                        <div key={opt} style={{ fontSize: '0.76rem', color: C.muted }}>
+                          <span style={{ fontWeight: 800, color: C.cyan, marginRight: '4px' }}>{opt.toUpperCase()}:</span> {q.options[opt]}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                <button onClick={() => setShowQuickPreviewModal(false)} style={{ background: C.cyan, border: 'none', borderRadius: '8px', padding: '10px 24px', color: C.bg, fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>Tutup Pratinjau</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD/EDIT SURVEY MODAL ── */}
       {showAddModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 20px', backdropFilter: 'blur(5px)' }}>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '18px', padding: '24px', width: '800px', maxWidth: '95vw', marginTop: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: C.cyan }}>📋 Buat Angket Baru Karyawan</h3>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: C.cyan }}>
+                {editingSurveyId ? '📝 Edit Angket Karyawan' : '📋 Buat Angket Baru Karyawan'}
+              </h3>
               <button onClick={() => setShowAddModal(false)} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer' }}><X size={20} /></button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.muted, marginBottom: '6px' }}>Judul Angket</label>
-                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Contoh: Angket Kinerja Restoran & Loyalitas Staf" style={{ width: '100%', boxSizing: 'border-box', background: C.bg, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 14px', color: C.text, outline: 'none' }} />
+                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Contoh: Angket Umpan Balik Kinerja Outlet & Loyalitas Staf" style={{ width: '100%', boxSizing: 'border-box', background: C.bg, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 14px', color: C.text, outline: 'none' }} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -434,13 +648,21 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
                 </div>
               </div>
 
+              {/* OUTLET MULTI SELECT */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.muted, marginBottom: '8px' }}>Target Outlet Terpilih</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: C.muted }}>Target Outlet Terpilih (Satu atau Lebih)</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => setFormOutlets([...outletsList])} style={{ background: 'transparent', border: 'none', color: C.cyan, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Pilih Semua</button>
+                    <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
+                    <button onClick={() => setFormOutlets([])} style={{ background: 'transparent', border: 'none', color: C.danger, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Bersihkan</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxH: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.1)', padding: '10px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
                   {outletsList.map(name => {
                     const isChecked = formOutlets.includes(name);
                     return (
-                      <label key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isChecked ? C.cyanDim : 'transparent', border: `1px solid ${isChecked ? C.cyan : C.border}`, padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+                      <label key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isChecked ? C.cyanDim : 'transparent', border: `1px solid ${isChecked ? C.cyan : C.border}`, padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600 }}>
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -453,7 +675,7 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
                           }}
                           style={{ display: 'none' }}
                         />
-                        {isChecked && <Check size={12} style={{ color: C.cyan }} />}
+                        {isChecked && <Check size={11} style={{ color: C.cyan }} />}
                         <span>{name.replace('AYAM PECAK 2001 SEAFOOD ', '').replace('PECEL LELE ', '')}</span>
                       </label>
                     );
@@ -461,11 +683,47 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
                 </div>
               </div>
 
+              {/* JABATAN MULTI SELECT */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: C.muted }}>Target Jabatan Terpilih (Satu atau Lebih)</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => setFormJabatans([...jabatansList])} style={{ background: 'transparent', border: 'none', color: C.cyan, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Pilih Semua</button>
+                    <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
+                    <button onClick={() => setFormJabatans([])} style={{ background: 'transparent', border: 'none', color: C.danger, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Bersihkan</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', background: 'rgba(0,0,0,0.1)', padding: '10px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
+                  {jabatansList.map(role => {
+                    const isChecked = formJabatans.includes(role);
+                    return (
+                      <label key={role} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isChecked ? C.cyanDim : 'transparent', border: `1px solid ${isChecked ? C.cyan : C.border}`, padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600 }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormJabatans([...formJabatans, role]);
+                            } else {
+                              setFormJabatans(formJabatans.filter(item => item !== role));
+                            }
+                          }}
+                          style={{ display: 'none' }}
+                        />
+                        {isChecked && <Check size={11} style={{ color: C.cyan }} />}
+                        <span>{role}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* QUESTIONS LIST */}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '16px' }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, color: C.cyan, marginBottom: '12px' }}>Daftar Soal & Opsi Jawaban (10 Pertanyaan)</label>
-                <div style={{ maxHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '8px' }}>
+                <div style={{ maxHeight: '250px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '8px' }}>
                   {formQuestions.map((q, idx) => (
-                    <div key={idx} style={{ background: 'rgba(0,0,0,0.15)', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div key={idx} style={{ background: 'rgba(0,0,0,0.15)', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.78rem', fontWeight: 800, color: C.cyan, width: '25px' }}>#{idx + 1}</span>
                         <input
@@ -505,7 +763,60 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
 
               <div style={{ display: 'flex', gap: '12px', borderTop: `1px solid ${C.border}`, paddingTop: '16px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setShowAddModal(false)} style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 20px', color: C.text, cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>Batal</button>
-                <button onClick={handleSaveSurvey} style={{ background: C.cyan, border: 'none', borderRadius: '8px', padding: '10px 24px', color: C.bg, cursor: 'pointer', fontWeight: 800, fontSize: '0.8rem' }}>Simpan Angket</button>
+                <button onClick={handleInitiateSave} style={{ background: C.cyan, border: 'none', borderRadius: '8px', padding: '10px 24px', color: C.bg, cursor: 'pointer', fontWeight: 800, fontSize: '0.8rem' }}>Tinjau & Simpan</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PREVIEW BEFORE SAVE MODAL ── */}
+      {showPreviewModal && previewSurveyData && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+          <div style={{ background: C.surface, border: `1.5px solid ${C.cyan}`, borderRadius: '18px', padding: '28px', width: '740px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1.5px solid rgba(255,255,255,0.1)', paddingBottom: '12px' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: C.cyan, margin: 0 }}>👀 Pratinjau Sebelum Disimpan</h3>
+              <button onClick={() => setShowPreviewModal(false)} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer' }}><X size={22} /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div style={{ background: C.bg, padding: '16px', borderRadius: '12px', border: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>📋 {previewSurveyData.title}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.78rem', color: C.muted }}>
+                  <div>Periode Aktif: <strong>{previewSurveyData.startDate} s/d {previewSurveyData.endDate}</strong></div>
+                  <div>Status Awal: <strong style={{ color: C.warn }}>DRAFT (Perlu klik "Kirim" untuk rilis)</strong></div>
+                </div>
+                <div style={{ marginTop: '12px', fontSize: '0.78rem', color: C.text, borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '10px' }}>
+                  Target Outlet ({previewSurveyData.outlets.length}): <strong>{previewSurveyData.outlets.map(o => o.replace('AYAM PECAK 2001 SEAFOOD ', '').replace('PECEL LELE ', '')).join(', ')}</strong>
+                </div>
+                <div style={{ marginTop: '6px', fontSize: '0.78rem', color: C.text }}>
+                  Target Jabatan ({previewSurveyData.jabatans.length}): <strong>{previewSurveyData.jabatans.join(', ')}</strong>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h4 style={{ margin: 0, fontSize: '0.88rem', color: C.cyan, fontWeight: 'bold' }}>Daftar 10 Soal Angket:</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '280px', overflowY: 'auto', paddingRight: '6px' }}>
+                  {previewSurveyData.questions.map((q, idx) => (
+                    <div key={idx} style={{ background: 'rgba(0,0,0,0.12)', border: `1px solid ${C.border}`, borderRadius: '8px', padding: '12px' }}>
+                      <p style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 700, color: '#fff' }}>
+                        {idx + 1}. {q.text}
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', paddingLeft: '16px' }}>
+                        {['a', 'b', 'c', 'd'].map(opt => (
+                          <div key={opt} style={{ fontSize: '0.74rem', color: C.muted }}>
+                            <span style={{ fontWeight: 800, color: C.cyan, marginRight: '4px' }}>{opt.toUpperCase()}:</span> {q.options[opt]}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', borderTop: `1px solid ${C.border}`, paddingTop: '16px', justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowPreviewModal(false)} style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 20px', color: C.text, cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>Edit Kembali</button>
+                <button onClick={handleConfirmSaveSurvey} style={{ background: C.success, border: 'none', borderRadius: '8px', padding: '10px 24px', color: C.bg, cursor: 'pointer', fontWeight: 800, fontSize: '0.8rem' }}>Konfirmasi & Simpan Permanen</button>
               </div>
             </div>
           </div>
