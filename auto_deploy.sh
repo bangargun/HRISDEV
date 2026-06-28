@@ -8,8 +8,8 @@
 set -e
 
 COMMIT_MSG="${1:-auto: update hris $(date '+%Y-%m-%d %H:%M')}"
-VPS_IP="187.77.122.142"
-VPS_PASS="Barokahgrup30@@"
+VPS_IP="srv1763168.hstgr.cloud"
+VPS_PASS="Barokahgrub30@@"
 WEB_DIR="/Volumes/Macintosh HD - Data/Users/macair/hris-sistem/hris-web"
 ROOT_DIR="/Volumes/Macintosh HD - Data/Users/macair/hris-sistem"
 
@@ -67,7 +67,7 @@ echo "🔄 [4/4] Restart service di VPS..."
 DEPLOY_CMD='
     # Cari direktori project
     PROJECT_DIR=""
-    for DIR in /var/www/HRISDEV /root/HRISDEV /home/HRISDEV /srv/HRISDEV; do
+    for DIR in /var/www/hris-barokah-group /var/www/HRISDEV /root/HRISDEV /home/HRISDEV /srv/HRISDEV; do
         if [ -d "$DIR/.git" ]; then
             PROJECT_DIR="$DIR"
             break

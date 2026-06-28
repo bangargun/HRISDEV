@@ -32,7 +32,7 @@ flutter pub get
 # 1. BUILD PHONE EDITION (Mobile Karyawan)
 # ==========================================
 echo ""
-echo "=== [1/2] Building Mobile Karyawan v1.6 (Phone Edition) ==="
+echo "=== [1/2] Building Mobile Karyawan v1.7 (Phone Edition) ==="
 sed -i '' 's/static bool isTabletEdition = true;/static bool isTabletEdition = false;/g' lib/config/api_client.dart 2>/dev/null || true
 sed -i '' 's/android:label="HRIS Employee (Tablet)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
 sed -i '' 's/android:label="HRIS Employee (Tablet Edition)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
@@ -57,7 +57,7 @@ fi
 # 2. BUILD TABLET EDITION (Operasional)
 # ==========================================
 echo ""
-echo "=== [2/2] Building Tablet Operasional v1.6 (Landscape Edition) ==="
+echo "=== [2/2] Building Tablet Operasional v1.7 (Landscape Edition) ==="
 sed -i '' 's/static bool isTabletEdition = false;/static bool isTabletEdition = true;/g' lib/config/api_client.dart 2>/dev/null || true
 sed -i '' 's/android:label="HRIS Employee"/android:label="HRIS Employee (Tablet)"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
 

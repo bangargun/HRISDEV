@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import '../providers/auth_provider.dart';
 import '../models/models.dart';
 import '../config/api_client.dart';
@@ -123,7 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return;
       }
 
-      final unread = auth.informations.where((info) => !info.isRead).toList();
+      final unread = auth.informations.where((info) => !info.isRead && !info.judul.startsWith('[Sapaan AI]')).toList();
       if (unread.isNotEmpty) {
         _dialogShown = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -524,6 +527,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         padding: const EdgeInsets.all(16.0),
         children: [
 
+          // 0. Motivasi Hari Ini Card (Sapaan AI)
+          _buildAiQuoteCard(auth),
+          const SizedBox(height: 20),
+
           // 1. Welcome Card
           Container(
             padding: const EdgeInsets.all(20.0),
@@ -622,6 +629,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                const Divider(color: Color(0x1AEEEEEE), height: 1),
+                const SizedBox(height: 16),
+                _buildAttendanceActionButtons(context, auth, today),
               ],
             ),
           ),
@@ -1428,5 +1439,429 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       },
     );
+  }
+
+  Widget _buildAiQuoteCard(AuthProvider auth) {
+    final sapaanAiList = auth.informations.where((info) => info.judul.startsWith('[Sapaan AI]')).toList();
+    
+    String rawQuoteText = '';
+    String rawAuthorText = 'Barokah AI';
+    
+    if (sapaanAiList.isNotEmpty) {
+      final fullMsg = sapaanAiList.first.isiInformasi;
+      if (fullMsg.contains('~')) {
+        final parts = fullMsg.split('~');
+        rawQuoteText = parts[0].replaceAll('"', '').trim();
+        rawAuthorText = parts[1].trim();
+      } else {
+        rawQuoteText = fullMsg.replaceAll('"', '').trim();
+      }
+    }
+    
+    // Fallback jika quote kosong
+    if (rawQuoteText.isEmpty) {
+      final now = DateTime.now();
+      final index = now.day % 4;
+      final fallbacks = [
+        'Kejujuran dan integritas adalah kunci utama menjemput rezeki yang barokah.',
+        'Setiap langkah kecil kedisiplinan hari ini adalah investasi kesuksesan hari esok.',
+        'Kerja keras mendatangkan hasil, kerja cerdas mendatangkan efisiensi, kerja ikhlas mendatangkan berkah.',
+        'Kualitas pelayanan terbaik lahir dari hati yang tulus dan senyum yang ramah.'
+      ];
+      rawQuoteText = fallbacks[index];
+      rawAuthorText = 'Barokah AI';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20.0),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF393E46), Color(0xFF222831)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF00ADB5).withOpacity(0.2), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00ADB5).withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: Color(0xFF00ADB5), size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'MOTIVASI HARI INI',
+                style: TextStyle(
+                  color: Color(0xFF00ADB5),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '"$rawQuoteText"',
+            style: const TextStyle(
+              color: Color(0xFFEEEEEE),
+              fontSize: 14,
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w600,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Text(
+              '— $rawAuthorText',
+              style: const TextStyle(
+                color: Color(0xFF00ADB5),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<Position?> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Layanan GPS lokasi tidak aktif. Silakan aktifkan GPS Anda.')),
+        );
+      }
+      return null;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Izin akses lokasi ditolak.')),
+          );
+        }
+        return null;
+      }
+    }
+    
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Izin lokasi ditolak secara permanen. Silakan aktifkan lewat pengaturan HP.')),
+        );
+      }
+      return null;
+    } 
+
+    return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+  }
+
+  Future<String?> _takeSelfie() async {
+    final ImagePicker picker = ImagePicker();
+    try {
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 70,
+      );
+      if (image == null) return null;
+      final bytes = await image.readAsBytes();
+      return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengakses kamera: $e')),
+        );
+      }
+      return null;
+    }
+  }
+
+  void _performClockIn(AuthProvider auth) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
+    );
+
+    try {
+      final pos = await _getCurrentLocation();
+      if (pos == null) {
+        if (mounted) Navigator.pop(context);
+        return;
+      }
+
+      if (mounted) Navigator.pop(context); // Tutup loading GPS
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Silakan ambil foto selfie untuk verifikasi wajah.')),
+        );
+      }
+
+      final base64Photo = await _takeSelfie();
+      if (base64Photo == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Absensi dibatalkan: Foto selfie wajib.')),
+          );
+        }
+        return;
+      }
+
+      String? notes;
+      if (mounted) {
+        notes = await showDialog<String>(
+          context: context,
+          builder: (context) {
+            final controller = TextEditingController();
+            return AlertDialog(
+              backgroundColor: const Color(0xFF393E46),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Catatan Kehadiran', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
+              content: TextField(
+                controller: controller,
+                style: const TextStyle(color: Color(0xFFEEEEEE)),
+                decoration: const InputDecoration(
+                  hintText: 'Tulis keterangan/catatan (opsional)...',
+                  hintStyle: TextStyle(color: Color(0x52EEEEEE)),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0x33EEEEEE))),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00ADB5))),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, controller.text),
+                  child: const Text('KIRIM & ABSEN', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text('BATAL', style: TextStyle(color: Color(0x8DEEEEEE))),
+                ),
+              ],
+            );
+          }
+        );
+        if (notes == null) return; // Dibatalkan oleh user
+      }
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
+        );
+      }
+
+      await auth.clockIn(pos.latitude, pos.longitude, notes: notes, photoSelfie: base64Photo);
+      
+      if (mounted) Navigator.pop(context); // Tutup loading kedua
+      
+      if (auth.attendanceError != null && mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF393E46),
+            title: const Text('Gagal Absensi', style: TextStyle(color: Colors.redAccent)),
+            content: Text(auth.attendanceError!, style: const TextStyle(color: Color(0xFFEEEEEE))),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(color: Color(0xFF00ADB5))))
+            ],
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.attendanceSuccess ?? 'Berhasil Clock-In!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi kesalahan: $e')),
+        );
+      }
+    }
+  }
+
+  void _performClockOut(AuthProvider auth) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
+    );
+
+    try {
+      final pos = await _getCurrentLocation();
+      if (pos == null) {
+        if (mounted) Navigator.pop(context);
+        return;
+      }
+
+      if (mounted) Navigator.pop(context); // Tutup loading GPS
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Silakan ambil foto selfie pulang untuk verifikasi wajah.')),
+        );
+      }
+
+      final base64Photo = await _takeSelfie();
+      if (base64Photo == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Absensi dibatalkan: Foto selfie wajib.')),
+          );
+        }
+        return;
+      }
+
+      bool confirm = false;
+      if (mounted) {
+        confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF393E46),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Konfirmasi Pulang', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
+            content: const Text('Apakah Anda yakin ingin melakukan Clock-Out sekarang?', style: TextStyle(color: Color(0x8DEEEEEE))),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('YA, PULANG', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('BATAL', style: TextStyle(color: Color(0x8DEEEEEE))),
+              ),
+            ],
+          )
+        ) ?? false;
+      }
+
+      if (!confirm) return;
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
+        );
+      }
+
+      await auth.clockOut(pos.latitude, pos.longitude, photoSelfie: base64Photo);
+
+      if (mounted) Navigator.pop(context); // Tutup loading kedua
+
+      if (auth.attendanceError != null && mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF393E46),
+            title: const Text('Gagal Absensi', style: TextStyle(color: Colors.redAccent)),
+            content: Text(auth.attendanceError!, style: const TextStyle(color: Color(0xFFEEEEEE))),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(color: Color(0xFF00ADB5))))
+            ],
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.attendanceSuccess ?? 'Berhasil Clock-Out!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi kesalahan: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildAttendanceActionButtons(BuildContext context, AuthProvider auth, AttendanceRecord? today) {
+    const success = Color(0xFF10B981);
+    const danger = Color(0xFFEF4444);
+
+    if (today == null || today.clockIn == null) {
+      return SizedBox(
+        width: double.infinity,
+        height: 48,
+        child: ElevatedButton.icon(
+          onPressed: () => _performClockIn(auth),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF00ADB5),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 2,
+          ),
+          icon: const Icon(Icons.login_rounded, color: Colors.white, size: 20),
+          label: const Text(
+            'MASUK KERJA (CLOCK-IN)',
+            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          ),
+        ),
+      );
+    } else if (today.clockOut == null) {
+      return SizedBox(
+        width: double.infinity,
+        height: 48,
+        child: ElevatedButton.icon(
+          onPressed: () => _performClockOut(auth),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: danger,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 2,
+          ),
+          icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
+          label: const Text(
+            'PULANG KERJA (CLOCK-OUT)',
+            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          ),
+        ),
+      );
+    } else {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: success.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: success.withOpacity(0.15)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.check_circle_outline, color: success, size: 18),
+            SizedBox(width: 8),
+            Text(
+              'Absensi Hari Ini Telah Lengkap',
+              style: TextStyle(color: success, fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }

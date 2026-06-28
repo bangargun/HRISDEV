@@ -1,4 +1,39 @@
 import { dbQuery } from '../config/db.js';
+import fs from 'fs';
+import path from 'path';
+
+/**
+ * Menyimpan foto selfie base64 ke file fisik lokal di folder uploads
+ */
+function saveSelfieImage(photoBase64, employeeId, prefix) {
+  if (!photoBase64) return null;
+  try {
+    const matches = photoBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      // Jika bukan format data URI base64 lengkap, coba asumsikan raw base64 jpeg
+      const imageBuffer = Buffer.from(photoBase64, 'base64');
+      const filename = `${prefix}_${employeeId}_${Date.now()}.jpg`;
+      const uploadPath = path.resolve('uploads', filename);
+      if (!fs.existsSync(path.resolve('uploads'))) {
+        fs.mkdirSync(path.resolve('uploads'), { recursive: true });
+      }
+      fs.writeFileSync(uploadPath, imageBuffer);
+      return `/uploads/${filename}`;
+    }
+    const imageBuffer = Buffer.from(matches[2], 'base64');
+    const extension = matches[1].split('/')[1] || 'jpg';
+    const filename = `${prefix}_${employeeId}_${Date.now()}.${extension}`;
+    const uploadPath = path.resolve('uploads', filename);
+    if (!fs.existsSync(path.resolve('uploads'))) {
+      fs.mkdirSync(path.resolve('uploads'), { recursive: true });
+    }
+    fs.writeFileSync(uploadPath, imageBuffer);
+    return `/uploads/${filename}`;
+  } catch (error) {
+    console.error('Error saving selfie image:', error.message);
+    return null;
+  }
+}
 
 // Pengaturan geofencing dan absensi diambil secara dinamis dari database (tabel system_settings)
 // Dengan nilai fallback statis jika database kosong.
@@ -69,17 +104,32 @@ export async function clockIn(req, res) {
       settings[row.key] = row.value;
     });
 
-    const officeLat = parseFloat(settings['office_latitude'] || '-6.2088');
-    const officeLng = parseFloat(settings['office_longitude'] || '106.8456');
-    const maxRadius = parseFloat(settings['geofence_radius_meters'] || '150');
+    let officeLat = parseFloat(settings['office_latitude'] || '-6.2088');
+    let officeLng = parseFloat(settings['office_longitude'] || '106.8456');
+    let maxRadius = parseFloat(settings['geofence_radius_meters'] || '150');
     const clockInDeadline = settings['clock_in_deadline'] || '08:00:00';
+
+    // Ambil outlet terdaftar karyawan
+    const employee = await dbQuery.get("SELECT outlet FROM employees WHERE id = ?", [employeeId]);
+    let outletInfo = null;
+    if (employee && employee.outlet) {
+      outletInfo = await dbQuery.get("SELECT latitude, longitude, radius FROM outlets WHERE nama = ?", [employee.outlet.trim()]);
+    }
+
+    if (outletInfo && outletInfo.latitude !== null && outletInfo.longitude !== null) {
+      officeLat = parseFloat(outletInfo.latitude);
+      officeLng = parseFloat(outletInfo.longitude);
+      if (outletInfo.radius !== null) {
+        maxRadius = parseFloat(outletInfo.radius);
+      }
+    }
 
     // 2. Validasi Geofencing lokasi absensi
     const distance = calculateDistance(latitude, longitude, officeLat, officeLng);
     if (distance > maxRadius) {
       return res.status(400).json({
         status: 'error',
-        message: `Absensi gagal: Anda berada di luar radius kantor (${Math.round(distance)} meter dari kantor. Maksimal radius ${maxRadius} meter).`
+        message: `Absensi gagal: Anda berada di luar radius outlet terdaftar (${employee?.outlet || 'Kantor Pusat'}) (${Math.round(distance)} meter dari outlet. Maksimal radius ${maxRadius} meter).`
       });
     }
 
@@ -102,6 +152,9 @@ export async function clockIn(req, res) {
     const clockInTime = getCurrentTimeString();
     const statusIn = clockInTime > clockInDeadline ? 'late' : 'ontime';
 
+    // Simpan foto selfie jika ada
+    const photoPath = saveSelfieImage(photo_selfie, employeeId, 'selfie_in');
+
     // 4. Rekam data absensi
     await dbQuery.run(`
       INSERT INTO attendances (employee_id, date, clock_in, lat_in, lng_in, status_in, photo_in_url, notes)
@@ -113,7 +166,7 @@ export async function clockIn(req, res) {
       latitude,
       longitude,
       statusIn,
-      photo_selfie || null,
+      photoPath || null,
       notes ? notes.trim() : null
     ]);
 
@@ -165,16 +218,31 @@ export async function clockOut(req, res) {
       settings[row.key] = row.value;
     });
 
-    const officeLat = parseFloat(settings['office_latitude'] || '-6.2088');
-    const officeLng = parseFloat(settings['office_longitude'] || '106.8456');
-    const maxRadius = parseFloat(settings['geofence_radius_meters'] || '150');
+    let officeLat = parseFloat(settings['office_latitude'] || '-6.2088');
+    let officeLng = parseFloat(settings['office_longitude'] || '106.8456');
+    let maxRadius = parseFloat(settings['geofence_radius_meters'] || '150');
+
+    // Ambil outlet terdaftar karyawan
+    const employee = await dbQuery.get("SELECT outlet FROM employees WHERE id = ?", [employeeId]);
+    let outletInfo = null;
+    if (employee && employee.outlet) {
+      outletInfo = await dbQuery.get("SELECT latitude, longitude, radius FROM outlets WHERE nama = ?", [employee.outlet.trim()]);
+    }
+
+    if (outletInfo && outletInfo.latitude !== null && outletInfo.longitude !== null) {
+      officeLat = parseFloat(outletInfo.latitude);
+      officeLng = parseFloat(outletInfo.longitude);
+      if (outletInfo.radius !== null) {
+        maxRadius = parseFloat(outletInfo.radius);
+      }
+    }
 
     // 2. Validasi Geofencing lokasi absensi
     const distance = calculateDistance(latitude, longitude, officeLat, officeLng);
     if (distance > maxRadius) {
       return res.status(400).json({
         status: 'error',
-        message: `Absensi gagal: Anda berada di luar radius kantor (${Math.round(distance)} meter dari kantor).`
+        message: `Absensi gagal: Anda berada di luar radius outlet terdaftar (${employee?.outlet || 'Kantor Pusat'}) (${Math.round(distance)} meter dari outlet. Maksimal radius ${maxRadius} meter).`
       });
     }
 
@@ -202,11 +270,12 @@ export async function clockOut(req, res) {
 
     // 3. Catat Clock-Out
     const clockOutTime = getCurrentTimeString();
+    const photoPath = saveSelfieImage(photo_selfie, employeeId, 'selfie_out');
     await dbQuery.run(`
       UPDATE attendances
       SET clock_out = ?, lat_out = ?, lng_out = ?, photo_out_url = ?
       WHERE id = ?
-    `, [clockOutTime, latitude, longitude, photo_selfie || null, attendance.id]);
+    `, [clockOutTime, latitude, longitude, photoPath || null, attendance.id]);
 
     return res.status(200).json({
       status: 'success',

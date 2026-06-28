@@ -43,7 +43,7 @@ jobs:
             -o StrictHostKeyChecking=no \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             echo "=== Memperbarui repo di VPS ==="
-            cd /var/www/HRISDEV || cd /root/HRISDEV || cd /home/HRISDEV
+            cd /var/www/hris-barokah-group || cd /var/www/HRISDEV || cd /root/HRISDEV
             
             # Pull kode terbaru
             git fetch origin main

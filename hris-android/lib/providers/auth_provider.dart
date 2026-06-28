@@ -363,7 +363,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> clockIn(double lat, double lng, {String? notes}) async {
+  Future<void> clockIn(double lat, double lng, {String? notes, String? photoSelfie}) async {
     _isLoading = true;
     _attendanceError = null;
     _attendanceSuccess = null;
@@ -376,6 +376,9 @@ class AuthProvider extends ChangeNotifier {
       };
       if (notes != null && notes.isNotEmpty) {
         payload['notes'] = notes;
+      }
+      if (photoSelfie != null && photoSelfie.isNotEmpty) {
+        payload['photo_selfie'] = photoSelfie;
       }
 
       final res = await ApiClient.post('attendance/clock-in', payload, token: _token);
@@ -397,17 +400,22 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> clockOut(double lat, double lng) async {
+  Future<void> clockOut(double lat, double lng, {String? photoSelfie}) async {
     _isLoading = true;
     _attendanceError = null;
     _attendanceSuccess = null;
     notifyListeners();
 
     try {
-      final res = await ApiClient.post('attendance/clock-out', {
+      final Map<String, dynamic> payload = {
         'latitude': lat,
         'longitude': lng,
-      }, token: _token);
+      };
+      if (photoSelfie != null && photoSelfie.isNotEmpty) {
+        payload['photo_selfie'] = photoSelfie;
+      }
+
+      final res = await ApiClient.post('attendance/clock-out', payload, token: _token);
 
       final data = jsonDecode(res.body);
       _isLoading = false;

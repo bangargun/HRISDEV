@@ -713,7 +713,47 @@ export default function BroadcastUtama() {
 
       <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
 
-        {/* ═══ FORM SIARAN ═══ */}
+        {/* Tab Switcher */}
+        <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, gap: '8px', marginBottom: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('siaran')}
+            style={{
+              padding: '12px 20px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: activeTab === 'siaran' ? `3px solid ${C.cyan}` : '3px solid transparent',
+              color: activeTab === 'siaran' ? C.cyan : C.muted,
+              fontSize: '0.95rem',
+              fontWeight: activeTab === 'siaran' ? '700' : '500',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            📢 Siaran & Pengumuman
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('sapaan_ai')}
+            style={{
+              padding: '12px 20px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: activeTab === 'sapaan_ai' ? `3px solid ${C.cyan}` : '3px solid transparent',
+              color: activeTab === 'sapaan_ai' ? C.cyan : C.muted,
+              fontSize: '0.95rem',
+              fontWeight: activeTab === 'sapaan_ai' ? '700' : '500',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            ✨ Sapaan Motivasi AI
+          </button>
+        </div>
+
+        {activeTab === 'siaran' && (
+          <>
+            {/* ═══ FORM SIARAN ═══ */}
         <form onSubmit={handleSiarkan} className="bc-anim">
           <div style={{
             background: C.surface, borderRadius: '20px',
@@ -1048,6 +1088,184 @@ export default function BroadcastUtama() {
             </div>
           )}
         </div>
+
+          </>
+        )}
+
+        {activeTab === 'sapaan_ai' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '28px', alignItems: 'start' }} className="bc-anim">
+            {/* Form Generator Sapaan AI */}
+            <div style={{
+              background: C.surface, borderRadius: '20px',
+              border: `1px solid ${C.border}`, padding: '24px 28px',
+              display: 'flex', flexDirection: 'column', gap: '20px'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <Zap size={18} color={C.cyan} />
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: C.text }}>
+                    Asisten AI Quote Motivasi
+                  </h3>
+                </div>
+                <p style={{ color: C.muted, fontSize: '0.78rem' }}>
+                  Gunakan kecerdasan AI untuk merancang quote inspiratif harian bagi karyawan.
+                </p>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: C.muted, marginBottom: '6px' }}>
+                  Quote Motivasi Hari Ini <span style={{ color: C.danger }}>*</span>
+                </label>
+                <textarea
+                  value={quoteText}
+                  onChange={e => setQuoteText(e.target.value)}
+                  placeholder="Ketik quote di sini atau klik tombol 'Generate Quote AI' di bawah..."
+                  required
+                  rows={4}
+                  style={{
+                    width: '100%', background: C.bg, border: `1px solid ${C.border}`,
+                    borderRadius: '10px', padding: '12px 14px', color: C.text,
+                    fontSize: '0.88rem', resize: 'vertical', lineHeight: '1.6',
+                    boxSizing: 'border-box', minHeight: '90px'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: C.muted, marginBottom: '6px' }}>
+                  Penulis / Sumber Tokoh
+                </label>
+                <input
+                  type="text"
+                  value={quoteAuthor}
+                  onChange={e => setQuoteAuthor(e.target.value)}
+                  placeholder="Contoh: Barokah AI, Ki Hajar Dewantara, dll"
+                  style={{
+                    width: '100%', background: C.bg, border: `1px solid ${C.border}`,
+                    borderRadius: '10px', padding: '11px 14px', color: C.text,
+                    fontSize: '0.9rem', boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={handleGenerateQuoteAI}
+                  disabled={isGeneratingQuote}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    padding: '12px', borderRadius: '12px', border: `1px solid ${C.cyan}`,
+                    background: 'transparent', color: C.cyan, fontWeight: 700, cursor: 'pointer',
+                    fontSize: '0.86rem', transition: 'all 0.15s'
+                  }}
+                >
+                  {isGeneratingQuote ? 'Berpikir...' : '✨ Generate Quote AI'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleKirimQuote}
+                  disabled={isSendingEvent || !quoteText.trim()}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    padding: '12px', borderRadius: '12px', border: 'none',
+                    background: quoteText.trim() ? `linear-gradient(135deg, ${C.success}, #3dbbb2)` : 'rgba(238,238,238,0.1)',
+                    color: quoteText.trim() ? '#fff' : C.muted, fontWeight: 800, cursor: quoteText.trim() ? 'pointer' : 'not-allowed',
+                    fontSize: '0.86rem', transition: 'all 0.15s',
+                    boxShadow: quoteText.trim() ? '0 4px 14px rgba(78,205,196,0.3)' : 'none'
+                  }}
+                >
+                  🚀 Aktifkan & Kirim
+                </button>
+              </div>
+            </div>
+
+            {/* Handphone Preview Screen Mockup */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{
+                width: '280px', height: '490px', borderRadius: '36px',
+                border: '10px solid #1E222B', backgroundColor: '#16191E',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.6)', overflow: 'hidden',
+                position: 'relative', display: 'flex', flexDirection: 'column'
+              }}>
+                {/* Notch */}
+                <div style={{
+                  position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                  width: '110px', height: '18px', backgroundColor: '#1E222B',
+                  borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px', zIndex: 10
+                }} />
+
+                {/* Status Bar */}
+                <div style={{
+                  padding: '24px 16px 8px', display: 'flex', justifyContent: 'space-between',
+                  fontSize: '0.62rem', color: '#6A7280', fontWeight: 'bold'
+                }}>
+                  <span>14:40</span>
+                  <span>📶 🔋 100%</span>
+                </div>
+
+                {/* App Content Preview */}
+                <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* Greeting header */}
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.68rem', color: '#6A7280' }}>Selamat Datang,</span>
+                    <span style={{ fontSize: '0.95rem', color: C.text, fontWeight: 'bold', marginTop: '2px' }}>Ahmad Karyawan</span>
+                  </div>
+
+                  {/* Dynamic Active Quote Widget */}
+                  <div style={{
+                    background: `linear-gradient(135deg, ${C.surface} 0%, #222831 100%)`,
+                    border: `1.5px solid ${C.cyan}44`, borderRadius: '16px',
+                    padding: '14px', boxShadow: '0 8px 20px rgba(0,173,181,0.15)',
+                    animation: 'pulseGlow 3s ease infinite'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.85rem' }}>✨</span>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 800, color: C.cyan, letterSpacing: '0.5px' }}>
+                        MOTIVASI HARI INI
+                      </span>
+                    </div>
+                    <p style={{
+                      fontSize: '0.72rem', color: '#E5E7EB', fontStyle: 'italic',
+                      lineHeight: '1.45', fontWeight: 600, marginBottom: '6px'
+                    }}>
+                      {quoteText.trim() ? `"${quoteText.trim()}"` : '"Kejujuran dan integritas adalah kunci utama menjemput rezeki yang barokah."'}
+                    </p>
+                    <p style={{ fontSize: '0.62rem', color: C.cyan, fontWeight: 700, textAlign: 'right' }}>
+                      — {quoteAuthor.trim() || 'Barokah AI'}
+                    </p>
+                  </div>
+
+                  {/* Dummy Absensi Status */}
+                  <div style={{
+                    background: C.surface, borderRadius: '12px', padding: '10px',
+                    border: '1px solid rgba(255,255,255,0.03)'
+                  }}>
+                    <span style={{ fontSize: '0.6rem', fontWeight: 'bold', color: '#9CA3AF' }}>STATUS KEHADIRAN</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '0.5rem', color: '#6B7280' }}>Masuk</span>
+                        <span style={{ fontSize: '0.68rem', color: '#EEEEEE', fontWeight: 'bold' }}>08:00</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '0.5rem', color: '#6B7280' }}>Keluar</span>
+                        <span style={{ fontSize: '0.68rem', color: '#EEEEEE', fontWeight: 'bold' }}>--:--</span>
+                      </div>
+                      <span style={{
+                        fontSize: '0.55rem', color: '#10B981', fontWeight: 'bold',
+                        alignSelf: 'center', background: 'rgba(16,185,129,0.1)',
+                        padding: '2px 6px', borderRadius: '4px'
+                      }}>Tepat Waktu</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <span style={{ fontSize: '0.74rem', color: C.muted, marginTop: '8px', fontWeight: 600 }}>
+                Pratinjau Layar Utama HP Karyawan
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Footer info */}
         <div style={{ textAlign: 'center', paddingBottom: '8px' }}>
