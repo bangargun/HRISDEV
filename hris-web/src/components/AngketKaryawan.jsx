@@ -21,35 +21,44 @@ const uid = () => `angket-${Date.now()}-${Math.random().toString(36).slice(2, 7)
 export default function AngketKaryawan({ token, API_URL, userPermissions }) {
   const { activeEmployees } = useHRIS();
 
-  // Load surveys & responses from localStorage
-  const [surveys, setSurveys] = useState(() => {
-    try {
-      const stored = localStorage.getItem('hris_surveys_manual');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Load surveys & responses from localStorage/backend
+  const [surveys, setSurveys] = useState([]);
+  const [surveyResponses, setSurveyResponses] = useState([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const [surveyResponses, setSurveyResponses] = useState(() => {
-    try {
-      const stored = localStorage.getItem('hris_survey_responses_manual');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Sync back to localStorage when states change
+  // Fetch all from backend on mount
   useEffect(() => {
-    localStorage.setItem('hris_surveys_manual', JSON.stringify(surveys));
-    window.dispatchEvent(new CustomEvent('local_storage_sync', { detail: { key: 'hris_surveys_manual' } }));
-  }, [surveys]);
-
-  useEffect(() => {
-    localStorage.setItem('hris_survey_responses_manual', JSON.stringify(surveyResponses));
-    window.dispatchEvent(new CustomEvent('local_storage_sync', { detail: { key: 'hris_survey_responses_manual' } }));
-  }, [surveyResponses]);
+    const fetchAll = async () => {
+      if (!token) return;
+      setIsSyncing(true);
+      try {
+        const res = await fetch(`${API_URL}/angket/admin/all`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success') {
+            setSurveys(json.surveys || []);
+            setSurveyResponses(json.responses || []);
+            localStorage.setItem('hris_surveys_manual', JSON.stringify(json.surveys || []));
+            localStorage.setItem('hris_survey_responses_manual', JSON.stringify(json.responses || []));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching surveys from server:', err);
+        // Fallback to localStorage
+        try {
+          const storedSrv = localStorage.getItem('hris_surveys_manual');
+          const storedResp = localStorage.getItem('hris_survey_responses_manual');
+          if (storedSrv) setSurveys(JSON.parse(storedSrv));
+          if (storedResp) setSurveyResponses(JSON.parse(storedResp));
+        } catch {}
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+    fetchAll();
+  }, [token, API_URL]);
 
   // Form states for creating/editing survey
   const [showAddModal, setShowAddModal] = useState(false);
@@ -66,6 +75,10 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
       options: { a: '', b: '', c: '', d: '' }
     }))
   );
+
+  // Dropdown visibility states
+  const [showOutletDropdown, setShowOutletDropdown] = useState(false);
+  const [showJabatanDropdown, setShowJabatanDropdown] = useState(false);
 
   // Preview before saving modal
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -132,6 +145,8 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
     setFormEndDate('');
     setFormOutlets([...outletsList]); // Default select all
     setFormJabatans([...jabatansList]); // Default select all
+    setShowOutletDropdown(false);
+    setShowJabatanDropdown(false);
     setFormQuestions(
       Array(10).fill(null).map((_, i) => ({
         id: `q${i}`,
@@ -149,6 +164,8 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
     setFormEndDate(srv.endDate);
     setFormOutlets(srv.outlets || []);
     setFormJabatans(srv.jabatans || []);
+    setShowOutletDropdown(false);
+    setShowJabatanDropdown(false);
     setFormQuestions(srv.questions.map(q => ({
       id: q.id,
       text: q.text,
@@ -200,31 +217,93 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
     setShowPreviewModal(true);
   };
 
-  const handleConfirmSaveSurvey = () => {
+  const handleConfirmSaveSurvey = async () => {
     if (!previewSurveyData) return;
+    
+    let newSurveys;
     if (editingSurveyId) {
-      setSurveys(surveys.map(s => s.id === editingSurveyId ? previewSurveyData : s));
+      newSurveys = surveys.map(s => s.id === editingSurveyId ? previewSurveyData : s);
     } else {
-      setSurveys([...surveys, previewSurveyData]);
+      newSurveys = [...surveys, previewSurveyData];
     }
+    
+    setSurveys(newSurveys);
+    localStorage.setItem('hris_surveys_manual', JSON.stringify(newSurveys));
+    
     setShowPreviewModal(false);
     setShowAddModal(false);
     setPreviewSurveyData(null);
-  };
 
-  const handleSendSurvey = (id) => {
-    if (window.confirm('Kirim dan aktifkan angket ini ke seluruh target karyawan?')) {
-      setSurveys(surveys.map(s => s.id === id ? { ...s, status: 'aktif' } : s));
-      alert('Angket berhasil dikirim/diaktifkan!');
+    // Sync to backend
+    try {
+      await fetch(`${API_URL}/angket`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ surveys: newSurveys })
+      });
+    } catch (err) {
+      console.error('Failed to sync surveys with backend:', err);
     }
   };
 
-  const handleDeleteSurvey = (id) => {
+  const handleSendSurvey = async (id) => {
+    if (window.confirm('Kirim dan aktifkan angket ini ke seluruh target karyawan?')) {
+      const newSurveys = surveys.map(s => s.id === id ? { ...s, status: 'aktif' } : s);
+      setSurveys(newSurveys);
+      localStorage.setItem('hris_surveys_manual', JSON.stringify(newSurveys));
+
+      try {
+        await fetch(`${API_URL}/angket`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ surveys: newSurveys })
+        });
+        alert('Angket berhasil dikirim/diaktifkan!');
+      } catch (err) {
+        console.error('Failed to send survey to backend:', err);
+      }
+    }
+  };
+
+  const handleDeleteSurvey = async (id) => {
     if (window.confirm('Apakah Anda yakin ingin menghapus angket ini? Semua jawaban terkait akan ikut terhapus.')) {
-      setSurveys(surveys.filter(s => s.id !== id));
-      setSurveyResponses(surveyResponses.filter(r => r.surveyId !== id));
+      const newSurveys = surveys.filter(s => s.id !== id);
+      const newResponses = surveyResponses.filter(r => r.surveyId !== id);
+      
+      setSurveys(newSurveys);
+      setSurveyResponses(newResponses);
+      localStorage.setItem('hris_surveys_manual', JSON.stringify(newSurveys));
+      localStorage.setItem('hris_survey_responses_manual', JSON.stringify(newResponses));
+      
       if (selectedSurveyForResult?.id === id) {
         setSelectedSurveyForResult(null);
+      }
+
+      try {
+        await fetch(`${API_URL}/angket`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ surveys: newSurveys })
+        });
+        await fetch(`${API_URL}/angket/responses`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ responses: newResponses })
+        });
+      } catch (err) {
+        console.error('Failed to delete survey on backend:', err);
       }
     }
   };
@@ -235,7 +314,7 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
     setShowInputResponseModal(true);
   };
 
-  const handleSaveResponse = () => {
+  const handleSaveResponse = async () => {
     if (!responseEmpId) {
       alert('Harap pilih karyawan terlebih dahulu!');
       return;
@@ -260,8 +339,24 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
       submittedAt: new Date().toISOString()
     };
 
-    setSurveyResponses([...surveyResponses, newResp]);
+    const newResponses = [...surveyResponses, newResp];
+    setSurveyResponses(newResponses);
+    localStorage.setItem('hris_survey_responses_manual', JSON.stringify(newResponses));
+    
     setShowInputResponseModal(false);
+
+    try {
+      await fetch(`${API_URL}/angket/responses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ responses: newResponses })
+      });
+    } catch (err) {
+      console.error('Failed to save manual response to backend:', err);
+    }
   };
 
   const getSurveyStats = (survey) => {
@@ -319,6 +414,14 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
 
   return (
     <div style={{ padding: '24px', boxSizing: 'border-box', color: C.text, fontFamily: 'sans-serif', position: 'relative' }}>
+      {/* Syncing Overlay */}
+      {isSyncing && (
+        <div style={{ position: 'fixed', top: 12, right: 12, background: C.cyan, color: C.bg, padding: '6px 12px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 800, boxShadow: '0 2px 10px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '6px', zIndex: 99999 }}>
+          <div style={{ width: '10px', height: '10px', border: '2px solid rgba(0,0,0,0.2)', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          <span>Sinkronisasi Data...</span>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         display: 'flex',
@@ -648,74 +751,106 @@ export default function AngketKaryawan({ token, API_URL, userPermissions }) {
                 </div>
               </div>
 
-              {/* OUTLET MULTI SELECT */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: C.muted }}>Target Outlet Terpilih (Satu atau Lebih)</label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => setFormOutlets([...outletsList])} style={{ background: 'transparent', border: 'none', color: C.cyan, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Pilih Semua</button>
-                    <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
-                    <button onClick={() => setFormOutlets([])} style={{ background: 'transparent', border: 'none', color: C.danger, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Bersihkan</button>
+              {/* OUTLET MULTI SELECT DROPDOWN */}
+              <div style={{ position: 'relative' }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.muted, marginBottom: '6px' }}>Target Outlet Terpilih (Dropdown)</label>
+                <button
+                  type="button"
+                  onClick={() => { setShowOutletDropdown(!showOutletDropdown); setShowJabatanDropdown(false); }}
+                  style={{
+                    width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    background: C.bg, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 14px',
+                    color: C.text, fontSize: '0.8rem', cursor: 'pointer', textAlign: 'left', outline: 'none'
+                  }}
+                >
+                  <span>{formOutlets.length === 0 ? 'Pilih Target Outlet...' : formOutlets.length === outletsList.length ? 'Semua Outlet Terpilih' : `${formOutlets.length} Outlet Terpilih`}</span>
+                  <span style={{ fontSize: '0.7rem', color: C.cyan }}>▼</span>
+                </button>
+                
+                {showOutletDropdown && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                    background: C.surface, border: `1.5px solid ${C.cyan}`, borderRadius: '8px',
+                    marginTop: '4px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', padding: '12px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '6px' }}>
+                      <button type="button" onClick={() => setFormOutlets([...outletsList])} style={{ background: 'transparent', border: 'none', color: C.cyan, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Pilih Semua</button>
+                      <button type="button" onClick={() => setFormOutlets([])} style={{ background: 'transparent', border: 'none', color: C.danger, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Bersihkan</button>
+                    </div>
+                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {outletsList.map(name => {
+                        const isChecked = formOutlets.includes(name);
+                        return (
+                          <label key={name} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.74rem', background: isChecked ? C.cyanDim : 'transparent', border: `1px solid ${isChecked ? 'rgba(0, 173, 181, 0.3)' : 'transparent'}` }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormOutlets([...formOutlets, name]);
+                                } else {
+                                  setFormOutlets(formOutlets.filter(item => item !== name));
+                                }
+                              }}
+                            />
+                            <span>{name.replace('AYAM PECAK 2001 SEAFOOD ', '').replace('PECEL LELE ', '')}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxH: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.1)', padding: '10px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
-                  {outletsList.map(name => {
-                    const isChecked = formOutlets.includes(name);
-                    return (
-                      <label key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isChecked ? C.cyanDim : 'transparent', border: `1px solid ${isChecked ? C.cyan : C.border}`, padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600 }}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormOutlets([...formOutlets, name]);
-                            } else {
-                              setFormOutlets(formOutlets.filter(item => item !== name));
-                            }
-                          }}
-                          style={{ display: 'none' }}
-                        />
-                        {isChecked && <Check size={11} style={{ color: C.cyan }} />}
-                        <span>{name.replace('AYAM PECAK 2001 SEAFOOD ', '').replace('PECEL LELE ', '')}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+                )}
               </div>
 
-              {/* JABATAN MULTI SELECT */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: C.muted }}>Target Jabatan Terpilih (Satu atau Lebih)</label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => setFormJabatans([...jabatansList])} style={{ background: 'transparent', border: 'none', color: C.cyan, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Pilih Semua</button>
-                    <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
-                    <button onClick={() => setFormJabatans([])} style={{ background: 'transparent', border: 'none', color: C.danger, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Bersihkan</button>
+              {/* JABATAN MULTI SELECT DROPDOWN */}
+              <div style={{ position: 'relative' }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.muted, marginBottom: '6px' }}>Target Jabatan Terpilih (Dropdown)</label>
+                <button
+                  type="button"
+                  onClick={() => { setShowJabatanDropdown(!showJabatanDropdown); setShowOutletDropdown(false); }}
+                  style={{
+                    width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    background: C.bg, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 14px',
+                    color: C.text, fontSize: '0.8rem', cursor: 'pointer', textAlign: 'left', outline: 'none'
+                  }}
+                >
+                  <span>{formJabatans.length === 0 ? 'Pilih Target Jabatan...' : formJabatans.length === jabatansList.length ? 'Semua Jabatan Terpilih' : `${formJabatans.length} Jabatan Terpilih`}</span>
+                  <span style={{ fontSize: '0.7rem', color: C.cyan }}>▼</span>
+                </button>
+                
+                {showJabatanDropdown && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                    background: C.surface, border: `1.5px solid ${C.cyan}`, borderRadius: '8px',
+                    marginTop: '4px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', padding: '12px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '6px' }}>
+                      <button type="button" onClick={() => setFormJabatans([...jabatansList])} style={{ background: 'transparent', border: 'none', color: C.cyan, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Pilih Semua</button>
+                      <button type="button" onClick={() => setFormJabatans([])} style={{ background: 'transparent', border: 'none', color: C.danger, fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Bersihkan</button>
+                    </div>
+                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {jabatansList.map(role => {
+                        const isChecked = formJabatans.includes(role);
+                        return (
+                          <label key={role} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.74rem', background: isChecked ? C.cyanDim : 'transparent', border: `1px solid ${isChecked ? 'rgba(0, 173, 181, 0.3)' : 'transparent'}` }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormJabatans([...formJabatans, role]);
+                                } else {
+                                  setFormJabatans(formJabatans.filter(item => item !== role));
+                                }
+                              }}
+                            />
+                            <span>{role}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', background: 'rgba(0,0,0,0.1)', padding: '10px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
-                  {jabatansList.map(role => {
-                    const isChecked = formJabatans.includes(role);
-                    return (
-                      <label key={role} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isChecked ? C.cyanDim : 'transparent', border: `1px solid ${isChecked ? C.cyan : C.border}`, padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600 }}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormJabatans([...formJabatans, role]);
-                            } else {
-                              setFormJabatans(formJabatans.filter(item => item !== role));
-                            }
-                          }}
-                          style={{ display: 'none' }}
-                        />
-                        {isChecked && <Check size={11} style={{ color: C.cyan }} />}
-                        <span>{role}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+                )}
               </div>
 
               {/* QUESTIONS LIST */}

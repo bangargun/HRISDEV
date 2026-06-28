@@ -523,6 +523,157 @@ app.post('/api/quizzes/attempts', authenticateToken, async (req, res) => {
 });
 
 
+// --- ENDPOINTS ANGKET KARYAWAN ---
+app.get('/api/angket', authenticateToken, (req, res) => {
+  const surveys = backendState.angket_bank || [];
+  
+  if (req.user.role === 'employee') {
+    const myOutlet = (req.user.outlet || '').toUpperCase().trim();
+    const myPos = (req.user.position || req.user.jabatan || '').toUpperCase().trim();
+    
+    const filtered = surveys.filter(s => {
+      if (s.status !== 'aktif') return false;
+      const matchOutlet = (s.outlets || []).some(o => o.toUpperCase().trim() === myOutlet);
+      const matchJabatan = (s.jabatans || []).some(j => j.toUpperCase().trim() === myPos);
+      return matchOutlet && matchJabatan;
+    }).map(s => ({
+      id: s.id,
+      judul: s.title,
+      deskripsi: s.description || 'Silakan kerjakan angket karyawan ini.',
+      tanggal_mulai: s.startDate,
+      tanggal_akhir: s.endDate,
+      total_soal: s.questions?.length || 10,
+      questions: s.questions
+    }));
+    return res.json({ status: 'success', data: filtered });
+  }
+  
+  res.json({ status: 'success', data: surveys });
+});
+
+app.post('/api/angket', authenticateToken, async (req, res) => {
+  const newSurveys = req.body.surveys || [];
+  const existingSurveys = backendState.angket_bank || [];
+  const existingSentIds = new Set(existingSurveys.filter(s => s.status === 'aktif').map(s => String(s.id)));
+
+  for (const srv of newSurveys) {
+    if (srv.status === 'aktif' && !existingSentIds.has(String(srv.id))) {
+      // New active survey released! Dispatch notifications to targeted employees
+      try {
+        const targetEmployees = await dbQuery.all("SELECT id, full_name, position, outlet FROM employees WHERE status = 'active'");
+        for (const emp of targetEmployees) {
+          const empOutlet = (emp.outlet || '').toUpperCase().trim();
+          const empPos = (emp.position || emp.jabatan || '').toUpperCase().trim();
+          
+          const matchOutlet = (srv.outlets || []).some(o => o.toUpperCase().trim() === empOutlet);
+          const matchJabatan = (srv.jabatans || []).some(j => j.toUpperCase().trim() === empPos);
+          
+          if (matchOutlet && matchJabatan) {
+            await dbQuery.run(
+              `INSERT INTO mobile_user_notifications (employee_id, outlet, title, message, type, is_read) 
+               VALUES (?, ?, ?, ?, 'angket', 0)`,
+              [emp.id, emp.outlet, 'Angket Baru Tersedia', `Silakan isi angket baru: "${srv.title}"`, 'angket']
+            );
+            console.log(`[Notification] Created angket notification for employee ID ${emp.id}`);
+          }
+        }
+      } catch (err) {
+        console.error('[Notification] Failed to create angket notifications:', err.message);
+      }
+    }
+  }
+
+  backendState.angket_bank = newSurveys;
+  saveBackendDb();
+  res.json({ status: 'success' });
+});
+
+app.get('/api/angket/completed', authenticateToken, (req, res) => {
+  const empId = String(req.query.employee_id || req.user.employeeId);
+  const responses = backendState.angket_responses || [];
+  const completed = responses.filter(r => String(r.employeeId) === empId).map(r => ({
+    angket_id: r.surveyId,
+    id: r.surveyId
+  }));
+  res.json({ status: 'success', data: completed });
+});
+
+app.get('/api/angket/:id/questions', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const survey = (backendState.angket_bank || []).find(s => String(s.id) === String(id));
+  if (!survey) {
+    return res.status(404).json({ status: 'error', message: 'Angket tidak ditemukan' });
+  }
+  // Map questions format expected by mobile app
+  const qList = (survey.questions || []).map((q, idx) => ({
+    id: q.id || `q${idx}`,
+    tanya: q.text,
+    opsi_a: q.options?.a || '',
+    opsi_b: q.options?.b || '',
+    opsi_c: q.options?.c || '',
+    opsi_d: q.options?.d || ''
+  }));
+  res.json({ status: 'success', data: qList });
+});
+
+app.post('/api/angket/:id/submit', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { employee_id, answers } = req.body;
+  
+  const survey = (backendState.angket_bank || []).find(s => String(s.id) === String(id));
+  if (!survey) {
+    return res.status(404).json({ status: 'error', message: 'Angket tidak ditemukan' });
+  }
+  
+  const answersMap = {};
+  (answers || []).forEach(ans => {
+    answersMap[ans.question_id || ans.question_id] = ans.answer;
+  });
+  
+  const employee = await dbQuery.get("SELECT full_name, outlet FROM employees WHERE id = ?", [employee_id]);
+  const empName = employee ? employee.full_name : 'Karyawan';
+  const empOutlet = employee ? employee.outlet : '';
+  
+  const newResponse = {
+    id: `resp-${Date.now()}`,
+    surveyId: id,
+    employeeId: String(employee_id),
+    employeeName: empName,
+    outlet: empOutlet,
+    answers: answersMap,
+    submittedAt: new Date().toISOString()
+  };
+  
+  backendState.angket_responses = backendState.angket_responses || [];
+  backendState.angket_responses = backendState.angket_responses.filter(
+    r => !(String(r.surveyId) === String(id) && String(r.employeeId) === String(employee_id))
+  );
+  backendState.angket_responses.push(newResponse);
+  saveBackendDb();
+  
+  await dbQuery.run(
+    "UPDATE mobile_user_notifications SET is_read = 1 WHERE employee_id = ? AND type = 'angket'",
+    [employee_id]
+  );
+  
+  res.status(201).json({ status: 'success', data: newResponse });
+});
+
+app.get('/api/angket/admin/all', authenticateToken, (req, res) => {
+  res.json({
+    status: 'success',
+    surveys: backendState.angket_bank || [],
+    responses: backendState.angket_responses || []
+  });
+});
+
+app.post('/api/angket/responses', authenticateToken, (req, res) => {
+  backendState.angket_responses = req.body.responses || [];
+  saveBackendDb();
+  res.json({ status: 'success' });
+});
+
+
 // Endpoint Dispatcher Pemutus Macet Koneksi
 app.post('/api/v1/dispatch-event', async (req, res) => {
   const { type, targetOutlet, targetJabatan, messageTitle, content } = req.body;
