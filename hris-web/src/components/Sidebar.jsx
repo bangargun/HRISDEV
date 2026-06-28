@@ -1,7 +1,7 @@
 import { 
   LayoutDashboard, Users, Calendar, FileText, LogOut, 
   ShieldAlert, Shield, Settings, Store, BookOpen, 
-  HelpCircle, BarChart3, AlertTriangle, Award, Key, Coins, Radio
+  HelpCircle, BarChart3, AlertTriangle, Award, Key, Coins, Radio, ClipboardList
 } from 'lucide-react';
 import { getRoleFromPosition, checkAccess } from '../utils/security';
 
@@ -20,6 +20,7 @@ export default function Sidebar({ activeTab, setActiveTab, onLogout, user, userP
     { id: 'sanctions', label: 'Sanksi & SP', icon: AlertTriangle },
     { id: 'trainings', label: 'Program Pelatihan', icon: Award },
     { id: 'kuis', label: 'Kuis Kompetensi', icon: BookOpen },
+    { id: 'angket', label: 'Angket Karyawan', icon: ClipboardList },
     { id: 'broadcast', label: 'Broadcast & Notifikasi', icon: Radio },
     { id: 'policies', label: 'Kebijakan Perusahaan', icon: ShieldAlert },
   ];

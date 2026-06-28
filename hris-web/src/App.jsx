@@ -16,6 +16,7 @@ import SanksiPage from './components/SanksiPage';
 import ProgramPelatihanBaru from './components/ProgramPelatihanBaru';
 import PolicyPage from './components/PolicyPage';
 import KuisKompetensi from './components/KuisKompetensi';
+import AngketKaryawan from './components/AngketKaryawan';
 import BroadcastUtama from './components/BroadcastUtama';
 import { HRISProvider } from './context/HRISContext';
 import SyncOverlay from './components/SyncOverlay';
@@ -474,6 +475,8 @@ export default function App() {
         return <PolicyPage token={token} API_URL={API_URL} userPermissions={userPermissions} user={user} />;
       case 'kuis':
         return <KuisKompetensi token={token} API_URL={API_URL} userPermissions={userPermissions} />;
+      case 'angket':
+        return <AngketKaryawan token={token} API_URL={API_URL} userPermissions={userPermissions} />;
       case 'broadcast':
         return <BroadcastUtama token={token} API_URL={API_URL} userPermissions={userPermissions} />;
 

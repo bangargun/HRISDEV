@@ -1348,7 +1348,6 @@ export default function KuisKompetensi() {
         {[
           { id: 'kelola', label: '📚 Kelola & Buat Kuis' },
           { id: 'hasil', label: '📊 Hasil Kompetensi Karyawan' },
-          { id: 'survey', label: '📝 Survey Karyawan' },
         ].map(t => (
           <button key={t.id} className="tab-btn-kuis"
             onClick={() => setActiveTab(t.id)}

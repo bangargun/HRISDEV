@@ -1497,9 +1497,17 @@ export default function PenilaianKPI({ token, API_URL }) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+              gap: '10px',
+              marginTop: '12px'
+            }}>
               {outletsList.map(o => {
                 const isSelected = lbSelectedOutlets.includes(o);
+                const displayLabel = o === 'Semua Outlet' 
+                  ? '🌐 Semua Outlet' 
+                  : '📍 ' + o.replace('AYAM PECAK 2001 SEAFOOD ', '').replace('PECEL LELE ', '');
                 return (
                   <button
                     key={o}
@@ -1509,14 +1517,19 @@ export default function PenilaianKPI({ token, API_URL }) {
                       border: `1.5px solid ${isSelected ? C.cyan : C.border}`,
                       color: isSelected ? C.cyan : C.muted,
                       borderRadius: '8px',
-                      padding: '6px 14px',
+                      padding: '8px 12px',
                       cursor: 'pointer',
                       fontWeight: 700,
-                      fontSize: '0.8rem',
-                      transition: 'all 0.2s ease'
+                      fontSize: '0.78rem',
+                      transition: 'all 0.2s ease',
+                      textAlign: 'left',
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
+                      overflow: 'hidden'
                     }}
+                    title={o}
                   >
-                    {o === 'Semua Outlet' ? '🌐 Semua Outlet' : `📍 ${o}`}
+                    {displayLabel}
                   </button>
                 );
               })}

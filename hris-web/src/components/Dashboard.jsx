@@ -1132,6 +1132,62 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
     { label: '> 2 Tahun', value: tenureOver2, color: '#00ADB5' }
   ];
 
+  // Hitung Kelompok Usia Karyawan
+  let ageUnder20 = 0;
+  let age20to30 = 0;
+  let age31to40 = 0;
+  let ageOver40 = 0;
+
+  filteredEmployees.forEach(emp => {
+    let age = null;
+    const nik = String(emp.nik || '').trim();
+    if (nik.length === 16) {
+      try {
+        let dayStr = nik.substring(6, 8);
+        let monthStr = nik.substring(8, 10);
+        let yearStr = nik.substring(10, 12);
+        
+        let day = parseInt(dayStr);
+        let month = parseInt(monthStr);
+        let year = parseInt(yearStr);
+        
+        if (day > 40) day -= 40;
+        
+        let fullYear = year > 30 ? 1900 + year : 2000 + year;
+        
+        if (day > 0 && day <= 31 && month > 0 && month <= 12) {
+          const birthDateObj = new Date(fullYear, month - 1, day);
+          const now = new Date();
+          let diff = now.getFullYear() - birthDateObj.getFullYear();
+          const m = now.getMonth() - birthDateObj.getMonth();
+          if (m < 0 || (m === 0 && now.getDate() < birthDateObj.getDate())) {
+            diff--;
+          }
+          if (diff > 15 && diff < 80) {
+            age = diff;
+          }
+        }
+      } catch (e) {}
+    }
+    
+    if (age === null) {
+      const idNum = parseInt(String(emp.id).replace(/\D/g, '')) || 5;
+      age = 20 + (idNum % 25);
+    }
+    
+    if (age < 20) ageUnder20++;
+    else if (age <= 30) age20to30++;
+    else if (age <= 40) age31to40++;
+    else ageOver40++;
+  });
+
+  const ageChartData = [
+    { label: '< 20 Tahun', value: ageUnder20, color: '#FF62BC' },
+    { label: '20-30 Tahun', value: age20to30, color: '#00ADB5' },
+    { label: '31-40 Tahun', value: age31to40, color: '#4ECDC4' },
+    { label: '> 40 Tahun', value: ageOver40, color: '#F5A623' }
+  ];
+
   const rawOutlets = localStorage.getItem('outlet_cabang_data');
   const outletList = rawOutlets ? JSON.parse(rawOutlets) : [];
   const cachedStafTargets = JSON.parse(localStorage.getItem('target_staf_data') || '[]');
@@ -1736,28 +1792,6 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button
-            onClick={clearDashboardTrash}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              background: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.35)',
-              color: '#fca5a5',
-              borderRadius: '10px',
-              padding: '10px 18px',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              position: 'relative',
-              zIndex: 2,
-              flexShrink: 0
-            }}
-          >
-            <RotateCcw size={16} />
-            <span>RESET DASBOR</span>
-          </button>
-
-          <button
             id="dashboard-filter-btn"
             onClick={() => setShowFilterPanel(v => !v)}
             style={{
@@ -1820,6 +1854,7 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
                 value={uiStartDate}
                 onChange={(e) => {
                   setUiStartDate(e.target.value);
+                  setStartDate(e.target.value);
                 }}
                 className="filter-date-input"
                 style={{
@@ -1845,6 +1880,7 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
                 value={uiEndDate}
                 onChange={(e) => {
                   setUiEndDate(e.target.value);
+                  setEndDate(e.target.value);
                 }}
                 className="filter-date-input"
                 style={{
@@ -1923,10 +1959,13 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
                     type="checkbox"
                     checked={uiSelectedOutlets.length === getActiveOutletsList().length}
                     onChange={(e) => {
+                      const allOut = getActiveOutletsList();
                       if (e.target.checked) {
-                        setUiSelectedOutlets(getActiveOutletsList());
+                        setUiSelectedOutlets(allOut);
+                        setSelectedOutlets(allOut);
                       } else {
                         setUiSelectedOutlets([]);
+                        setSelectedOutlets([]);
                       }
                     }}
                     style={{ accentColor: 'var(--text-main)' }}
@@ -1948,6 +1987,7 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
                           updated = uiSelectedOutlets.filter(item => item !== name);
                         }
                         setUiSelectedOutlets(updated);
+                        setSelectedOutlets(updated);
                       }}
                       style={{ accentColor: 'var(--text-main)' }}
                     />
@@ -1962,7 +2002,7 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
 
         </div>
 
-        {/* Right Section: Saring & Reset Buttons */}
+        {/* Right Section: PDF Button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             id="global-pdf-btn"
@@ -1982,51 +2022,6 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
           >
             📥 Download Laporan PDF
-          </button>
-          <button
-            onClick={() => setShowConfirmSaring(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'var(--accent-primary)',
-              border: 'none',
-              color: '#fff',
-              borderRadius: '10px',
-              padding: '10px 18px',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              outline: 'none'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
-            onMouseLeave={(e) => e.currentTarget.style.filter = 'none'}
-          >
-            <span>🔍 Saring</span>
-          </button>
-          
-          <button
-            onClick={() => setShowConfirmReset(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'rgba(165, 182, 141, 0.08)',
-              border: '1px solid var(--accent-primary)',
-              color: 'var(--text-main)',
-              borderRadius: '10px',
-              padding: '10px 18px',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              outline: 'none'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(165, 182, 141, 0.12)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(165, 182, 141, 0.08)'}
-          >
-            <span>🔄 Reset Filter</span>
           </button>
         </div>
 
@@ -2310,6 +2305,29 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
                 (s.status || '').toLowerCase() === 'aktif'
               ).length;
 
+              // Hitung rasio penyelesaian kuis terakhir
+              const quizResponsesRatio = (() => {
+                try {
+                  const allQuizzes = JSON.parse(localStorage.getItem('hris_quizzes') || '[]');
+                  const allResults = JSON.parse(localStorage.getItem('hris_quiz_results') || '[]');
+                  if (allQuizzes.length === 0) return '0 / 0';
+                  
+                  const lastQuiz = allQuizzes[allQuizzes.length - 1];
+                  const lastQuizId = lastQuiz.id;
+                  
+                  const completedEmployeesCount = new Set(
+                    allResults
+                      .filter(r => String(r.quiz_id || r.quizId) === String(lastQuizId))
+                      .map(r => r.employee_id || r.employeeId)
+                  ).size;
+                  
+                  const totalEmployeesCount = filteredEmployees.length;
+                  return `${completedEmployeesCount} / ${totalEmployeesCount}`;
+                } catch {
+                  return '0 / 0';
+                }
+              })();
+
               const fmt = (v) => {
                 if (v >= 1_000_000_000) return `Rp ${(v / 1_000_000_000).toFixed(1)}M`;
                 if (v >= 1_000_000) return `Rp ${(v / 1_000_000).toFixed(1)}Jt`;
@@ -2422,7 +2440,7 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
                       textTransform: 'uppercase',
                       letterSpacing: '1.5px'
                     }}>
-                      COMMAND CENTER — RINGKASAN LINTAS MODUL (REAKTIF)
+                      Performance Tim
                     </span>
                     <div style={{
                       flex: 1,
@@ -2435,10 +2453,10 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
                       fontWeight: 600,
                       background: 'rgba(59, 130, 246, 0.1)',
                       border: '1px solid rgba(59, 130, 246, 0.2)',
-                      padding: '3px 10px',
+                      padding: '3px 12px',
                       borderRadius: '20px'
                     }}>
-                      {selectedOutlets.length} Outlet · {startDate} → {endDate}
+                      Cabang Aktif: {selectedOutlets.length} · Rasio Kuis: {quizResponsesRatio}
                     </span>
                   </div>
 
@@ -2550,148 +2568,161 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
 
             {/* ─── SEKTOR 1: KARYAWAN ─── */}
             <div className="category-container" style={{ '--theme-color': 'var(--text-main)', '--theme-glow': 'rgba(165, 182, 141, 0.12)', '--pulse-color-rgb': '225,220,201', marginBottom: '24px' }}>
-          <div className="category-title-wrap">
-            <span className="category-title">1. Sektor Karyawan (Analisis & Target)</span>
-          </div>
-
-          <div className="sector-grid-2col">
-            {/* Left Block: Donut/Pie Charts */}
-            <div style={{
-              background: 'rgba(57, 62, 70, 0.6)',
-              border: '1px solid var(--accent-primary)',
-              borderRadius: '16px',
-              padding: '24px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              gap: '20px'
-            }}>
-              <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 10px 0', borderBottom: '1px solid rgba(165, 182, 141, 0.1)', paddingBottom: '8px' }}>
-                📊 Karakteristik & Distribusi Karyawan
-              </h4>
-              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', gap: '24px' }}>
-                {/* Pie 1: Jabatan */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '160px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px', textAlign: 'center' }}>Distribusi Jabatan</span>
-                  <SvgDonutChart data={roleChartData} size={130} />
-                  <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
-                    {roleChartData.slice(0, 3).map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block', flexShrink: 0 }} />
-                          {item.label}
-                        </span>
-                        <span style={{ fontWeight: 600 }}>{item.value}</span>
-                      </div>
-                    ))}
-                    {roleChartData.length > 3 && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        <span>Lainnya</span>
-                        <span style={{ fontWeight: 600 }}>{roleChartData.slice(3).reduce((sum, item) => sum + item.value, 0)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Pie 2: Gender */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '130px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px', textAlign: 'center' }}>Rasio Gender</span>
-                  <SvgDonutChart data={genderChartData} size={130} />
-                  <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
-                    {genderChartData.map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block' }} />
-                          {item.label}
-                        </span>
-                        <span style={{ fontWeight: 600 }}>{item.value} ({totalEmployees > 0 ? Math.round((item.value / totalEmployees) * 100) : 0}%)</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Pie 3: Masa Kerja */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '130px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px', textAlign: 'center' }}>Kelompok Masa Kerja</span>
-                  <SvgDonutChart data={tenureChartData} size={130} />
-                  <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
-                    {tenureChartData.map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block' }} />
-                          {item.label}
-                        </span>
-                        <span style={{ fontWeight: 600 }}>{item.value} ({totalEmployees > 0 ? Math.round((item.value / totalEmployees) * 100) : 0}%)</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div className="category-title-wrap">
+                <span className="category-title">1. Sektor Karyawan (Karakteristik & Distribusi)</span>
               </div>
-            </div>
 
-            {/* Right Block: Target Staf Table */}
-            <div style={{
-              background: 'rgba(57, 62, 70, 0.6)',
-              border: '1px solid var(--accent-primary)',
-              borderRadius: '16px',
-              padding: '24px',
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
-              <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 14px 0', borderBottom: '1px solid rgba(165, 182, 141, 0.1)', paddingBottom: '8px' }}>
-                🏪 Perbandingan Target Staf (Juni 2026)
-              </h4>
-              <div style={{ overflowX: 'auto', flex: 1 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(165, 182, 141, 0.15)' }}>
-                      <th style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--text-muted)' }}>Nama Outlet</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>Aktual</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>Target</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>Status Selisih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {staffComparisonList.map((row, idx) => {
-                      const diff = row.actual - row.target;
-                      let bgColor = 'transparent';
-                      let statusText = 'Sesuai';
-                      let textColor = 'var(--text-main)';
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
+                {/* Top Block: Karakteristik & Distribusi Karyawan (Wide Fit) */}
+                <div style={{
+                  background: 'rgba(57, 62, 70, 0.6)',
+                  border: '1px solid var(--accent-primary)',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  width: '100%'
+                }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 20px 0', borderBottom: '1px solid rgba(165, 182, 141, 0.1)', paddingBottom: '8px' }}>
+                    📊 Karakteristik & Distribusi Karyawan
+                  </h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', gap: '24px' }}>
+                    {/* Pie 1: Jabatan */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '160px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px', textAlign: 'center' }}>Distribusi Jabatan</span>
+                      <SvgDonutChart data={roleChartData} size={130} />
+                      <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+                        {roleChartData.slice(0, 3).map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block', flexShrink: 0 }} />
+                              {item.label}
+                            </span>
+                            <span style={{ fontWeight: 600 }}>{item.value}</span>
+                          </div>
+                        ))}
+                        {roleChartData.length > 3 && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            <span>Lainnya</span>
+                            <span style={{ fontWeight: 600 }}>{roleChartData.slice(3).reduce((sum, item) => sum + item.value, 0)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-                      if (row.actual === row.target) {
-                        bgColor = 'rgba(46, 204, 113, 0.15)'; // Green Tembaga
-                        statusText = 'Sesuai Target';
-                        textColor = '#2ecc71';
-                      } else if (row.actual < row.target) {
-                        bgColor = 'rgba(231, 76, 60, 0.15)'; // Red Maroon
-                        statusText = `Kurang ${Math.abs(diff)} Orang`;
-                        textColor = '#e74c3c';
-                      } else {
-                        bgColor = 'rgba(243, 156, 18, 0.15)'; // Orange Wood
-                        statusText = `Lebih ${diff} Orang`;
-                        textColor = '#f39c12';
-                      }
+                    {/* Pie 2: Rasio Gender */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '140px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px', textAlign: 'center' }}>Rasio Gender</span>
+                      <SvgDonutChart data={genderChartData} size={130} />
+                      <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+                        {genderChartData.map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block' }} />
+                              {item.label}
+                            </span>
+                            <span style={{ fontWeight: 600 }}>{item.value} ({totalEmployees > 0 ? Math.round((item.value / totalEmployees) * 100) : 0}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
-                      return (
-                        <tr key={idx} style={{ backgroundColor: bgColor, borderBottom: '1px solid rgba(165, 182, 141, 0.06)', transition: 'all 0.2s ease' }}>
-                          <td style={{ padding: '10px', fontWeight: 600, color: 'var(--text-main)' }}>{row.outletName || 'Outlet'}</td>
-                          <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, fontSize: '0.8rem' }}>{row.actual} Orang</td>
-                          <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, fontSize: '0.8rem', color: 'rgba(238, 238, 238, 0.6)' }}>{row.target} Orang</td>
-                          <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: textColor }}>{statusText}</td>
+                    {/* Pie 3: Kelompok Masa Kerja */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '140px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px', textAlign: 'center' }}>Kelompok Masa Kerja</span>
+                      <SvgDonutChart data={tenureChartData} size={130} />
+                      <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+                        {tenureChartData.map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block' }} />
+                              {item.label}
+                            </span>
+                            <span style={{ fontWeight: 600 }}>{item.value} ({totalEmployees > 0 ? Math.round((item.value / totalEmployees) * 100) : 0}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Pie 4: Kelompok Usia Karyawan */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '140px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px', textAlign: 'center' }}>Kelompok Usia</span>
+                      <SvgDonutChart data={ageChartData} size={130} />
+                      <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+                        {ageChartData.map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block' }} />
+                              {item.label}
+                            </span>
+                            <span style={{ fontWeight: 600 }}>{item.value} ({totalEmployees > 0 ? Math.round((item.value / totalEmployees) * 100) : 0}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Block: Target Staf Table (Wide Fit) */}
+                <div style={{
+                  background: 'rgba(57, 62, 70, 0.6)',
+                  border: '1px solid var(--accent-primary)',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  width: '100%'
+                }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 14px 0', borderBottom: '1px solid rgba(165, 182, 141, 0.1)', paddingBottom: '8px' }}>
+                    🏪 Perbandingan Target Staf (Juni 2026)
+                  </h4>
+                  <div style={{ overflowX: 'auto', width: '100%' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(165, 182, 141, 0.15)' }}>
+                          <th style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--text-muted)' }}>Nama Outlet</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>Aktual</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>Target</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>Status Selisih</th>
                         </tr>
-                      );
-                    })}
-                    {staffComparisonList.length === 0 && (
-                      <tr>
-                        <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>Tidak ada data target outlet untuk periode ini.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                      </thead>
+                      <tbody>
+                        {staffComparisonList.map((row, idx) => {
+                          const diff = row.actual - row.target;
+                          let bgColor = 'transparent';
+                          let statusText = 'Sesuai';
+                          let textColor = 'var(--text-main)';
+
+                          if (row.actual === row.target) {
+                            bgColor = 'rgba(46, 204, 113, 0.15)';
+                            statusText = 'Sesuai Target';
+                            textColor = '#2ecc71';
+                          } else if (row.actual < row.target) {
+                            bgColor = 'rgba(231, 76, 60, 0.15)';
+                            statusText = `Kurang ${Math.abs(diff)} Orang`;
+                            textColor = '#e74c3c';
+                          } else {
+                            bgColor = 'rgba(243, 156, 18, 0.15)';
+                            statusText = `Lebih ${diff} Orang`;
+                            textColor = '#f39c12';
+                          }
+
+                          return (
+                            <tr key={idx} style={{ backgroundColor: bgColor, borderBottom: '1px solid rgba(165, 182, 141, 0.06)', transition: 'all 0.2s ease' }}>
+                              <td style={{ padding: '10px', fontWeight: 600, color: 'var(--text-main)' }}>{row.outletName || 'Outlet'}</td>
+                              <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, fontSize: '0.8rem' }}>{row.actual} Orang</td>
+                              <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, fontSize: '0.8rem', color: 'rgba(238, 238, 238, 0.6)' }}>{row.target} Orang</td>
+                              <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: textColor }}>{statusText}</td>
+                            </tr>
+                          );
+                        })}
+                        {staffComparisonList.length === 0 && (
+                          <tr>
+                            <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>Tidak ada data target outlet untuk periode ini.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
         {/* ─── SEKTOR 2: OMZET ─── */}
         <div className="category-container" style={{ '--theme-color': '#f39c12', '--theme-glow': 'rgba(243, 156, 18, 0.12)', '--pulse-color-rgb': '243, 156, 18', marginBottom: '24px' }}>
@@ -3078,149 +3109,6 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
           </>
         )}
 
-      {/* Pop-up Dialog Konfirmasi Saring */}
-      {showConfirmSaring && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(15, 23, 42, 0.4)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backdropFilter: 'blur(8px)',
-          animation: 'fadeIn 0.2s ease-out'
-        }}>
-          <div style={{
-            background: '#ffffff',
-            border: '1px solid var(--border-color)',
-            borderRadius: '16px',
-            padding: '30px',
-            maxWidth: '500px',
-            width: '90%',
-            boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '14px' }}>
-              KONFIRMASI FILTER
-            </h3>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: '1.5' }}>
-              Apakah Anda yakin ingin menyaring data berdasarkan rentang waktu dan outlet yang dipilih? Proses ini akan memperbarui seluruh grafik dan visual halaman.
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button
-                type="button"
-                onClick={handleConfirmSaringOk}
-                disabled={isApplyingFilter}
-                className="btn-primary"
-                style={{
-                  flex: 1,
-                  height: '42px',
-                  justifyContent: 'center',
-                  background: 'var(--accent-primary)',
-                  color: '#fff',
-                  border: 'none',
-                  fontSize: '0.85rem',
-                  fontWeight: '700'
-                }}
-              >
-                {isApplyingFilter ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} color="var(--bg-main)" />
-                    <span>Memproses...</span>
-                  </>
-                ) : (
-                  <span>OK</span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmSaringCancel}
-                disabled={isApplyingFilter}
-                className="btn-secondary"
-                style={{ flex: 1, height: '42px', fontSize: '0.85rem', fontWeight: '700' }}
-              >
-                CANCEL
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pop-up Dialog Konfirmasi Reset */}
-      {showConfirmReset && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(15, 23, 42, 0.4)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backdropFilter: 'blur(8px)',
-          animation: 'fadeIn 0.2s ease-out'
-        }}>
-          <div style={{
-            background: '#ffffff',
-            border: '1px solid var(--border-color)',
-            borderRadius: '16px',
-            padding: '30px',
-            maxWidth: '500px',
-            width: '90%',
-            boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '14px' }}>
-              KONFIRMASI RESET FILTER
-            </h3>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: '1.5' }}>
-              Apakah Anda yakin ingin mengembalikan seluruh pengaturan filter ke setelan awal (default)?
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button
-                type="button"
-                onClick={handleConfirmResetOk}
-                disabled={isApplyingFilter}
-                className="btn-primary"
-                style={{
-                  flex: 1,
-                  height: '42px',
-                  justifyContent: 'center',
-                  background: 'var(--accent-primary)',
-                  color: '#fff',
-                  border: 'none',
-                  fontSize: '0.85rem',
-                  fontWeight: '700'
-                }}
-              >
-                {isApplyingFilter ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} color="var(--bg-main)" />
-                    <span>Mengembalikan...</span>
-                  </>
-                ) : (
-                  <span>OK</span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmResetCancel}
-                disabled={isApplyingFilter}
-                className="btn-secondary"
-                style={{ flex: 1, height: '42px', fontSize: '0.85rem', fontWeight: '700' }}
-              >
-                CANCEL
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <PDFCompileOverlay isOpen={isExportingPDF} />
     </div>
   );

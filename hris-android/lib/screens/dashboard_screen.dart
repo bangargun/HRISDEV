@@ -16,6 +16,7 @@ import 'sop_screen.dart';
 import 'attendance_screen.dart';
 import 'training_screen.dart';
 import 'information_screen.dart';
+import 'angket_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -688,8 +689,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Expanded(
                       child: _buildGojekMenuItem(
-                        icon: Icons.inbox_outlined,
-                        label: 'Inbox',
+                        icon: Icons.send_outlined,
+                        label: 'Pengajuan',
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PusatPengajuanScreen())),
                       ),
                     ),
@@ -709,11 +710,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     Expanded(
                       child: _buildGojekMenuItem(
-                        icon: Icons.description_outlined,
-                        label: 'Kontrak',
+                        icon: Icons.badge_outlined,
+                        label: 'Card',
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InformationScreen(initialIndex: 3))),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Expanded(
+                      child: _buildGojekMenuItem(
+                        icon: Icons.clipboard_outlined,
+                        label: 'Angket',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AngketScreen())),
+                      ),
+                    ),
+                    const Expanded(child: SizedBox()),
+                    const Expanded(child: SizedBox()),
+                    const Expanded(child: SizedBox()),
                   ],
                 ),
               ],
