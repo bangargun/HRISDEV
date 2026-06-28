@@ -1,0 +1,81 @@
+name: 🚀 Auto Deploy HRIS ke VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'hris-web/**'
+      - 'hris-backend/**'
+
+jobs:
+  deploy:
+    name: Deploy Web ke VPS Niagahoster
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Kode
+        uses: actions/checkout@v4
+
+      - name: 🔑 Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: 🔧 Build Web Production
+        working-directory: hris-web
+        run: |
+          npm ci
+          npm run build
+
+      - name: 📦 Upload dist ke VPS via SCP
+        run: |
+          scp -i ~/.ssh/deploy_key -r \
+            -o StrictHostKeyChecking=no \
+            hris-web/dist/* \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/hris-web/
+
+      - name: 🔄 Restart Backend di VPS
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            echo "=== Memperbarui repo di VPS ==="
+            cd /var/www/HRISDEV || cd /root/HRISDEV || cd /home/HRISDEV
+            
+            # Pull kode terbaru
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Update backend dependencies jika ada perubahan
+            if git diff HEAD@{1} --name-only | grep -q "hris-backend/package"; then
+              echo "=== Update backend dependencies ==="
+              cd hris-backend && npm ci --production && cd ..
+            fi
+            
+            # Reload nginx untuk serve dist terbaru
+            nginx -t && nginx -s reload
+            
+            # Restart PM2 backend
+            cd hris-backend
+            pm2 restart hris-backend --update-env 2>/dev/null || \
+            pm2 start ecosystem.config.cjs --env production 2>/dev/null || \
+            pm2 start server.js --name hris-backend
+            
+            pm2 save
+            echo "✅ Deploy selesai!"
+          EOF
+
+      - name: ✅ Notifikasi Deploy Sukses
+        if: success()
+        run: |
+          echo "🎉 HRIS Barokah berhasil di-deploy ke VPS!"
+          echo "🌐 URL: https://hris.barokahgrupindonesia.tech"
+          echo "⏰ Waktu: $(date '+%Y-%m-%d %H:%M:%S WIB')"
+
+      - name: ❌ Notifikasi Deploy Gagal
+        if: failure()
+        run: |
+          echo "💥 Deploy GAGAL! Cek log di atas untuk detail error."

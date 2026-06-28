@@ -34,6 +34,67 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
 
   const maxLeaveLimit = getMaxLeaveLimit();
 
+  // ─── VALIDASI PERIODE KASBON (20 Hari Setelah Cut-Off) ───────────────────
+  const getCutoffDay = () => {
+    try {
+      const raw = localStorage.getItem('corporate_policies');
+      if (!raw) return 23; // default cut-off tanggal 23
+      const policiesList = JSON.parse(raw);
+      if (!Array.isArray(policiesList)) return 23;
+      const cutoffPolicy = policiesList.find(p =>
+        (p.status === 'ACTIVE' || p.status === 'aktif') &&
+        (p.nama_aturan === 'Periode Cut-Off & Tanggal Gajian' || p.nama_kebijakan === 'Periode Cut-Off & Tanggal Gajian')
+      );
+      if (cutoffPolicy && cutoffPolicy.deskripsi) {
+        const match = cutoffPolicy.deskripsi.match(/Periode\s+Cut-Off:\s*(\d+)\s*-\s*(\d+)/i);
+        if (match) return parseInt(match[1], 10);
+      }
+    } catch (e) { console.error('Error getCutoffDay:', e); }
+    return 23;
+  };
+
+  const getKasbonPeriodInfo = () => {
+    const today = new Date();
+    const cutoffDay = getCutoffDay();
+    const todayDate = today.getDate();
+    const todayMonth = today.getMonth();
+    const todayYear = today.getFullYear();
+
+    // Periode pengajuan kasbon: dari (cutoffDay + 1) sampai (cutoffDay + 20) bulan berikutnya
+    // Contoh: cut-off tgl 23 → pengajuan kasbon boleh tgl 24 s/d 13 bulan berikutnya
+    const allowedStart = new Date(todayYear, todayMonth, cutoffDay + 1);
+    const allowedEnd = new Date(todayYear, todayMonth, cutoffDay + 20);
+
+    // Jika sudah lewat bulan ini, hitung untuk bulan depan
+    const now = new Date(todayYear, todayMonth, todayDate);
+
+    // Cek apakah sekarang dalam periode (cutoffDay+1) s/d (cutoffDay+20)
+    const isInPeriod = now >= allowedStart && now <= allowedEnd;
+
+    // Hitung hari tersisa dalam periode
+    const daysLeft = isInPeriod ? Math.ceil((allowedEnd - now) / (1000 * 60 * 60 * 24)) : 0;
+
+    // Hitung kapan periode berikutnya dibuka
+    let nextOpen;
+    if (now < allowedStart) {
+      nextOpen = allowedStart;
+    } else {
+      // Periode bulan depan
+      nextOpen = new Date(todayYear, todayMonth + 1, cutoffDay + 1);
+    }
+    const daysToNext = Math.ceil((nextOpen - now) / (1000 * 60 * 60 * 24));
+
+    return {
+      isAllowed: isInPeriod,
+      cutoffDay,
+      allowedStart,
+      allowedEnd,
+      daysLeft,
+      daysToNext,
+      nextOpen,
+    };
+  };
+
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -794,6 +855,61 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
           <span>Pengajuan Kasbon</span>
         </button>
       </div>
+
+      {/* ─── BANNER KEBIJAKAN KASBON ─── */}
+      {activeMainTab === 'kasbon' && (() => {
+        const kp = getKasbonPeriodInfo();
+        const fmtDate = (d) => d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        return (
+          <div style={{
+            marginBottom: '20px',
+            padding: '16px 20px',
+            borderRadius: '12px',
+            border: `1.5px solid ${kp.isAllowed ? 'rgba(46,204,113,0.35)' : 'rgba(231,76,60,0.35)'}`,
+            background: kp.isAllowed ? 'rgba(46,204,113,0.07)' : 'rgba(231,76,60,0.07)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '14px',
+          }}>
+            <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>
+              {kp.isAllowed ? '✅' : '🔒'}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                color: kp.isAllowed ? '#2ECC71' : '#E74C3C',
+                marginBottom: '6px'
+              }}>
+                {kp.isAllowed
+                  ? `Periode Pengajuan Kasbon AKTIF — Sisa ${kp.daysLeft} hari`
+                  : 'Pengajuan Kasbon DITUTUP — Di Luar Periode'}
+              </div>
+              <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                <strong>Kebijakan:</strong> Pengajuan kasbon hanya dapat dilakukan dalam <strong>20 hari setelah tanggal cut-off (tgl {kp.cutoffDay})</strong> setiap bulannya.
+                {kp.isAllowed
+                  ? <span> Periode saat ini: <strong>{fmtDate(kp.allowedStart)} s/d {fmtDate(kp.allowedEnd)}</strong>.</span>
+                  : <span> Periode berikutnya dibuka pada: <strong>{fmtDate(kp.nextOpen)}</strong> ({kp.daysToNext} hari lagi).</span>
+                }
+              </div>
+              {!kp.isAllowed && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(231,76,60,0.12)',
+                  border: '1px solid rgba(231,76,60,0.3)',
+                  fontSize: '0.82rem',
+                  color: '#E74C3C',
+                  fontWeight: 600,
+                }}>
+                  ⚠️ Pengajuan kasbon baru tidak dapat diproses di luar periode yang ditentukan.
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Top Filter Buttons */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '20px' }}>

@@ -23,7 +23,7 @@ mkdir -p "$ARTIFACT_DIR"
 
 cd "$ANDROID_DIR"
 
-echo "=== [HRIS Barokah v1.6 Build] API Target: https://api.barokahgroupindonesia.tech/api ==="
+echo "=== [HRIS Barokah v1.7 Build] API Target: https://api.barokahgroupindonesia.tech/api ==="
 echo "=== Running Flutter Clean ==="
 flutter clean
 flutter pub get
@@ -41,13 +41,13 @@ flutter build apk --release --target-platform android-arm64
 
 echo "=== Copying Phone Edition APK ==="
 if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
-  cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.6.apk"
-  cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v1.6.apk"
-  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.6.apk"
+  cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.7.apk"
+  cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v1.7.apk"
+  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.7.apk"
 elif [ -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ]; then
-  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.6.apk"
-  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v1.6.apk"
-  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.6.apk"
+  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.7.apk"
+  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v1.7.apk"
+  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.7.apk"
 else
   echo "❌ ERROR: APK Mobile tidak ditemukan di build output!"
   exit 1
@@ -65,13 +65,13 @@ flutter build apk --release --target-platform android-arm64
 
 echo "=== Copying Tablet Edition APK ==="
 if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
-  cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.6.apk"
-  cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v1.6.apk"
-  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.6.apk"
+  cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.7.apk"
+  cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v1.7.apk"
+  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.7.apk"
 elif [ -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ]; then
-  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.6.apk"
-  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v1.6.apk"
-  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.6.apk"
+  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.7.apk"
+  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v1.7.apk"
+  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.7.apk"
 else
   echo "❌ ERROR: APK Tablet tidak ditemukan di build output!"
   exit 1
@@ -87,10 +87,10 @@ sed -i '' 's/android:label="HRIS Employee (Tablet)"/android:label="HRIS Employee
 
 echo ""
 echo "============================================"
-echo " ✅ HRIS Barokah APK Build v1.6 Selesai!"
+echo " ✅ HRIS Barokah APK Build v1.7 Selesai!"
 echo "============================================"
-echo " Mobile Karyawan   : $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.6.apk"
-echo " Tablet Operasional: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.6.apk"
+echo " Mobile Karyawan   : $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v1.7.apk"
+echo " Tablet Operasional: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v1.7.apk"
 echo " API URL           : https://api.barokahgroupindonesia.tech/api"
 echo "============================================"
 ls -lh "$DEPLOY_DIR/"

@@ -222,6 +222,79 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
         );
         return;
       }
+
+      // ── VALIDASI PERIODE KASBON 20 HARI SETELAH CUT-OFF ──────────────
+      final cutoffDay = getCutoffStartDayFromPolicies(auth.policies, auth.profile?.outlet);
+      final now = DateTime.now();
+      // Periode aktif: (cutoffDay+1) s/d (cutoffDay+20) bulan ini
+      final allowedStart = DateTime(now.year, now.month, cutoffDay + 1);
+      final allowedEnd = DateTime(now.year, now.month, cutoffDay + 20);
+      final todayOnly = DateTime(now.year, now.month, now.day);
+      final isInPeriod = !todayOnly.isBefore(allowedStart) && !todayOnly.isAfter(allowedEnd);
+
+      if (!isInPeriod) {
+        // Hitung tanggal periode berikutnya
+        final nextOpen = todayOnly.isBefore(allowedStart)
+            ? allowedStart
+            : DateTime(now.year, now.month + 1, cutoffDay + 1);
+        final daysToNext = nextOpen.difference(todayOnly).inDays;
+
+        HapticFeedback.heavyImpact();
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF393E46),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: const Row(
+              children: [
+                Icon(Icons.lock_clock, color: Colors.red, size: 24),
+                SizedBox(width: 10),
+                Text('Pengajuan Ditolak', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pengajuan kasbon gagal dan ditolak otomatis.',
+                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Kasbon hanya dapat diajukan dalam 20 hari setelah tanggal cut-off (tgl $cutoffDay) setiap bulannya.',
+                  style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 13, height: 1.5),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    'Periode berikutnya dibuka:\n${nextOpen.day}/${nextOpen.month}/${nextOpen.year} ($daysToNext hari lagi)',
+                    style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00ADB5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Mengerti', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      // ─────────────────────────────────────────────────────────────────
     }
     
     if (_selectedType == 'setengah_hari') {
