@@ -723,7 +723,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Expanded(
                       child: _buildGojekMenuItem(
-                        icon: Icons.clipboard_outlined,
+                        icon: Icons.assignment_outlined,
                         label: 'Angket',
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AngketScreen())),
                       ),

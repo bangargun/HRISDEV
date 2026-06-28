@@ -55,7 +55,7 @@ class _AngketScreenState extends State<AngketScreen> {
         List<dynamic> completed = [];
         try {
           final resCompleted = await ApiClient.get(
-            'angket/completed?employee_id=${auth.user?.employeeId ?? ''}',
+            'angket/completed?employee_id=${auth.profile?.employeeId ?? ''}',
             token: token,
           );
           if (resCompleted.statusCode == 200) {
@@ -446,7 +446,7 @@ class _AngketDetailScreenState extends State<AngketDetailScreen> {
       final res = await ApiClient.post(
         'angket/$angketId/submit',
         {
-          'employee_id': auth.user?.employeeId ?? '',
+          'employee_id': auth.profile?.employeeId?.toString() ?? '',
           'answers': answersPayload,
         },
         token: auth.token,
