@@ -722,7 +722,10 @@ app.post('/api/v1/dispatch-event', async (req, res) => {
     console.error('[Notification Dispatcher] Error database writing:', err.message);
   }
 
-  // Endpoint untuk cek versi aplikasi seluler terbaru (UAT / In-App Update)
+  res.status(200).json({ success: true, message: "Sinyal Event Terdistribusi ke Perangkat Lapangan" });
+});
+
+// Endpoint untuk cek versi aplikasi seluler terbaru (UAT / In-App Update)
 app.get('/api/app-version', (req, res) => {
   res.status(200).json({
     status: 'success',
