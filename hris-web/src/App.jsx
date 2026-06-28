@@ -572,43 +572,7 @@ export default function App() {
             </button>
             {loggingIn && <div className="marching-loader"></div>}
 
-            <div style={{ marginTop: '24px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
-              <p style={{ color: '#00ADB5', fontSize: '0.85rem', marginBottom: '12px', textAlign: 'center', fontWeight: 'bold', letterSpacing: '0.05em' }}>⚡ BYPASS MASUK INSTAN</p>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('owner@hris.com');
-                    setPassword('ownerpassword123');
-                    setTimeout(() => {
-                      const form = document.querySelector('form');
-                      if (form) form.requestSubmit();
-                    }, 100);
-                  }}
-                  disabled={loggingIn}
-                  className="btn-secondary"
-                  style={{ flex: 1, justifyContent: 'center', fontSize: '0.8rem', height: '38px', background: 'rgba(0,173,181,0.1)', border: '1px solid rgba(0,173,181,0.3)', color: '#00ADB5', cursor: 'pointer', borderRadius: '8px', fontWeight: 'bold' }}
-                >
-                  Masuk Owner
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('admin@hris.com');
-                    setPassword('admin123');
-                    setTimeout(() => {
-                      const form = document.querySelector('form');
-                      if (form) form.requestSubmit();
-                    }, 100);
-                  }}
-                  disabled={loggingIn}
-                  className="btn-secondary"
-                  style={{ flex: 1, justifyContent: 'center', fontSize: '0.8rem', height: '38px', background: 'rgba(0,173,181,0.1)', border: '1px solid rgba(0,173,181,0.3)', color: '#00ADB5', cursor: 'pointer', borderRadius: '8px', fontWeight: 'bold' }}
-                >
-                  Masuk Admin
-                </button>
-              </div>
-            </div>
+
           </form>
 
 
