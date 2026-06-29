@@ -787,6 +787,15 @@ const seedInitialPolicies = () => {
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
     },
+    {
+      id: 'seed-kasbon-001',
+      nama_aturan: 'Kebijakan Kasbon',
+      outlets: targetAllOutlets,
+      all_outlets: true,
+      deskripsi: 'Pinjaman Kasbon dibatasi maksimal 50% dari Gaji Pokok. Pengajuan kasbon hanya diizinkan mulai 7 hari setelah tanggal gajian hingga 7 hari sebelum tanggal cut-off.',
+      status: 'ACTIVE',
+      created_at: new Date().toISOString(),
+    },
   ];
 
   let modified = false;
