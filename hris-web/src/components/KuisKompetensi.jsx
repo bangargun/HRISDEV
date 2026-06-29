@@ -11,7 +11,7 @@ import {
   BookOpen, Plus, Send, Download, Eye, Trash2, Upload,
   X, CheckCircle, Clock, AlertTriangle, Users, FileText,
   ChevronDown, Filter, RefreshCw, Bell, BarChart2,
-  CheckSquare, Square, ZoomIn, Award, Inbox
+  CheckSquare, Square, ZoomIn, Award, Inbox, Edit2
 } from 'lucide-react';
 import { useHRIS } from '../context/HRISContext';
 import jsPDF from 'jspdf';
@@ -237,6 +237,251 @@ const PreviewModal = ({ isOpen, quizMeta, parsedSoal, onUpload, onCancel, readOn
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── MODAL EDIT KUIS & SOAL ──────────────────────────────────────────────────
+const EditKuisModal = ({ isOpen, quiz, onSave, onClose, divisiOptions }) => {
+  const [namaKuis, setNamaKuis] = useState('');
+  const [divisi, setDivisi] = useState('Semua');
+  const [durasi, setDurasi] = useState(15);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [soal, setSoal] = useState([]);
+
+  useEffect(() => {
+    if (isOpen && quiz) {
+      setNamaKuis(quiz.nama_kuis || '');
+      setDivisi(quiz.divisi || 'Semua');
+      setDurasi(quiz.durasi_menit || 15);
+      setStartDate(quiz.periode_aktif_start || '');
+      setEndDate(quiz.periode_aktif_end || '');
+      setSoal(
+        (quiz.soal || []).map((s, idx) => ({
+          nomor: s.no || s.nomor || idx + 1,
+          soal: s.soal || '',
+          pilihan: s.pilihan ? {
+            A: s.pilihan.A || '',
+            B: s.pilihan.B || '',
+            C: s.pilihan.C || '',
+            D: s.pilihan.D || '',
+            E: s.pilihan.E || ''
+          } : {
+            A: s.opsi_a || '',
+            B: s.opsi_b || '',
+            C: s.opsi_c || '',
+            D: s.opsi_d || '',
+            E: s.opsi_e || ''
+          },
+          kunci: s.kunci || 'A'
+        }))
+      );
+    }
+  }, [isOpen, quiz]);
+
+  if (!isOpen || !quiz) return null;
+
+  const handleQuestionChange = (index, field, value) => {
+    setSoal(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleOptionChange = (index, optionKey, value) => {
+    setSoal(prev => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        pilihan: {
+          ...copy[index].pilihan,
+          [optionKey]: value
+        }
+      };
+      return copy;
+    });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!namaKuis.trim()) {
+      alert('Nama kuis harus diisi.');
+      return;
+    }
+    const emptyQ = soal.some(s => !s.soal.trim());
+    if (emptyQ) {
+      alert('Teks pertanyaan tidak boleh kosong.');
+      return;
+    }
+
+    onSave({
+      ...quiz,
+      nama_kuis: capitalEachWord(namaKuis),
+      divisi,
+      durasi_menit: parseInt(durasi) || 15,
+      periode_aktif_start: startDate,
+      periode_aktif_end: endDate,
+      soal
+    });
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+      zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      backdropFilter: 'blur(8px)', padding: '20px'
+    }}>
+      <div style={{
+        background: C.surface, borderRadius: '20px', border: `1.5px solid ${C.cyanBorder}`,
+        padding: '32px', width: '800px', maxWidth: '95vw',
+        boxShadow: `0 0 60px rgba(0,173,181,0.15)`,
+        maxHeight: '90vh', display: 'flex', flexDirection: 'column'
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: `1px solid ${C.border}`, paddingBottom: '16px' }}>
+          <h2 style={{ color: C.cyan, fontSize: '1.2rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            ✏️ Edit Kuis & Soal Kompetensi
+          </h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer' }}>
+            <X size={22} />
+          </button>
+        </div>
+
+        {/* Scrollable Form Content */}
+        <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '18px', paddingRight: '6px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <Input label="Nama Kuis" required value={namaKuis}
+              onChange={e => setNamaKuis(e.target.value)}
+              placeholder="Contoh: Kuis Higiene Makanan Dan Minuman" />
+
+            {/* Target Divisi */}
+            <div>
+              <label style={{ display: 'block', color: C.text, fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Target Divisi / Jabatan</label>
+              <select
+                value={Array.isArray(divisi) ? (divisi[0] || 'Semua') : divisi}
+                onChange={e => setDivisi(e.target.value)}
+                style={{
+                  width: '100%', background: C.bg, color: C.text,
+                  border: `1px solid ${C.border}`, borderRadius: '10px',
+                  padding: '10px 14px', fontSize: '0.85rem', outline: 'none'
+                }}
+              >
+                <option value="Semua">Semua</option>
+                {divisiOptions.map(d => (
+                  <option key={d} value={d}>{capitalEachWord(d)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <Input label="Durasi (Menit)" type="number" value={durasi}
+              onChange={e => setDurasi(e.target.value)} />
+            <Input label="Periode Mulai" type="date" value={startDate}
+              onChange={e => setStartDate(e.target.value)} />
+            <Input label="Periode Selesai" type="date" value={endDate}
+              onChange={e => setEndDate(e.target.value)} />
+          </div>
+
+          {/* Section: Daftar Soal */}
+          <div style={{ marginTop: '10px' }}>
+            <h3 style={{ color: C.cyan, fontSize: '0.95rem', fontWeight: 700, marginBottom: '14px', borderBottom: `1px dashed ${C.border}`, paddingBottom: '8px' }}>
+              📝 Edit Daftar Pertanyaan ({soal.length} Soal)
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {soal.map((s, idx) => (
+                <div key={idx} style={{ background: C.bg, padding: '16px', borderRadius: '12px', border: `1px solid ${C.border}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginBottom: '12px' }}>
+                    <span style={{ background: C.cyanDim, color: C.cyan, fontWeight: 800, padding: '4px 10px', borderRadius: '8px', fontSize: '0.8rem', height: 'fit-content' }}>
+                      Soal #{s.nomor}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <textarea
+                        value={s.soal}
+                        onChange={e => handleQuestionChange(idx, 'soal', e.target.value)}
+                        placeholder="Tuliskan teks pertanyaan di sini..."
+                        rows={2}
+                        required
+                        style={{
+                          width: '100%', background: C.surface, color: C.text,
+                          border: `1px solid ${C.border}`, borderRadius: '8px',
+                          padding: '10px 12px', fontSize: '0.85rem', outline: 'none', resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Options & Key Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '10px' }}>
+                    {['A', 'B', 'C', 'D', 'E'].map(opt => (
+                      <div key={opt} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: s.kunci === opt ? C.cyan : C.muted, fontWeight: 700, fontSize: '0.85rem', minWidth: '15px' }}>{opt}</span>
+                        <input
+                          type="text"
+                          value={s.pilihan[opt] || ''}
+                          onChange={e => handleOptionChange(idx, opt, e.target.value)}
+                          placeholder={`Pilihan ${opt}`}
+                          style={{
+                            flex: 1, background: C.surface, color: C.text,
+                            border: `1px solid ${C.border}`, borderRadius: '6px',
+                            padding: '6px 10px', fontSize: '0.8rem', outline: 'none'
+                          }}
+                        />
+                      </div>
+                    ))}
+                    
+                    {/* Kunci Jawaban */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: C.cyan, fontWeight: 700, fontSize: '0.8rem', minWidth: '45px' }}>KUNCI</span>
+                      <select
+                        value={s.kunci}
+                        onChange={e => handleQuestionChange(idx, 'kunci', e.target.value)}
+                        style={{
+                          flex: 1, background: C.surface, color: C.text,
+                          border: `1px solid ${C.border}`, borderRadius: '6px',
+                          padding: '6px 10px', fontSize: '0.8rem', outline: 'none'
+                        }}
+                      >
+                        {['A', 'B', 'C', 'D', 'E'].map(o => (
+                          <option key={o} value={o}>Pilihan {o}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'flex-end', borderTop: `1px solid ${C.border}`, paddingTop: '16px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                background: 'transparent', color: C.muted, border: `1px solid ${C.border}`,
+                borderRadius: '10px', padding: '10px 20px', fontWeight: 600,
+                fontSize: '0.85rem', cursor: 'pointer'
+              }}
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              style={{
+                background: C.cyan, color: C.bg, border: 'none',
+                borderRadius: '10px', padding: '10px 20px', fontWeight: 700,
+                fontSize: '0.85rem', cursor: 'pointer'
+              }}
+            >
+              Simpan Perubahan
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -1148,6 +1393,8 @@ export default function KuisKompetensi() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [previewReadOnly, setPreviewReadOnly] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, danger: false });
 
   // ── State untuk Generate Kuis dari Materi
@@ -1484,6 +1731,15 @@ export default function KuisKompetensi() {
         }
       }
     });
+  };
+
+  // ── Simpan Kuis yang Diedit
+  const handleSaveEditedQuiz = (updatedQuiz) => {
+    const updated = quizBank.map(q => q.id === updatedQuiz.id ? updatedQuiz : q);
+    saveQuizBank(updated);
+    setShowEditModal(false);
+    setEditingQuiz(null);
+    alert('Perubahan soal kuis berhasil disimpan!');
   };
 
   // ── Hapus Kuis
@@ -1903,6 +2159,20 @@ export default function KuisKompetensi() {
                               }}>
                               <Eye size={14} />
                             </button>
+                            <button title="Edit Soal"
+                              onClick={() => {
+                                setEditingQuiz(quiz);
+                                setShowEditModal(true);
+                              }}
+                              style={{
+                                background: 'rgba(0,173,181,0.08)', border: `1px solid rgba(0,173,181,0.25)`,
+                                borderRadius: '8px', padding: '7px 10px',
+                                color: C.cyan, cursor: 'pointer',
+                                display: 'flex', alignItems: 'center',
+                                transition: 'all 0.15s',
+                              }}>
+                              <Edit2 size={14} />
+                            </button>
                             <button title="Hapus Kuis"
                               onClick={() => handleDeleteQuiz(quiz.id)}
                               style={{
@@ -2086,6 +2356,14 @@ export default function KuisKompetensi() {
         onClose={() => setShowGenerateModal(false)}
         onGenerate={handleGenerateQuiz}
         allOutlets={allOutlets}
+        divisiOptions={divisiOptions}
+      />
+
+      <EditKuisModal
+        isOpen={showEditModal}
+        quiz={editingQuiz}
+        onSave={handleSaveEditedQuiz}
+        onClose={() => { setShowEditModal(false); setEditingQuiz(null); }}
         divisiOptions={divisiOptions}
       />
 
