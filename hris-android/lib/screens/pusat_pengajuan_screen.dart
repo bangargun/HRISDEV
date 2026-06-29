@@ -20,6 +20,7 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
   TimeOfDay? _halfDayClockOutTime;
   final _amountController = TextEditingController();
   final _reasonController = TextEditingController();
+  final _amountFocusNode = FocusNode();
 
   final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp', decimalDigits: 0);
 
@@ -27,6 +28,7 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
   void dispose() {
     _amountController.dispose();
     _reasonController.dispose();
+    _amountFocusNode.dispose();
     super.dispose();
   }
 
@@ -134,9 +136,7 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
   }
 
   bool _validateKasbon(double amount, double basicSalary) {
-    final maxSalaryLimit = basicSalary * 0.5;
-    final limit = maxSalaryLimit < 500000.0 ? maxSalaryLimit : 500000.0;
-    return amount <= limit;
+    return amount <= (basicSalary * 0.5);
   }
 
   Future<void> _selectDate(BuildContext context, bool isStart) async {
@@ -212,33 +212,70 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
         return;
       }
       final basicSalary = auth.profile?.basicSalary ?? 0.0;
+      final maxLimit = basicSalary * 0.5;
+
+      // ── 1. VALIDASI BATAS MAKSIMAL 50% GAJI POKOK ────────────────────
       if (!_validateKasbon(amount, basicSalary)) {
         HapticFeedback.heavyImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Colors.red,
-            content: Text('❌ Gagal: Pengajuan kasbon Anda melanggar ketentuan limit batas aman perusahaan!'),
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF393E46),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 24),
+                SizedBox(width: 10),
+                Text('Batas Kasbon Terlampaui', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Text(
+              'Pengajuan gagal: Nominal kasbon ${currencyFormatter.format(amount)} melebihi batas ketentuan 50% dari gaji pokok Anda.\n\nBatas Maksimal Kasbon Anda: ${currencyFormatter.format(maxLimit)}',
+              style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.5),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _amountFocusNode.requestFocus();
+                },
+                child: const Text('Edit Jumlah', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _selectDate(context, true);
+                },
+                child: const Text('Edit Tanggal', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
         );
         return;
       }
 
-      // ── VALIDASI PERIODE KASBON 20 HARI SETELAH CUT-OFF ──────────────
+      // ── 2. VALIDASI PERIODE PENGADAAN KASBON ─────────────────────────
       final cutoffDay = getCutoffStartDayFromPolicies(auth.policies, auth.profile?.outlet);
-      final now = DateTime.now();
-      // Periode aktif: (cutoffDay+1) s/d (cutoffDay+20) bulan ini
-      final allowedStart = DateTime(now.year, now.month, cutoffDay + 1);
-      final allowedEnd = DateTime(now.year, now.month, cutoffDay + 20);
-      final todayOnly = DateTime(now.year, now.month, now.day);
-      final isInPeriod = !todayOnly.isBefore(allowedStart) && !todayOnly.isAfter(allowedEnd);
+      final subDate = _startDate ?? DateTime.now();
+      final cutoffPeriod = getActiveCutoffPeriod(cutoffDay, subDate);
+      final cutoffStartDate = cutoffPeriod['start']!;
+      final cutoffEndDate = cutoffPeriod['end']!;
+
+      final prevSalaryDate = DateTime(cutoffStartDate.year, cutoffStartDate.month, cutoffStartDate.day + 3);
+      final allowedStart = DateTime(prevSalaryDate.year, prevSalaryDate.month, prevSalaryDate.day + 7);
+      final allowedEnd = DateTime(cutoffEndDate.year, cutoffEndDate.month, cutoffEndDate.day - 7);
+
+      final subDateOnly = DateTime(subDate.year, subDate.month, subDate.day);
+      final allowedStartOnly = DateTime(allowedStart.year, allowedStart.month, allowedStart.day);
+      final allowedEndOnly = DateTime(allowedEnd.year, allowedEnd.month, allowedEnd.day);
+
+      final isInPeriod = !subDateOnly.isBefore(allowedStartOnly) && !subDateOnly.isAfter(allowedEndOnly);
 
       if (!isInPeriod) {
-        // Hitung tanggal periode berikutnya
-        final nextOpen = todayOnly.isBefore(allowedStart)
-            ? allowedStart
-            : DateTime(now.year, now.month + 1, cutoffDay + 1);
-        final daysToNext = nextOpen.difference(todayOnly).inDays;
-
         HapticFeedback.heavyImpact();
         showDialog(
           context: context,
@@ -249,7 +286,7 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
               children: [
                 Icon(Icons.lock_clock, color: Colors.red, size: 24),
                 SizedBox(width: 10),
-                Text('Pengajuan Ditolak', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Tanggal Tidak Diizinkan', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
             content: Column(
@@ -262,39 +299,37 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Kasbon hanya dapat diajukan dalam 20 hari setelah tanggal cut-off (tgl $cutoffDay) setiap bulannya.',
-                  style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 13, height: 1.5),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    'Periode berikutnya dibuka:\n${nextOpen.day}/${nextOpen.month}/${nextOpen.year} ($daysToNext hari lagi)',
-                    style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
+                  'Kasbon hanya diizinkan mulai 7 hari setelah tanggal gajian hingga 7 hari sebelum tanggal cut-off.\n\n'
+                  'Periode diizinkan untuk siklus ini:\n'
+                  '${allowedStart.day}/${allowedStart.month}/${allowedStart.year} s/d ${allowedEnd.day}/${allowedEnd.month}/${allowedEnd.year}',
+                  style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.5),
                 ),
               ],
             ),
             actions: [
-              ElevatedButton(
+              TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00ADB5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text('Mengerti', style: TextStyle(color: Colors.white)),
+                child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _amountFocusNode.requestFocus();
+                },
+                child: const Text('Edit Jumlah', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _selectDate(context, true);
+                },
+                child: const Text('Edit Tanggal', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
               ),
             ],
           ),
         );
         return;
       }
-      // ─────────────────────────────────────────────────────────────────
     }
     
     if (_selectedType == 'setengah_hari') {
@@ -816,10 +851,11 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _amountController,
+                      focusNode: _amountFocusNode,
                       keyboardType: TextInputType.number,
                       style: const TextStyle(color: Color(0xFFEEEEEE)),
                       decoration: InputDecoration(
-                        hintText: 'Maksimal Rp 500.000 & 50% Gaji Pokok',
+                        hintText: 'Maksimal 50% Gaji Pokok',
                         hintStyle: const TextStyle(color: Color(0x62EEEEEE)),
                         filled: true,
                         fillColor: darkBg,
