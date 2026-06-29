@@ -16,7 +16,7 @@ export default function SopPage({ token, API_URL }) {
   };
 
   const [sops, setSops] = useState([]);
-  const [availableOutlets, setAvailableOutlets] = useState([]);
+  const [availableOutlets, setAvailableOutlets] = useState(getLiveOutletList());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [divisiFilter, setDivisiFilter] = useState('');
@@ -146,6 +146,17 @@ export default function SopPage({ token, API_URL }) {
       setAvailableOutlets(list);
     }
   }, [ctxOutlets]);
+
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setShowOutletDropdown(false);
+      setShowRoleDropdown(false);
+      setShowDocOutletDropdown(false);
+      setShowDocRoleDropdown(false);
+    };
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
@@ -1659,6 +1670,10 @@ export default function SopPage({ token, API_URL }) {
                     overflowY: 'auto',
                     boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
                   }} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px', marginBottom: '6px' }}>
+                      <button type="button" onClick={() => { setErrorMsg(''); setSelectedOutlets([...availableOutlets]); }} style={{ background: 'transparent', border: 'none', color: '#00ADB5', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Pilih Semua</button>
+                      <button type="button" onClick={() => setSelectedOutlets([])} style={{ background: 'transparent', border: 'none', color: '#E05C5C', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Bersihkan</button>
+                    </div>
                     {availableOutlets.map(outlet => {
                       const isChecked = selectedOutlets.includes(outlet);
                       return (
@@ -2525,6 +2540,10 @@ export default function SopPage({ token, API_URL }) {
                         overflowY: 'auto',
                         boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
                       }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px', marginBottom: '6px' }}>
+                          <button type="button" onClick={() => setDocSelectedOutlets([...availableOutlets])} style={{ background: 'transparent', border: 'none', color: '#00ADB5', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Pilih Semua</button>
+                          <button type="button" onClick={() => setDocSelectedOutlets([])} style={{ background: 'transparent', border: 'none', color: '#E05C5C', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>Bersihkan</button>
+                        </div>
                         {availableOutlets.map(outlet => {
                           const isChecked = docSelectedOutlets.includes(outlet);
                           return (
