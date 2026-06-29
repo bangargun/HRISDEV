@@ -807,9 +807,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     Expanded(
                       child: _buildGojekMenuItem(
-                        icon: Icons.badge_outlined,
-                        label: 'Card',
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InformationScreen(initialIndex: 3))),
+                        icon: Icons.menu_book_outlined,
+                        label: 'SOP & Arsip',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SopScreen())),
                       ),
                     ),
                   ],
