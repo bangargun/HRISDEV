@@ -141,7 +141,7 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabe
 };
 
 // ─── MODAL PREVIEW EXCEL (Interceptor Guard) ──────────────────────────────────
-const PreviewModal = ({ isOpen, quizMeta, parsedSoal, onUpload, onCancel }) => {
+const PreviewModal = ({ isOpen, quizMeta, parsedSoal, onUpload, onCancel, readOnly }) => {
   if (!isOpen) return null;
   return (
     <div style={{
@@ -158,10 +158,10 @@ const PreviewModal = ({ isOpen, quizMeta, parsedSoal, onUpload, onCancel }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
           <div>
             <h2 style={{ color: C.cyan, fontSize: '1.25rem', marginBottom: '4px' }}>
-              📋 Interceptor Guard — Pratinjau Soal
+              {readOnly ? '📋 Detail Kuis — Pratinjau Soal' : '📋 Interceptor Guard — Pratinjau Soal'}
             </h2>
             <p style={{ color: C.muted, fontSize: '0.83rem' }}>
-              Pastikan data soal sudah benar sebelum diupload ke bank soal kuis.
+              {readOnly ? 'Melihat rincian soal kompetensi karyawan aktif.' : 'Pastikan data soal sudah benar sebelum diupload ke bank soal kuis.'}
             </p>
           </div>
           <button onClick={onCancel} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px' }}>
@@ -175,7 +175,7 @@ const PreviewModal = ({ isOpen, quizMeta, parsedSoal, onUpload, onCancel }) => {
         }}>
           {[
             { label: 'Nama Kuis', val: quizMeta.nama_kuis || '-' },
-            { label: 'Divisi / Jabatan', val: quizMeta.divisi || 'Semua' },
+            { label: 'Divisi / Jabatan', val: Array.isArray(quizMeta.divisi) ? quizMeta.divisi.join(', ') : (quizMeta.divisi || 'Semua') },
             { label: 'Durasi', val: quizMeta.durasi_menit ? `${quizMeta.durasi_menit} Menit` : '-' },
           ].map(({ label, val }) => (
             <div key={label} style={{
@@ -208,7 +208,7 @@ const PreviewModal = ({ isOpen, quizMeta, parsedSoal, onUpload, onCancel }) => {
                   <td style={{ padding: '8px 12px', color: C.text, maxWidth: '260px' }}>{s.soal}</td>
                   {['A', 'B', 'C', 'D', 'E'].map(p => (
                     <td key={p} style={{ padding: '8px 12px', color: s.kunci === p ? C.cyan : C.muted, fontWeight: s.kunci === p ? 700 : 400 }}>
-                      {s.pilihan[p] || '-'}
+                      {s.pilihan ? (s.pilihan[p] || '-') : (s[`opsi_${p.toLowerCase()}`] || '-')}
                     </td>
                   ))}
                   <td style={{ padding: '8px 12px' }}>
@@ -222,12 +222,20 @@ const PreviewModal = ({ isOpen, quizMeta, parsedSoal, onUpload, onCancel }) => {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
-          <Btn variant="danger" onClick={onCancel}>
-            <X size={16} /> Batalkan & Hapus File
-          </Btn>
-          <Btn variant="primary" onClick={onUpload}>
-            <Upload size={16} /> Upload ke Bank Soal
-          </Btn>
+          {readOnly ? (
+            <Btn variant="primary" onClick={onCancel}>
+              <CheckCircle size={16} /> Selesai & Tutup
+            </Btn>
+          ) : (
+            <>
+              <Btn variant="danger" onClick={onCancel}>
+                <X size={16} /> Batalkan & Hapus
+              </Btn>
+              <Btn variant="primary" onClick={onUpload}>
+                <Upload size={16} /> Upload ke Bank Soal
+              </Btn>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -515,12 +523,154 @@ const TambahKuisModal = ({ isOpen, onClose, onPreview, divisiOptions }) => {
   const [fileName, setFileName] = useState('');
   const [parseError, setParseError] = useState('');
   const [parsedSoal, setParsedSoal] = useState([]);
+  const [materials, setMaterials] = useState(() => lsGet('hris_training_materials', []));
+  const [selectedMaterialId, setSelectedMaterialId] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setMaterials(lsGet('hris_training_materials', []));
+      setSelectedMaterialId('');
+    }
+  }, [isOpen]);
+
+  const generateMockQuizInternal = (matTitle, matDesc) => {
+    const t = capitalEachWord(matTitle || 'Materi Pelatihan');
+    const topik = t.replace(/Modul |Materi |Panduan |Sop |Standar /gi, '').trim() || 'Operasional Restoran';
+
+    const templates = [
+      {
+        soal: `Apa Yang Dimaksud Dengan ${topik} Dalam Standar Operasional Perusahaan?`,
+        pilihan: {
+          A: `Prosedur Baku Yang Wajib Diikuti Seluruh Karyawan`,
+          B: `Panduan Opsional Yang Dapat Diabaikan`,
+          C: `Aturan Khusus Hanya Untuk Manajer`,
+          D: `Kebijakan Yang Berlaku Satu Kali Saja`,
+          E: `Instruksi Verbal Tanpa Dokumen Tertulis`,
+        },
+        kunci: 'A',
+        rasional: `Standar Operasional Dalam ${topik} Adalah Prosedur Baku Yang Wajib Dipatuhi Semua Karyawan Untuk Menjaga Konsistensi Dan Kualitas Layanan.`,
+      },
+      {
+        soal: `Mengapa ${topik} Penting Diterapkan Di Setiap Cabang Barokah Grup?`,
+        pilihan: {
+          A: `Hanya Untuk Memenuhi Persyaratan Audit Eksternal`,
+          B: `Untuk Menjaga Standar Kualitas Dan Konsistensi Layanan Di Semua Outlet`,
+          C: `Supaya Karyawan Tidak Perlu Dilatih Lagi`,
+          D: `Agar Pelanggan Tidak Mengeluh`,
+          E: `Karena Diwajibkan Oleh Pemerintah Daerah`,
+        },
+        kunci: 'B',
+        rasional: `${topik} Diterapkan Untuk Memastikan Konsistensi Kualitas Dan Standar Layanan Di Seluruh Cabang Barokah Grup Secara Menyeluruh.`,
+      },
+      {
+        soal: `Siapa Yang Bertanggung Jawab Memastikan ${topik} Berjalan Sesuai Standar Di Outlet?`,
+        pilihan: {
+          A: `Hanya Direktur Utama Perusahaan`,
+          B: `Tim HRD Pusat Saja`,
+          C: `Kepala Cabang Beserta Seluruh Tim Di Outlet`,
+          D: `Karyawan Baru Yang Baru Bergabung`,
+          E: `Auditor Eksternal Perusahaan`,
+        },
+        kunci: 'C',
+        rasional: `Tanggung Jawab Penerapan ${topik} Ada Pada Kepala Cabang Dan Seluruh Tim Di Outlet, Bukan Hanya Satu Pihak Saja.`,
+      },
+      {
+        soal: `Apa Konsekuensi Jika Karyawan Tidak Mematuhi Prosedur ${topik}?`,
+        pilihan: {
+          A: `Tidak Ada Konsekuensi Karena Bersifat Saran`,
+          B: `Mendapat Penghargaan Khusus Dari Manajemen`,
+          C: `Dipindahkan Ke Outlet Lain Secara Otomatis`,
+          D: `Dapat Dikenai Sanksi Sesuai Peraturan Perusahaan`,
+          E: `Gajinya Langsung Dipotong Penuh Satu Bulan`,
+        },
+        kunci: 'D',
+        rasional: `Ketidakpatuhan Terhadap Prosedur ${topik} Dapat Berujung Pada Sanksi Sesuai Peraturan Perusahaan Yang Berlaku.`,
+      },
+      {
+        soal: `Bagaimana Cara Yang Benar Melaporkan Temuan Masalah Terkait ${topik}?`,
+        pilihan: {
+          A: `Langsung Menyampaikan Ke Media Sosial`,
+          B: `Diam Dan Tidak Melakukan Apa-Ada`,
+          C: `Melaporkan Ke Atasan Langsung Dan Mendokumentasikannya`,
+          D: `Menunggu Audit Dari HRD Pusat`,
+          E: `Hanya Memberitahu Rekan Kerja Saja`,
+        },
+        kunci: 'C',
+        rasional: `Temuan Masalah ${topik} Harus Segera Dilaporkan Ke Atasan Dan Didokumentasikan Agar Dapat Ditindaklanjuti Dengan Cepat Dan Tepat.`,
+      },
+      {
+        soal: `Kapan Evaluasi Penerapan ${topik} Sebaiknya Dilakukan Secara Berkala?`,
+        pilihan: {
+          A: `Hanya Saat Ada Inspeksi Mendadak`,
+          B: `Setiap Hari Tanpa Pengecualian`,
+          C: `Minimal Sekali Dalam Setahun`,
+          D: `Sesuai Jadwal Yang Telah Ditetapkan Manajemen`,
+          E: `Tidak Perlu Dievaluasi Jika Tidak Ada Masalah`,
+        },
+        kunci: 'D',
+        rasional: `Evaluasi ${topik} Dilakukan Sesuai Jadwal Resmi Yang Ditetapkan Manajemen Untuk Memastikan Standar Selalu Terjaga Dan Diperbarui Tepat Waktu.`,
+      },
+      {
+        soal: `Dokumen Apa Yang Harus Dipahami Karyawan Sebelum Menerapkan ${topik}?`,
+        pilihan: {
+          A: `Dokumen Keuangan Perusahaan`,
+          B: `Laporan Tahunan Pemegang Saham`,
+          C: `Standar Operasional Prosedur (SOP) Yang Berlaku`,
+          D: `Daftar Gaji Karyawan Outlet`,
+          E: `Kontrak Kerja Karyawan Lain`,
+        },
+        kunci: 'C',
+        rasional: `Sebelum Menerapkan ${topik}, Karyawan Wajib Memahami Dan Mengikuti Standar Operasional Prosedur (SOP) Resmi Yang Telah Ditetapkan Perusahaan.`,
+      },
+      {
+        soal: `Apa Manfaat Utama Penerapan ${topik} Secara Konsisten Bagi Pelanggan?`,
+        pilihan: {
+          A: `Membuat Harga Produk Menjadi Lebih Mahal`,
+          B: `Memperlambat Proses Pelayanan`,
+          C: `Mengurangi Pilihan Menu Yang Tersedia`,
+          D: `Memberikan Pengalaman Layanan Yang Konsisten Dan Memuaskan`,
+          E: `Membatasi Kreatifitas Karyawan Dalam Bekerja`,
+        },
+        kunci: 'D',
+        rasional: `Penerapan ${topik} Secara Konsisten Memberikan Pengalaman Layanan Yang Seragam Dan Memuaskan Bagi Setiap Pelanggan Di Semua Outlet.`,
+      },
+      {
+        soal: `Apa Langkah Pertama Yang Harus Dilakukan Saat Menerima Materi ${topik} Baru?`,
+        pilihan: {
+          A: `Langsung Mempraktikkannya Tanpa Membaca`,
+          B: `Menyimpan Dokumen Dan Tidak Membacanya`,
+          C: `Membaca, Memahami, Dan Bertanya Jika Ada Yang Tidak Jelas`,
+          D: `Menyerahkan Ke Rekan Kerja Untuk Dibaca`,
+          E: `Menunggu Perintah Atasan Untuk Membaca`,
+        },
+        kunci: 'C',
+        rasional: `Saat Menerima Materi ${topik} Baru, Karyawan Harus Membaca Dengan Seksama, Memahaminya, Dan Bertanya Jika Ada Hal Yang Masih Belum Dipahami.`,
+      },
+      {
+        soal: `Bagaimana Sikap Profesional Yang Tepat Saat Menghadapi Tantangan Dalam ${topik}?`,
+        pilihan: {
+          A: `Menghindari Tugas Yang Berhubungan Dengan Masalah Tersebut`,
+          B: `Mencari Kambing Hitam Atas Setiap Kegagalan`,
+          C: `Menganalisis Masalah, Berkoordinasi, Dan Mencari Solusi Terbaik`,
+          D: `Langsung Mengundurkan Diri Dari Pekerjaan`,
+          E: `Mengeluh Ke Seluruh Rekan Kerja Di Outlet`,
+        },
+        kunci: 'C',
+        rasional: `Sikap Profesional Dalam Menghadapi Tantangan ${topik} Adalah Menganalisis Masalah Secara Objektif, Berkoordinasi Dengan Tim, Dan Mencari Solusi Terbaik Bersama.`,
+      },
+    ];
+
+    return {
+      soal: templates
+    };
+  };
 
   const reset = () => {
     setMeta({ nama_kuis: '', divisi: 'Semua', durasi_menit: 30, periode_aktif_start: '', periode_aktif_end: '' });
     setFileName('');
     setParseError('');
     setParsedSoal([]);
+    setSelectedMaterialId('');
     if (fileRef.current) fileRef.current.value = '';
   };
 
@@ -627,6 +777,75 @@ const TambahKuisModal = ({ isOpen, onClose, onPreview, divisiOptions }) => {
             <Input label="Periode Selesai" type="date" value={meta.periode_aktif_end}
               onChange={e => setMeta(p => ({ ...p, periode_aktif_end: e.target.value }))} />
           </div>
+
+          {/* Opsi Generate dari Materi Training */}
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: '14px', padding: '16px', background: 'rgba(255,255,255,0.02)' }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 700, color: C.cyan, display: 'block', marginBottom: '8px' }}>
+              Pilihan Materi Training (Untuk Auto-Generate)
+            </label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                {materials.length === 0 ? (
+                  <p style={{ color: C.danger, fontSize: '0.8rem', margin: 0, fontStyle: 'italic' }}>
+                    Belum ada materi training diunggah. Silakan unggah materi di halaman Program Pelatihan terlebih dahulu.
+                  </p>
+                ) : (
+                  <select
+                    value={selectedMaterialId}
+                    onChange={e => {
+                      const matId = e.target.value;
+                      setSelectedMaterialId(matId);
+                      if (matId) {
+                        const m = materials.find(x => String(x.id) === String(matId));
+                        if (m) {
+                          setMeta(prev => ({
+                            ...prev,
+                            nama_kuis: capitalEachWord(`Kuis Kompetensi — ${m.title}`)
+                          }));
+                        }
+                      }
+                    }}
+                    style={{
+                      width: '100%', background: C.bg, color: C.text,
+                      border: `1px solid ${C.border}`, borderRadius: '10px',
+                      padding: '10px 14px', fontSize: '0.85rem', outline: 'none'
+                    }}
+                  >
+                    <option value="">-- Pilih Materi Training --</option>
+                    {materials.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {capitalEachWord(m.title)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={materials.length === 0 || !selectedMaterialId}
+                onClick={() => {
+                  const m = materials.find(x => String(x.id) === String(selectedMaterialId));
+                  if (!m) return;
+                  const res = generateMockQuizInternal(m.title, m.desc);
+                  setParsedSoal(res.soal);
+                  setFileName(`Auto-Generated: ${m.title}`);
+                  setParseError('');
+                  alert(`Berhasil generate 10 soal dari materi "${m.title}". Silakan cek pratinjau.`);
+                }}
+                style={{
+                  background: C.cyan, color: C.bg, border: 'none',
+                  borderRadius: '10px', padding: '10px 16px', fontWeight: 700,
+                  fontSize: '0.85rem', cursor: (materials.length === 0 || !selectedMaterialId) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  opacity: (materials.length === 0 || !selectedMaterialId) ? 0.5 : 1
+                }}
+              >
+                <RefreshCw size={14} /> Generate Soal
+              </button>
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', color: C.muted, fontSize: '0.8rem', fontWeight: 600, margin: '4px 0' }}>— ATAU UPLOAD FILE EXCEL —</div>
 
           {/* Drop Zone */}
           <div>
@@ -928,6 +1147,7 @@ export default function KuisKompetensi() {
   const [showTambahModal, setShowTambahModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewData, setPreviewData] = useState(null);
+  const [previewReadOnly, setPreviewReadOnly] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, danger: false });
 
   // ── State untuk Generate Kuis dari Materi
@@ -1668,6 +1888,21 @@ export default function KuisKompetensi() {
                               }}>
                               <Send size={13} /> Kirim
                             </button>
+                            <button title="Pratinjau Soal"
+                              onClick={() => {
+                                setPreviewReadOnly(true);
+                                setPreviewData({ meta: quiz, soal: quiz.soal });
+                                setShowPreviewModal(true);
+                              }}
+                              style={{
+                                background: 'rgba(238,238,238,0.05)', border: `1px solid ${C.border}`,
+                                borderRadius: '8px', padding: '7px 10px',
+                                color: C.text, cursor: 'pointer',
+                                display: 'flex', alignItems: 'center',
+                                transition: 'all 0.15s',
+                              }}>
+                              <Eye size={14} />
+                            </button>
                             <button title="Hapus Kuis"
                               onClick={() => handleDeleteQuiz(quiz.id)}
                               style={{
@@ -1843,7 +2078,7 @@ export default function KuisKompetensi() {
         isOpen={showTambahModal}
         onClose={() => setShowTambahModal(false)}
         divisiOptions={divisiOptions}
-        onPreview={(data) => { setPreviewData(data); setShowPreviewModal(true); }}
+        onPreview={(data) => { setPreviewReadOnly(false); setPreviewData(data); setShowPreviewModal(true); }}
       />
 
       <GenerateQuizModal
@@ -1860,6 +2095,7 @@ export default function KuisKompetensi() {
         parsedSoal={previewData?.soal || []}
         onUpload={handleUpload}
         onCancel={() => { setShowPreviewModal(false); setPreviewData(null); }}
+        readOnly={previewReadOnly}
       />
 
       <ConfirmModal
