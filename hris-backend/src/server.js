@@ -349,13 +349,23 @@ app.get('/api/quizzes', authenticateToken, (req, res) => {
   const quizzes = backendState.quiz_bank || [];
   
   if (req.user.role === 'employee') {
-    // Karyawan hanya bisa melihat kuis yang sudah terkirim/aktif dan sesuai target jabatan
+    // Karyawan hanya bisa melihat kuis yang sudah terkirim/aktif dan sesuai target jabatan & outlet
     const filtered = quizzes.filter(q => {
       const matchStatus = q.status === 'terkirim';
+      
+      // Filter Jabatan (Divisi)
       const myPos = (req.user.position || '').toUpperCase().trim();
       const targetPos = (q.divisi || 'Semua').toUpperCase().trim();
-      const matchDivisi = targetPos === 'SEMUA' || myPos === targetPos || myPos.includes(targetPos) || targetPos.includes(myPos);
-      return matchStatus && matchDivisi;
+      const matchDivisi = targetPos === 'SEMUA' || 
+                          (Array.isArray(q.divisi) ? q.divisi.some(d => d.toUpperCase().trim() === myPos) : (myPos === targetPos || myPos.includes(targetPos) || targetPos.includes(myPos)));
+      
+      // Filter Outlet
+      const myOutlet = (req.user.outlet || '').toUpperCase().trim();
+      const targetOutlet = (q.outlet || 'Semua Outlet').toUpperCase().trim();
+      const matchOutlet = targetOutlet === 'SEMUA OUTLET' || 
+                          (Array.isArray(q.outlet) ? q.outlet.some(o => o.toUpperCase().trim() === myOutlet) : (myOutlet === targetOutlet || targetOutlet.includes(myOutlet)));
+      
+      return matchStatus && matchDivisi && matchOutlet;
     }).map(q => {
       // Map ke format yang diharapkan oleh mobile app (QuizRecord)
       return {
@@ -363,14 +373,14 @@ app.get('/api/quizzes', authenticateToken, (req, res) => {
         judul: q.nama_kuis,
         deskripsi: q.deskripsi || 'Silakan kerjakan kuis evaluasi kompetensi ini.',
         skor_kelulusan: 80.0,
-        outlet_target: q.outlet || 'Semua Outlet',
-        jabatan_target: q.divisi || 'Semua Jabatan',
+        outlet_target: Array.isArray(q.outlet) ? q.outlet.join(', ') : (q.outlet || 'Semua Outlet'),
+        jabatan_target: Array.isArray(q.divisi) ? q.divisi.join(', ') : (q.divisi || 'Semua Jabatan'),
         jenis_kuis: q.nama_kuis.toLowerCase().includes('matriks') ? 'Matriks Pilihan' : 'Pilihan Berganda',
         durasi_menit: Number(q.durasi_menit || 15),
         tanggal_mulai: q.periode_aktif_start,
         tanggal_akhir: q.periode_aktif_end,
-        soal: (q.soal || []).map(s => ({
-          nomor: Number(s.no || s.nomor || 1),
+        soal: (q.soal || []).map((s, idx) => ({
+          nomor: Number(s.no || s.nomor || idx + 1),
           tanya: s.soal || s.tanya || '',
           opsi_a: s.pilihan ? (s.pilihan.A || s.pilihan.a || '') : (s.opsi_a || ''),
           opsi_b: s.pilihan ? (s.pilihan.B || s.pilihan.b || '') : (s.opsi_b || ''),

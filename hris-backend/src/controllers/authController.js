@@ -137,7 +137,7 @@ export async function getMyPermissions(req, res) {
     const modules = [
       'employees', 'attendances', 'leaves', 'payroll', 'outlets',
       'revenues', 'sops', 'contracts', 'kpis', 'sanctions',
-      'trainings', 'policies', 'settings'
+      'trainings', 'policies', 'settings', 'kuis', 'angket', 'broadcast'
     ];
 
     let permissions = {};

@@ -234,6 +234,275 @@ const PreviewModal = ({ isOpen, quizMeta, parsedSoal, onUpload, onCancel }) => {
   );
 };
 
+// ─── MODAL GENERATE KUIS DARI MATERI ──────────────────────────────────────────
+const GenerateQuizModal = ({ isOpen, onClose, onGenerate, allOutlets, divisiOptions }) => {
+  const [selectedOutlets, setSelectedOutlets] = useState([]);
+  const [selectedJabatans, setSelectedJabatans] = useState([]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState('');
+  const [duration, setDuration] = useState('15');
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState('');
+  const [materials, setMaterials] = useState(() => lsGet('hris_training_materials', []));
+
+  useEffect(() => {
+    if (isOpen) {
+      setMaterials(lsGet('hris_training_materials', []));
+      setSelectedOutlets([]);
+      setSelectedJabatans([]);
+      setSelectedMaterialId('');
+      setDuration('15');
+      setStartDate(new Date().toISOString().slice(0, 10));
+      setEndDate('');
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSelectAllOutlets = () => setSelectedOutlets(allOutlets);
+  const handleClearOutlets = () => setSelectedOutlets([]);
+
+  const handleSelectAllJabatans = () => setSelectedJabatans(divisiOptions);
+  const handleClearJabatans = () => setSelectedJabatans([]);
+
+  const handleOutletToggle = (outlet) => {
+    setSelectedOutlets(prev =>
+      prev.includes(outlet) ? prev.filter(o => o !== outlet) : [...prev, outlet]
+    );
+  };
+
+  const handleJabatanToggle = (jabatan) => {
+    setSelectedJabatans(prev =>
+      prev.includes(jabatan) ? prev.filter(j => j !== jabatan) : [...prev, jabatan]
+    );
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedMaterialId) {
+      alert('Harap pilih materi training.');
+      return;
+    }
+    if (selectedOutlets.length === 0) {
+      alert('Harap pilih minimal satu outlet target.');
+      return;
+    }
+    if (selectedJabatans.length === 0) {
+      alert('Harap pilih minimal satu jabatan target.');
+      return;
+    }
+    if (!endDate) {
+      alert('Harap tentukan tanggal akhir periode aktif.');
+      return;
+    }
+
+    const material = materials.find(m => String(m.id) === String(selectedMaterialId));
+    if (!material) {
+      alert('Materi training tidak ditemukan.');
+      return;
+    }
+
+    onGenerate({
+      material,
+      outlets: selectedOutlets,
+      jabatans: selectedJabatans,
+      duration: parseInt(duration) || 15,
+      startDate,
+      endDate
+    });
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', zIndex: 1000, padding: '20px'
+    }}>
+      <div style={{
+        background: C.surface, width: '100%', maxWidth: '640px',
+        borderRadius: '16px', border: `1px solid ${C.border}`,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)', display: 'flex',
+        flexDirection: 'column', maxHeight: '90vh'
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '20px 24px', borderBottom: `1px solid ${C.border}`
+        }}>
+          <h3 style={{ color: C.cyan, fontWeight: 700, margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <RefreshCw size={18} /> Generate Kuis dari Materi Training
+          </h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer' }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <div>
+            <label style={{ display: 'block', color: C.text, fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px' }}>
+              Pilih Materi Training <span style={{ color: C.danger }}>*</span>
+            </label>
+            {materials.length === 0 ? (
+              <p style={{ color: C.danger, fontSize: '0.8rem', margin: 0, fontStyle: 'italic' }}>
+                Belum ada materi training diunggah. Silakan unggah materi di Program Pelatihan &gt; Materi Training terlebih dahulu.
+              </p>
+            ) : (
+              <select
+                value={selectedMaterialId}
+                onChange={e => setSelectedMaterialId(e.target.value)}
+                required
+                style={{
+                  width: '100%', background: C.bg, color: C.text,
+                  border: `1px solid ${C.border}`, borderRadius: '10px',
+                  padding: '10px 14px', fontSize: '0.85rem', outline: 'none'
+                }}
+              >
+                <option value="">-- Pilih Materi Training --</option>
+                {materials.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {capitalEachWord(m.title)} ({m.type || 'Dokumen'})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ color: C.text, fontSize: '0.85rem', fontWeight: 600 }}>
+                Target Outlet <span style={{ color: C.danger }}>*</span>
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="button" onClick={handleSelectAllOutlets} style={{ background: 'none', border: 'none', color: C.cyan, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>Pilih Semua</button>
+                <span style={{ color: C.border }}>|</span>
+                <button type="button" onClick={handleClearOutlets} style={{ background: 'none', border: 'none', color: C.muted, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>Bersihkan</button>
+              </div>
+            </div>
+            <div style={{
+              background: C.bg, border: `1px solid ${C.border}`, borderRadius: '10px',
+              padding: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: '8px', maxHeight: '120px', overflowY: 'auto'
+            }}>
+              {allOutlets.map(o => (
+                <label key={o} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: C.text, fontSize: '0.8rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedOutlets.includes(o)}
+                    onChange={() => handleOutletToggle(o)}
+                    style={{ accentColor: C.cyan }}
+                  />
+                  <span>{capitalEachWord(o)}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ color: C.text, fontSize: '0.85rem', fontWeight: 600 }}>
+                Target Jabatan <span style={{ color: C.danger }}>*</span>
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="button" onClick={handleSelectAllJabatans} style={{ background: 'none', border: 'none', color: C.cyan, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>Pilih Semua</button>
+                <span style={{ color: C.border }}>|</span>
+                <button type="button" onClick={handleClearJabatans} style={{ background: 'none', border: 'none', color: C.muted, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>Bersihkan</button>
+              </div>
+            </div>
+            <div style={{
+              background: C.bg, border: `1px solid ${C.border}`, borderRadius: '10px',
+              padding: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: '8px', maxHeight: '120px', overflowY: 'auto'
+            }}>
+              {divisiOptions.map(j => (
+                <label key={j} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: C.text, fontSize: '0.8rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedJabatans.includes(j)}
+                    onChange={() => handleJabatanToggle(j)}
+                    style={{ accentColor: C.cyan }}
+                  />
+                  <span>{capitalEachWord(j)}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', color: C.text, fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Durasi (Menit)</label>
+              <input
+                type="number"
+                value={duration}
+                onChange={e => setDuration(e.target.value)}
+                min="5"
+                required
+                style={{
+                  width: '100%', background: C.bg, color: C.text,
+                  border: `1px solid ${C.border}`, borderRadius: '10px',
+                  padding: '10px 12px', fontSize: '0.85rem', outline: 'none'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', color: C.text, fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Tanggal Mulai</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                required
+                style={{
+                  width: '100%', background: C.bg, color: C.text,
+                  border: `1px solid ${C.border}`, borderRadius: '10px',
+                  padding: '10px 12px', fontSize: '0.85rem', outline: 'none'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', color: C.text, fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Tanggal Akhir</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                required
+                style={{
+                  width: '100%', background: C.bg, color: C.text,
+                  border: `1px solid ${C.border}`, borderRadius: '10px',
+                  padding: '10px 12px', fontSize: '0.85rem', outline: 'none'
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', marginTop: '10px', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                background: 'transparent', color: C.muted, border: `1px solid ${C.border}`,
+                borderRadius: '10px', padding: '10px 20px', fontWeight: 600,
+                fontSize: '0.85rem', cursor: 'pointer'
+              }}
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={materials.length === 0}
+              style={{
+                background: C.cyan, color: C.bg, border: 'none',
+                borderRadius: '10px', padding: '10px 20px', fontWeight: 700,
+                fontSize: '0.85rem', cursor: 'pointer', opacity: materials.length === 0 ? 0.5 : 1
+              }}
+            >
+              Generate & Simpan
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // ─── MODAL TAMBAH KUIS ────────────────────────────────────────────────────────
 const TambahKuisModal = ({ isOpen, onClose, onPreview, divisiOptions }) => {
   const fileRef = useRef(null);
@@ -661,6 +930,170 @@ export default function KuisKompetensi() {
   const [previewData, setPreviewData] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, danger: false });
 
+  // ── State untuk Generate Kuis dari Materi
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [trainingMaterials, setTrainingMaterials] = useState(() => lsGet('hris_training_materials', []));
+
+  // ── AI Mock Quiz Generator — 10 Title-Cased MCQ per materi
+  const generateMockQuiz = useCallback((matTitle, matDesc) => {
+    const t = capitalEachWord(matTitle || 'Materi Pelatihan');
+    const topik = t.replace(/Modul |Materi |Panduan |Sop |Standar /gi, '').trim() || 'Operasional Restoran';
+
+    const templates = [
+      {
+        soal: `Apa Yang Dimaksud Dengan ${topik} Dalam Standar Operasional Perusahaan?`,
+        pilihan: {
+          A: `Prosedur Baku Yang Wajib Diikuti Seluruh Karyawan`,
+          B: `Panduan Opsional Yang Dapat Diabaikan`,
+          C: `Aturan Khusus Hanya Untuk Manajer`,
+          D: `Kebijakan Yang Berlaku Satu Kali Saja`,
+          E: `Instruksi Verbal Tanpa Dokumen Tertulis`,
+        },
+        kunci: 'A',
+        rasional: `Standar Operasional Dalam ${topik} Adalah Prosedur Baku Yang Wajib Dipatuhi Semua Karyawan Untuk Menjaga Konsistensi Dan Kualitas Layanan.`,
+      },
+      {
+        soal: `Mengapa ${topik} Penting Diterapkan Di Setiap Cabang Barokah Grup?`,
+        pilihan: {
+          A: `Hanya Untuk Memenuhi Persyaratan Audit Eksternal`,
+          B: `Untuk Menjaga Standar Kualitas Dan Konsistensi Layanan Di Semua Outlet`,
+          C: `Supaya Karyawan Tidak Perlu Dilatih Lagi`,
+          D: `Agar Pelanggan Tidak Mengeluh`,
+          E: `Karena Diwajibkan Oleh Pemerintah Daerah`,
+        },
+        kunci: 'B',
+        rasional: `${topik} Diterapkan Untuk Memastikan Konsistensi Kualitas Dan Standar Layanan Di Seluruh Cabang Barokah Grup Secara Menyeluruh.`,
+      },
+      {
+        soal: `Siapa Yang Bertanggung Jawab Memastikan ${topik} Berjalan Sesuai Standar Di Outlet?`,
+        pilihan: {
+          A: `Hanya Direktur Utama Perusahaan`,
+          B: `Tim HRD Pusat Saja`,
+          C: `Kepala Cabang Beserta Seluruh Tim Di Outlet`,
+          D: `Karyawan Baru Yang Baru Bergabung`,
+          E: `Auditor Eksternal Perusahaan`,
+        },
+        kunci: 'C',
+        rasional: `Tanggung Jawab Penerapan ${topik} Ada Pada Kepala Cabang Dan Seluruh Tim Di Outlet, Bukan Hanya Satu Pihak Saja.`,
+      },
+      {
+        soal: `Apa Konsekuensi Jika Karyawan Tidak Mematuhi Prosedur ${topik}?`,
+        pilihan: {
+          A: `Tidak Ada Konsekuensi Karena Bersifat Saran`,
+          B: `Mendapat Penghargaan Khusus Dari Manajemen`,
+          C: `Dipindahkan Ke Outlet Lain Secara Otomatis`,
+          D: `Dapat Dikenai Sanksi Sesuai Peraturan Perusahaan`,
+          E: `Gajinya Langsung Dipotong Penuh Satu Bulan`,
+        },
+        kunci: 'D',
+        rasional: `Ketidakpatuhan Terhadap Prosedur ${topik} Dapat Berujung Pada Sanksi Sesuai Peraturan Perusahaan Yang Berlaku.`,
+      },
+      {
+        soal: `Bagaimana Cara Yang Benar Melaporkan Temuan Masalah Terkait ${topik}?`,
+        pilihan: {
+          A: `Langsung Menyampaikan Ke Media Sosial`,
+          B: `Diam Dan Tidak Melakukan Apa-Apa`,
+          C: `Melaporkan Ke Atasan Langsung Dan Mendokumentasikannya`,
+          D: `Menunggu Audit Dari HRD Pusat`,
+          E: `Hanya Memberitahu Rekan Kerja Saja`,
+        },
+        kunci: 'C',
+        rasional: `Temuan Masalah ${topik} Harus Segera Dilaporkan Ke Atasan Dan Didokumentasikan Agar Dapat Ditindaklanjuti Dengan Cepat Dan Tepat.`,
+      },
+      {
+        soal: `Kapan Evaluasi Penerapan ${topik} Sebaiknya Dilakukan Secara Berkala?`,
+        pilihan: {
+          A: `Hanya Saat Ada Inspeksi Mendadak`,
+          B: `Setiap Hari Tanpa Pengecualian`,
+          C: `Minimal Sekali Dalam Setahun`,
+          D: `Sesuai Jadwal Yang Telah Ditetapkan Manajemen`,
+          E: `Tidak Perlu Dievaluasi Jika Tidak Ada Masalah`,
+        },
+        kunci: 'D',
+        rasional: `Evaluasi ${topik} Dilakukan Sesuai Jadwal Resmi Yang Ditetapkan Manajemen Untuk Memastikan Standar Selalu Terjaga Dan Diperbarui Tepat Waktu.`,
+      },
+      {
+        soal: `Dokumen Apa Yang Harus Dipahami Karyawan Sebelum Menerapkan ${topik}?`,
+        pilihan: {
+          A: `Dokumen Keuangan Perusahaan`,
+          B: `Laporan Tahunan Pemegang Saham`,
+          C: `Standar Operasional Prosedur (SOP) Yang Berlaku`,
+          D: `Daftar Gaji Karyawan Outlet`,
+          E: `Kontrak Kerja Karyawan Lain`,
+        },
+        kunci: 'C',
+        rasional: `Sebelum Menerapkan ${topik}, Karyawan Wajib Memahami Dan Mengikuti Standar Operasional Prosedur (SOP) Resmi Yang Telah Ditetapkan Perusahaan.`,
+      },
+      {
+        soal: `Apa Manfaat Utama Penerapan ${topik} Secara Konsisten Bagi Pelanggan?`,
+        pilihan: {
+          A: `Membuat Harga Produk Menjadi Lebih Mahal`,
+          B: `Memperlambat Proses Pelayanan`,
+          C: `Mengurangi Pilihan Menu Yang Tersedia`,
+          D: `Memberikan Pengalaman Layanan Yang Konsisten Dan Memuaskan`,
+          E: `Membatasi Kreatifitas Karyawan Dalam Bekerja`,
+        },
+        kunci: 'D',
+        rasional: `Penerapan ${topik} Secara Konsisten Memberikan Pengalaman Layanan Yang Seragam Dan Memuaskan Bagi Setiap Pelanggan Di Semua Outlet.`,
+      },
+      {
+        soal: `Apa Langkah Pertama Yang Harus Dilakukan Saat Menerima Materi ${topik} Baru?`,
+        pilihan: {
+          A: `Langsung Mempraktikkannya Tanpa Membaca`,
+          B: `Menyimpan Dokumen Dan Tidak Membacanya`,
+          C: `Membaca, Memahami, Dan Bertanya Jika Ada Yang Tidak Jelas`,
+          D: `Menyerahkan Ke Rekan Kerja Untuk Dibaca`,
+          E: `Menunggu Perintah Atasan Untuk Membaca`,
+        },
+        kunci: 'C',
+        rasional: `Saat Menerima Materi ${topik} Baru, Karyawan Harus Membaca Dengan Seksama, Memahaminya, Dan Bertanya Jika Ada Hal Yang Masih Belum Dipahami.`,
+      },
+      {
+        soal: `Bagaimana Sikap Profesional Yang Tepat Saat Menghadapi Tantangan Dalam ${topik}?`,
+        pilihan: {
+          A: `Menghindari Tugas Yang Berhubungan Dengan Masalah Tersebut`,
+          B: `Mencari Kambing Hitam Atas Setiap Kegagalan`,
+          C: `Menganalisis Masalah, Berkoordinasi, Dan Mencari Solusi Terbaik`,
+          D: `Langsung Mengundurkan Diri Dari Pekerjaan`,
+          E: `Mengeluh Ke Seluruh Rekan Kerja Di Outlet`,
+        },
+        kunci: 'C',
+        rasional: `Sikap Profesional Dalam Menghadapi Tantangan ${topik} Adalah Menganalisis Masalah Secara Objektif, Berkoordinasi Dengan Tim, Dan Mencari Solusi Terbaik Bersama.`,
+      },
+    ];
+
+    return {
+      id: uid(),
+      nama_kuis: capitalEachWord(`Kuis Kompetensi — ${t}`),
+      divisi: 'Semua',
+      durasi_menit: 15,
+      periode_aktif_start: new Date().toISOString().slice(0, 10),
+      periode_aktif_end: '',
+      soal: templates,
+      created_at: new Date().toISOString(),
+      status: 'draft',
+      generated_from_material: true,
+    };
+  }, []);
+
+  const handleGenerateQuiz = (payload) => {
+    const { material, outlets, jabatans, duration, startDate, endDate } = payload;
+    const generated = generateMockQuiz(material.title, material.desc);
+    const finalQuiz = {
+      ...generated,
+      nama_kuis: capitalEachWord(`Kuis Kompetensi — ${material.title}`),
+      outlet: outlets,
+      divisi: jabatans,
+      durasi_menit: duration,
+      periode_aktif_start: startDate,
+      periode_aktif_end: endDate,
+      status: 'draft',
+    };
+    saveQuizBank([...quizBank, finalQuiz]);
+    setShowGenerateModal(false);
+    alert('Kuis berhasil digenerate dari materi dan disimpan ke daftar draf!');
+  };
+
   // ── Derived
   const divisiOptions = (() => {
     try {
@@ -700,6 +1133,7 @@ export default function KuisKompetensi() {
       if (e.detail?.key === 'quiz_results') setQuizResults(lsGet('quiz_results', []));
       if (e.detail?.key === 'hris_notifications') setNotifications(lsGet('hris_notifications', []));
       if (e.detail?.key === 'quiz_bank') setQuizBank(lsGet('quiz_bank', []));
+      if (e.detail?.key === 'hris_training_materials') setTrainingMaterials(lsGet('hris_training_materials', []));
       if (e.detail?.key === 'quiz_bank_generated') {
         // Merge generated quizzes into main bank
         const gen = lsGet('quiz_bank_generated', []);
@@ -748,19 +1182,26 @@ export default function KuisKompetensi() {
 
   // ── Kirim Kuis ke Karyawan
   const handleSendQuiz = (quiz) => {
-    const targetEmps = quiz.divisi === 'Semua'
-      ? activeEmployees
-      : activeEmployees.filter(e => e.position === quiz.divisi);
+    const targetEmps = activeEmployees.filter(e => {
+      const matchesOutlet = !quiz.outlet || quiz.outlet.length === 0 || 
+        (Array.isArray(quiz.outlet) ? quiz.outlet.includes(e.outlet) : (quiz.outlet === 'Semua Outlet' || e.outlet === quiz.outlet));
+      const matchesJabatan = !quiz.divisi || quiz.divisi.length === 0 || 
+        (Array.isArray(quiz.divisi) ? quiz.divisi.includes(e.position) : (quiz.divisi === 'Semua' || e.position === quiz.divisi));
+      return matchesOutlet && matchesJabatan;
+    });
 
     if (!targetEmps.length) {
-      alert('Tidak ada karyawan aktif yang sesuai dengan divisi target kuis ini.');
+      alert('Tidak ada karyawan aktif yang sesuai dengan target kuis ini.');
       return;
     }
+
+    const outletLabel = Array.isArray(quiz.outlet) ? quiz.outlet.join(', ') : (quiz.outlet || 'Semua Outlet');
+    const jabatanLabel = Array.isArray(quiz.divisi) ? quiz.divisi.join(', ') : (quiz.divisi || 'Semua');
 
     setConfirmModal({
       isOpen: true,
       title: '🚀 Konfirmasi Pengiriman Kuis',
-      message: `Kuis "${quiz.nama_kuis}" akan dikirim ke ${targetEmps.length} karyawan aktif${quiz.divisi !== 'Semua' ? ` (Divisi: ${quiz.divisi})` : ''}. Lanjutkan?`,
+      message: `Kuis "${quiz.nama_kuis}" akan dikirim ke ${targetEmps.length} karyawan aktif (Outlet: ${outletLabel}, Jabatan: ${jabatanLabel}). Lanjutkan?`,
       danger: false,
       onConfirm: async () => {
         setConfirmModal(p => ({ ...p, isOpen: false }));
@@ -800,8 +1241,8 @@ export default function KuisKompetensi() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type: 'quiz',
-              targetOutlet: 'Semua Outlet',
-              targetJabatan: quiz.divisi === 'Semua' ? 'Semua Jabatan' : quiz.divisi,
+              targetOutlet: outletLabel,
+              targetJabatan: jabatanLabel === 'Semua' ? 'Semua Jabatan' : jabatanLabel,
               messageTitle: `Kuis Kompetensi: ${capitalEachWord(quiz.nama_kuis)}`,
               content: `Silakan kerjakan kuis kompetensi "${capitalEachWord(quiz.nama_kuis)}" di handphone Anda sebelum periode berakhir.`
             }),
@@ -1155,9 +1596,14 @@ export default function KuisKompetensi() {
                   {quizBank.length} kuis tersimpan — {totalTerkirim} telah dikirim
                 </p>
               </div>
-              <Btn variant="primary" onClick={() => setShowTambahModal(true)}>
-                <Plus size={16} /> Tambahkan Soal
-              </Btn>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Btn variant="cyan" onClick={() => setShowGenerateModal(true)}>
+                  <RefreshCw size={16} /> Generate Kuis dari Materi
+                </Btn>
+                <Btn variant="primary" onClick={() => setShowTambahModal(true)}>
+                  <Plus size={16} /> Tambahkan Soal
+                </Btn>
+              </div>
             </div>
 
             {/* Table */}
@@ -1168,14 +1614,14 @@ export default function KuisKompetensi() {
               }}>
                 <Inbox size={48} color={C.muted} style={{ marginBottom: '16px' }} />
                 <p style={{ color: C.text, fontWeight: 700, marginBottom: '6px' }}>Bank Soal Masih Kosong</p>
-                <p style={{ color: C.muted, fontSize: '0.84rem' }}>Klik "Tambahkan Soal" untuk mengimpor kuis dari file Excel.</p>
+                <p style={{ color: C.muted, fontSize: '0.84rem' }}>Klik "Tambahkan Soal" atau "Generate Kuis dari Materi" untuk memulai.</p>
               </div>
             ) : (
               <div style={{ overflowX: 'auto', borderRadius: '14px', border: `1px solid ${C.border}` }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                   <thead>
                     <tr style={{ background: C.surface }}>
-                      {['Nama Kuis', 'Target Divisi', 'Jumlah Soal', 'Durasi', 'Periode Aktif', 'Status', 'Aksi'].map(h => (
+                      {['Nama Kuis', 'Target Outlet', 'Target Jabatan', 'Jumlah Soal', 'Durasi', 'Periode Aktif', 'Status', 'Aksi'].map(h => (
                         <th key={h} style={{ padding: '13px 16px', color: C.cyan, fontWeight: 700, textAlign: 'left', borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -1188,7 +1634,10 @@ export default function KuisKompetensi() {
                           {capitalEachWord(quiz.nama_kuis)}
                         </td>
                         <td style={{ padding: '14px 16px', color: C.muted }}>
-                          {capitalEachWord(quiz.divisi || 'Semua')}
+                          {Array.isArray(quiz.outlet) ? quiz.outlet.join(', ') : (quiz.outlet || 'Semua Outlet')}
+                        </td>
+                        <td style={{ padding: '14px 16px', color: C.muted }}>
+                          {Array.isArray(quiz.divisi) ? quiz.divisi.join(', ') : (quiz.divisi || 'Semua')}
                         </td>
                         <td style={{ padding: '14px 16px' }}>
                           <Badge label={`${quiz.soal?.length || 0} Soal`} />
@@ -1395,6 +1844,14 @@ export default function KuisKompetensi() {
         onClose={() => setShowTambahModal(false)}
         divisiOptions={divisiOptions}
         onPreview={(data) => { setPreviewData(data); setShowPreviewModal(true); }}
+      />
+
+      <GenerateQuizModal
+        isOpen={showGenerateModal}
+        onClose={() => setShowGenerateModal(false)}
+        onGenerate={handleGenerateQuiz}
+        allOutlets={allOutlets}
+        divisiOptions={divisiOptions}
       />
 
       <PreviewModal

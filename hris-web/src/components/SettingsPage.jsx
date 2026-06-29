@@ -68,7 +68,10 @@ export default function SettingsPage({ token, API_URL, userPermissions, user }) 
     { name: 'sanctions', label: 'Sanksi & SP' },
     { name: 'trainings', label: 'Program Pelatihan' },
     { name: 'policies', label: 'Kebijakan Perusahaan' },
-    { name: 'settings', label: 'Hak Akses' }
+    { name: 'settings', label: 'Hak Akses' },
+    { name: 'kuis', label: 'Kuis Kompetensi' },
+    { name: 'angket', label: 'Angket Karyawan' },
+    { name: 'broadcast', label: 'Broadcast & Notifikasi' }
   ];
 
   const showToast = (type, message) => {
