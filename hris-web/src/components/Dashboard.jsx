@@ -4,8 +4,11 @@ import {
   Users, Calendar, AlertCircle, Coins, Award, Briefcase, FileText, 
   Shield, ShieldAlert, Store, BookOpen, HelpCircle, BarChart3, 
   AlertTriangle, Info, Key, ArrowUpRight, CheckCircle2,
-  SlidersHorizontal, X, Eye, EyeOff, RotateCcw, Loader2
+  SlidersHorizontal, X, Eye, EyeOff, RotateCcw, Loader2,
+  LayoutDashboard, Radio, Settings, ClipboardList
 } from 'lucide-react';
+import { getRoleFromPosition } from '../utils/security';
+
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PDFCompileOverlay from './PDFCompileOverlay';
@@ -201,10 +204,56 @@ const SvgMultiLineChart = ({ data, width = 600, height = 300 }) => {
 };
 
 
-export default function Dashboard({ token, API_URL, userPermissions, setActiveTab }) {
+export default function Dashboard({ token, API_URL, userPermissions, setActiveTab, user }) {
   // ─── Subscribe ke Global HRIS Context untuk reaktivitas lintas modul ────────
   const { activeEmployees: ctxEmployees, totalMonthlyRevenue: ctxRevenue,
           dailyRevenue: ctxDailyRevenue, dispatch: hrisDispatch } = useHRIS();
+
+  const currentUserRole = getRoleFromPosition(user?.position, user?.role);
+  const isMaster = (
+    user?.email === 'master' ||
+    String(user?.email || '').toLowerCase().includes('master') ||
+    String(user?.role || '').toLowerCase().includes('owner') ||
+    String(user?.role || '').toLowerCase().includes('master') ||
+    currentUserRole === 'master' ||
+    currentUserRole === 'owner'
+  );
+
+  const allMenuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, color: '#00ADB5' },
+    { id: 'employees', label: 'Kelola Karyawan', icon: Users, color: '#32E0C4' },
+    { id: 'attendances', label: 'Kehadiran', icon: Calendar, color: '#FFD369' },
+    { id: 'leaves', label: 'Pusat Pengajuan', icon: ShieldAlert, color: '#FF7C7C' },
+    { id: 'payroll', label: 'Payroll', icon: FileText, color: '#A5B68D' },
+    { id: 'contracts', label: 'Surat Penugasan', icon: FileText, color: '#b42df1' },
+    { id: 'outlets', label: 'Outlet Cabang', icon: Store, color: '#4ECDC4' },
+    { id: 'revenues', label: 'Omzet Cabang', icon: Coins, color: '#F5A623' },
+    { id: 'sops', label: 'SOP & Prosedur', icon: BookOpen, color: '#00D2FC' },
+    { id: 'kpis', label: 'Penilaian KPI', icon: BarChart3, color: '#FF8008' },
+    { id: 'sanctions', label: 'Sanksi & SP', icon: AlertTriangle, color: '#E05C5C' },
+    { id: 'trainings', label: 'Program Pelatihan', icon: Award, color: '#6C5CE7' },
+    { id: 'kuis', label: 'Kuis Kompetensi', icon: BookOpen, color: '#0984E3' },
+    { id: 'angket', label: 'Angket Karyawan', icon: ClipboardList, color: '#00CEC9' },
+    { id: 'broadcast', label: 'Broadcast', icon: Radio, color: '#E84393' },
+    { id: 'policies', label: 'Kebijakan', icon: Shield, color: '#636E72' },
+  ];
+
+  const filteredItems = allMenuItems.filter(item => {
+    if (user?.role === 'owner' || user?.role === 'master') return true;
+    if (userPermissions && userPermissions[item.id]) {
+      return userPermissions[item.id].can_view === 1;
+    }
+    return false;
+  });
+
+  if (isMaster) {
+    if (!filteredItems.some(i => i.id === 'settings')) {
+      filteredItems.push({ id: 'settings', label: 'Hak Akses', icon: Settings, color: '#9B59B6' });
+    }
+    if (!filteredItems.some(i => i.id === 'hakuser')) {
+      filteredItems.push({ id: 'hakuser', label: 'Hak User', icon: Key, color: '#F1C40F' });
+    }
+  }
 
   const [isExportingPDF, setIsExportingPDF] = useState(false);
 
@@ -1782,7 +1831,80 @@ const employeeCount = Math.max(0, totalAccounts - ownerCount - adminCount);
         }
       `}</style>
 
-
+      {/* Sticky Compact Menu Grid */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 90,
+        background: 'rgba(34, 40, 49, 0.95)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1.5px solid rgba(0, 173, 181, 0.15)',
+        padding: '12px 24px',
+        margin: '-24px -24px 24px -24px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px'
+      }}>
+        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          Akses Cepat Modul
+        </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+          gap: '8px',
+          overflowX: 'auto'
+        }}>
+          {filteredItems.map(item => {
+            const IconComponent = item.icon;
+            const isCurrent = item.id === 'dashboard';
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  if (navigator.vibrate) navigator.vibrate(20);
+                  if (!isCurrent) {
+                    setActiveTab(item.id);
+                  }
+                }}
+                style={{
+                  background: isCurrent ? 'rgba(0, 173, 181, 0.12)' : 'rgba(57, 62, 70, 0.5)',
+                  border: isCurrent ? '1.5px solid #00ADB5' : `1.5px solid ${item.color}25`,
+                  borderRadius: '10px',
+                  padding: '10px 8px',
+                  color: isCurrent ? '#00ADB5' : 'var(--text-main)',
+                  cursor: isCurrent ? 'default' : 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease-in-out',
+                  minWidth: '100px'
+                }}
+                onMouseEnter={e => {
+                  if (isCurrent) return;
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.borderColor = item.color;
+                  e.currentTarget.style.background = `${item.color}15`;
+                  e.currentTarget.style.boxShadow = `0 0 10px ${item.color}20`;
+                }}
+                onMouseLeave={e => {
+                  if (isCurrent) return;
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.borderColor = `${item.color}25`;
+                  e.currentTarget.style.background = 'rgba(57, 62, 70, 0.5)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <IconComponent size={18} style={{ color: item.color }} />
+                <span style={{ fontSize: '0.74rem', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100%' }}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Hero Header */}
       <div className="dashboard-header-container">

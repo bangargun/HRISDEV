@@ -161,7 +161,7 @@ const validateLocalLogin = (inputEmail, password) => {
 export default function App() {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('menu');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [userPermissions, setUserPermissions] = useState(null);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'dark';
@@ -459,7 +459,7 @@ export default function App() {
 
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard token={token} API_URL={API_URL} userPermissions={userPermissions} setActiveTab={setActiveTab} />;
+        return <Dashboard token={token} API_URL={API_URL} userPermissions={userPermissions} setActiveTab={setActiveTab} user={user} />;
       case 'employees':
         return <Employees token={token} API_URL={API_URL} userPermissions={userPermissions} user={user} theme={theme} />;
       case 'attendances':
@@ -885,8 +885,8 @@ export default function App() {
         {/* Topbar Header */}
         <Header activeTab={activeTab} user={user} token={token} API_URL={API_URL} setActiveTab={setActiveTab} theme={theme} setTheme={setTheme} />
 
-        {/* Sticky Back Button & Breadcrumbs (only if activeTab is not 'menu') */}
-        {activeTab !== 'menu' && (
+        {/* Sticky Back Button & Breadcrumbs (only if activeTab is not 'dashboard') */}
+        {activeTab !== 'dashboard' && (
           <div style={{
             background: 'rgba(57,62,70,0.5)',
             borderBottom: '1px solid rgba(0,173,181,0.15)',
@@ -902,7 +902,7 @@ export default function App() {
             <button
               onClick={() => {
                 if (navigator.vibrate) navigator.vibrate(30);
-                setActiveTab('menu');
+                setActiveTab('dashboard');
               }}
               style={{
                 background: 'rgba(0,173,181,0.12)',
@@ -930,7 +930,7 @@ export default function App() {
                 e.currentTarget.style.boxShadow = '0 0 10px rgba(0,173,181,0.1)';
               }}
             >
-              ← Menu Utama
+              ← Dashboard Utama
             </button>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>/</span>
             <span style={{ color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 600 }}>
@@ -941,7 +941,7 @@ export default function App() {
 
         {/* Konten Halaman Aktif */}
         <main style={{ flex: 1, padding: '24px', overflowX: 'hidden' }}>
-          {activeTab === 'menu' ? renderMenuAwal() : renderTabContent()}
+          {renderTabContent()}
         </main>
       </div>
     </HRISProvider>

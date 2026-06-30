@@ -17,6 +17,7 @@ import { useHRIS } from '../context/HRISContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { formatDate } from '../utils/security';
 
 // ─── Palet Warna Resmi ────────────────────────────────────────────────────────
 const C = {
@@ -487,6 +488,191 @@ const EditKuisModal = ({ isOpen, quiz, onSave, onClose, divisiOptions }) => {
   );
 };
 
+const getMockQuizQuestions = (topik) => {
+  return [
+    {
+      soal: `Apa Yang Dimaksud Dengan ${topik} Dalam Standar Operasional Perusahaan?`,
+      pilihan: {
+        A: `Prosedur Baku Yang Wajib Diikuti Seluruh Karyawan`,
+        B: `Panduan Opsional Yang Dapat Diabaikan`,
+        C: `Aturan Khusus Hanya Untuk Manajer`,
+        D: `Kebijakan Yang Berlaku Satu Kali Saja`,
+        E: `Instruksi Verbal Tanpa Dokumen Tertulis`,
+      },
+      kunci: 'A',
+      rasional: `Standar Operasional Dalam ${topik} Adalah Prosedur Baku Yang Wajib Dipatuhi Semua Karyawan Untuk Menjaga Konsistensi Dan Kualitas Layanan.`,
+    },
+    {
+      soal: `Mengapa ${topik} Penting Diterapkan Di Setiap Cabang Barokah Grup?`,
+      pilihan: {
+        A: `Hanya Untuk Memenuhi Persyaratan Audit Eksternal`,
+        B: `Untuk Menjaga Standar Kualitas Dan Konsistensi Layanan Di Semua Outlet`,
+        C: `Supaya Karyawan Tidak Perlu Dilatih Lagi`,
+        D: `Agar Pelanggan Tidak Mengeluh`,
+        E: `Karena Diwajibkan Oleh Pemerintah Daerah`,
+      },
+      kunci: 'B',
+      rasional: `${topik} Diterapkan Untuk Memastikan Konsistensi Kualitas Dan Standar Layanan Di Seluruh Cabang Barokah Grup Secara Menyeluruh.`,
+    },
+    {
+      soal: `Siapa Yang Bertanggung Jawab Memastikan ${topik} Berjalan Sesuai Standar Di Outlet?`,
+      pilihan: {
+        A: `Hanya Direktur Utama Perusahaan`,
+        B: `Tim HRD Pusat Saja`,
+        C: `Kepala Cabang Beserta Seluruh Tim Di Outlet`,
+        D: `Karyawan Baru Yang Baru Bergabung`,
+        E: `Auditor Eksternal Perusahaan`,
+      },
+      kunci: 'C',
+      rasional: `Tanggung Jawab Penerapan ${topik} Ada Pada Kepala Cabang Dan Seluruh Tim Di Outlet, Bukan Hanya Satu Pihak Saja.`,
+    },
+    {
+      soal: `Apa Konsekuensi Jika Karyawan Tidak Mematuhi Prosedur ${topik}?`,
+      pilihan: {
+        A: `Tidak Ada Konsekuensi Karena Bersifat Saran`,
+        B: `Mendapat Penghargaan Khusus Dari Manajemen`,
+        C: `Dipindahkan Ke Outlet Lain Secara Otomatis`,
+        D: `Dapat Dikenai Sanksi Sesuai Peraturan Perusahaan`,
+        E: `Gajinya Langsung Dipotong Penuh Satu Bulan`,
+      },
+      kunci: 'D',
+      rasional: `Ketidakpatuhan Terhadap Prosedur ${topik} Dapat Berujung Pada Sanksi Sesuai Peraturan Perusahaan Yang Berlaku.`,
+    },
+    {
+      soal: `Bagaimana Cara Yang Benar Melaporkan Temuan Masalah Terkait ${topik}?`,
+      pilihan: {
+        A: `Langsung Menyampaikan Ke Media Sosial`,
+        B: `Diam Dan Tidak Melakukan Apa-Apa`,
+        C: `Melaporkan Ke Atasan Langsung Dan Mendokumentasikannya`,
+        D: `Menunggu Audit Dari HRD Pusat`,
+        E: `Hanya Memberitahu Rekan Kerja Saja`,
+      },
+      kunci: 'C',
+      rasional: `Temuan Masalah ${topik} Harus Segera Dilaporkan Ke Atasan Dan Didokumentasikan Agar Dapat Ditindaklanjuti Dengan Cepat Dan Tepat.`,
+    },
+    {
+      soal: `Kapan Evaluasi Penerapan ${topik} Sebaiknya Dilakukan Secara Berkala?`,
+      pilihan: {
+        A: `Hanya Saat Ada Inspeksi Mendadak`,
+        B: `Setiap Hari Tanpa Pengecualian`,
+        C: `Minimal Sekali Dalam Setahun`,
+        D: `Sesuai Jadwal Yang Telah Ditetapkan Manajemen`,
+        E: `Tidak Perlu Dievaluasi Jika Tidak Ada Masalah`,
+      },
+      kunci: 'D',
+      rasional: `Evaluasi ${topik} Dilakukan Sesuai Jadwal Resmi Yang Ditetapkan Manajemen Untuk Memastikan Standar Selalu Terjaga Dan Diperbarui Tepat Waktu.`,
+    },
+    {
+      soal: `Dokumen Apa Yang Harus Dipahami Karyawan Sebelum Menerapkan ${topik}?`,
+      pilihan: {
+        A: `Dokumen Keuangan Perusahaan`,
+        B: `Laporan Tahunan Pemegang Saham`,
+        C: `Standar Operasional Prosedur (SOP) Yang Berlaku`,
+        D: `Daftar Gaji Karyawan Outlet`,
+        E: `Kontrak Kerja Karyawan Lain`,
+      },
+      kunci: 'C',
+      rasional: `Sebelum Menerapkan ${topik}, Karyawan Wajib Memahami Dan Mengikuti Standar Operasional Prosedur (SOP) Resmi Yang Telah Ditetapkan Perusahaan.`,
+    },
+    {
+      soal: `Apa Manfaat Utama Penerapan ${topik} Secara Konsisten Bagi Pelanggan?`,
+      pilihan: {
+        A: `Membuat Harga Produk Menjadi Lebih Mahal`,
+        B: `Memperlambat Proses Pelayanan`,
+        C: `Mengurangi Pilihan Menu Yang Tersedia`,
+        D: `Memberikan Pengalaman Layanan Yang Konsisten Dan Memuaskan`,
+        E: `Membatasi Kreatifitas Karyawan Dalam Bekerja`,
+      },
+      kunci: 'D',
+      rasional: `Penerapan ${topik} Secara Konsisten Memberikan Pengalaman Layanan Yang Seragam Dan Memuaskan Bagi Setiap Pelanggan Di Semua Outlet.`,
+    },
+    {
+      soal: `Apa Langkah Pertama Yang Harus Dilakukan Saat Menerima Materi ${topik} Baru?`,
+      pilihan: {
+        A: `Langsung Mempraktikkannya Tanpa Membaca`,
+        B: `Menyimpan Dokumen Dan Tidak Membacanya`,
+        C: `Membaca, Memahami, Dan Bertanya Jika Ada Yang Tidak Jelas`,
+        D: `Menyerahkan Ke Rekan Kerja Untuk Dibaca`,
+        E: `Menunggu Perintah Atasan Untuk Membaca`,
+      },
+      kunci: 'C',
+      rasional: `Saat Menerima Materi ${topik} Baru, Karyawan Harus Membaca Dengan Seksama, Memahaminya, Dan Bertanya Jika Ada Hal Yang Masih Belum Dipahami.`,
+    },
+    {
+      soal: `Bagaimana Sikap Profesional Yang Tepat Saat Menghadapi Tantangan Dalam ${topik}?`,
+      pilihan: {
+        A: `Menghindari Tugas Yang Berhubungan Dengan Masalah Tersebut`,
+        B: `Mencari Kambing Hitam Atas Setiap Kegagalan`,
+        C: `Menganalisis Masalah, Berkoordinasi, Dan Mencari Solusi Terbaik`,
+        D: `Langsung Mengundurkan Diri Dari Pekerjaan`,
+        E: `Mengeluh Ke Seluruh Rekan Kerja Di Outlet`,
+      },
+      kunci: 'C',
+      rasional: `Sikap Profesional Dalam Menghadapi Tantangan ${topik} Adalah Menganalisis Masalah Secara Objektif, Berkoordinasi Dengan Tim, Dan Mencari Solusi Terbaik Bersama.`,
+    },
+    {
+      soal: `Bagaimana ${topik} Berkontribusi Terhadap Budaya Kerja Di Barokah Grup?`,
+      pilihan: {
+        A: `Memicu Persaingan Tidak Sehat Antar Karyawan`,
+        B: `Meningkatkan Disiplin, Kerjasama, Dan Standar Kerja Profesional`,
+        C: `Mengurangi Waktu Istirahat Karyawan Secara Paksa`,
+        D: `Memaksa Karyawan Bekerja Sendiri-Sendiri`,
+        E: `Meniadakan Evaluasi Kinerja Karyawan`,
+      },
+      kunci: 'B',
+      rasional: `Meningkatkan Disiplin, Kerjasama, Dan Standar Kerja Profesional Adalah Kontribusi Nyata Budaya Kerja Terhadap ${topik}.`,
+    },
+    {
+      soal: `Siapa Yang Wajib Mengikuti Pelatihan Berkala Mengenai ${topik}?`,
+      pilihan: {
+        A: `Hanya Karyawan Magang Saja`,
+        B: `Seluruh Staff Terkait Sesuai Bidang Penugasan`,
+        C: `Hanya Staff Kantor Pusat Saja`,
+        D: `Karyawan Yang Pernah Melanggar Aturan`,
+        E: `Pelanggan Setia Barokah Grup`,
+      },
+      kunci: 'B',
+      rasional: `Seluruh Staff Terkait Wajib Mengikuti Pelatihan Berkala Mengenai ${topik} Untuk Mengupdate Skill Dan Pengetahuan Kerja.`,
+    },
+    {
+      soal: `Bagaimana Pengukuran Keberhasilan Dari Penerapan ${topik} Diukur?`,
+      pilihan: {
+        A: `Berdasarkan Jumlah Jam Kerja Lembur Staff`,
+        B: `Melalui Audit Kepatuhan, Kuis Kompetensi, Dan Hasil Penilaian KPI`,
+        C: `Dilihat Dari Luasnya Ukuran Fisik Outlet Cabang`,
+        D: `Hanya Dari Komentar Acak Di Media Sosial`,
+        E: `Tidak Perlu Diukur Karena Pasti Berhasil`,
+      },
+      kunci: 'B',
+      rasional: `Pengukuran Dilakukan Secara Objektif Melalui Audit Kepatuhan, Hasil Kuis Kompetensi, Dan Hasil Penilaian KPI.`,
+    },
+    {
+      soal: `Tindakan Apa Yang Harus Dilakukan Jika Menemukan Prosedur ${topik} Yang Sudah Tidak Relevan?`,
+      pilihan: {
+        A: `Melakukan Modifikasi Sendiri Tanpa Izin Atasan`,
+        B: `Mengajukan Usulan Revisi Melalui Jalur Komunikasi Resmi Perusahaan`,
+        C: `Mengabaikan Prosedur Tersebut Secara Total`,
+        D: `Menyebarkan Keluhan Di Grup Whatsapp Non-Formal`,
+        E: `Meminta Pelanggan Mengubah Kebiasaannya`,
+      },
+      kunci: 'B',
+      rasional: `Usulan Revisi Harus Diajukan Melalui Jalur Komunikasi Resmi Perusahaan Agar Dapat Dikaji Bersama.`,
+    },
+    {
+      soal: `Apa Peran Utama Teknologi/Aplikasi Mobile Dalam Mendukung Penerapan ${topik}?`,
+      pilihan: {
+        A: `Hanya Untuk Menghibur Karyawan Saat Senggang`,
+        B: `Memudahkan Akses Dokumen, Pelatihan, Serta Pengujian Kompetensi Secara Realtime`,
+        C: `Menggantikan Seluruh Pekerjaan Fisik Karyawan`,
+        D: `Memantau Lokasi Karyawan Selama 24 Jam Penuh`,
+        E: `Menghitung Jumlah Keuntungan Outlet Secara Rahasia`,
+      },
+      kunci: 'B',
+      rasional: `Aplikasi Membantu Karyawan Mengakses SOP Dan Latihan Kuis Kapan Saja Di Mana Saja Secara Realtime.`,
+    }
+  ];
+};
+
 // ─── MODAL GENERATE KUIS DARI MATERI ──────────────────────────────────────────
 const GenerateQuizModal = ({ isOpen, onClose, onGenerate, allOutlets, divisiOptions }) => {
   const [selectedOutlets, setSelectedOutlets] = useState([]);
@@ -781,132 +967,12 @@ const TambahKuisModal = ({ isOpen, onClose, onPreview, divisiOptions }) => {
   const generateMockQuizInternal = (matTitle, matDesc) => {
     const t = capitalEachWord(matTitle || 'Materi Pelatihan');
     const topik = t.replace(/Modul |Materi |Panduan |Sop |Standar /gi, '').trim() || 'Operasional Restoran';
-
-    const templates = [
-      {
-        soal: `Apa Yang Dimaksud Dengan ${topik} Dalam Standar Operasional Perusahaan?`,
-        pilihan: {
-          A: `Prosedur Baku Yang Wajib Diikuti Seluruh Karyawan`,
-          B: `Panduan Opsional Yang Dapat Diabaikan`,
-          C: `Aturan Khusus Hanya Untuk Manajer`,
-          D: `Kebijakan Yang Berlaku Satu Kali Saja`,
-          E: `Instruksi Verbal Tanpa Dokumen Tertulis`,
-        },
-        kunci: 'A',
-        rasional: `Standar Operasional Dalam ${topik} Adalah Prosedur Baku Yang Wajib Dipatuhi Semua Karyawan Untuk Menjaga Konsistensi Dan Kualitas Layanan.`,
-      },
-      {
-        soal: `Mengapa ${topik} Penting Diterapkan Di Setiap Cabang Barokah Grup?`,
-        pilihan: {
-          A: `Hanya Untuk Memenuhi Persyaratan Audit Eksternal`,
-          B: `Untuk Menjaga Standar Kualitas Dan Konsistensi Layanan Di Semua Outlet`,
-          C: `Supaya Karyawan Tidak Perlu Dilatih Lagi`,
-          D: `Agar Pelanggan Tidak Mengeluh`,
-          E: `Karena Diwajibkan Oleh Pemerintah Daerah`,
-        },
-        kunci: 'B',
-        rasional: `${topik} Diterapkan Untuk Memastikan Konsistensi Kualitas Dan Standar Layanan Di Seluruh Cabang Barokah Grup Secara Menyeluruh.`,
-      },
-      {
-        soal: `Siapa Yang Bertanggung Jawab Memastikan ${topik} Berjalan Sesuai Standar Di Outlet?`,
-        pilihan: {
-          A: `Hanya Direktur Utama Perusahaan`,
-          B: `Tim HRD Pusat Saja`,
-          C: `Kepala Cabang Beserta Seluruh Tim Di Outlet`,
-          D: `Karyawan Baru Yang Baru Bergabung`,
-          E: `Auditor Eksternal Perusahaan`,
-        },
-        kunci: 'C',
-        rasional: `Tanggung Jawab Penerapan ${topik} Ada Pada Kepala Cabang Dan Seluruh Tim Di Outlet, Bukan Hanya Satu Pihak Saja.`,
-      },
-      {
-        soal: `Apa Konsekuensi Jika Karyawan Tidak Mematuhi Prosedur ${topik}?`,
-        pilihan: {
-          A: `Tidak Ada Konsekuensi Karena Bersifat Saran`,
-          B: `Mendapat Penghargaan Khusus Dari Manajemen`,
-          C: `Dipindahkan Ke Outlet Lain Secara Otomatis`,
-          D: `Dapat Dikenai Sanksi Sesuai Peraturan Perusahaan`,
-          E: `Gajinya Langsung Dipotong Penuh Satu Bulan`,
-        },
-        kunci: 'D',
-        rasional: `Ketidakpatuhan Terhadap Prosedur ${topik} Dapat Berujung Pada Sanksi Sesuai Peraturan Perusahaan Yang Berlaku.`,
-      },
-      {
-        soal: `Bagaimana Cara Yang Benar Melaporkan Temuan Masalah Terkait ${topik}?`,
-        pilihan: {
-          A: `Langsung Menyampaikan Ke Media Sosial`,
-          B: `Diam Dan Tidak Melakukan Apa-Ada`,
-          C: `Melaporkan Ke Atasan Langsung Dan Mendokumentasikannya`,
-          D: `Menunggu Audit Dari HRD Pusat`,
-          E: `Hanya Memberitahu Rekan Kerja Saja`,
-        },
-        kunci: 'C',
-        rasional: `Temuan Masalah ${topik} Harus Segera Dilaporkan Ke Atasan Dan Didokumentasikan Agar Dapat Ditindaklanjuti Dengan Cepat Dan Tepat.`,
-      },
-      {
-        soal: `Kapan Evaluasi Penerapan ${topik} Sebaiknya Dilakukan Secara Berkala?`,
-        pilihan: {
-          A: `Hanya Saat Ada Inspeksi Mendadak`,
-          B: `Setiap Hari Tanpa Pengecualian`,
-          C: `Minimal Sekali Dalam Setahun`,
-          D: `Sesuai Jadwal Yang Telah Ditetapkan Manajemen`,
-          E: `Tidak Perlu Dievaluasi Jika Tidak Ada Masalah`,
-        },
-        kunci: 'D',
-        rasional: `Evaluasi ${topik} Dilakukan Sesuai Jadwal Resmi Yang Ditetapkan Manajemen Untuk Memastikan Standar Selalu Terjaga Dan Diperbarui Tepat Waktu.`,
-      },
-      {
-        soal: `Dokumen Apa Yang Harus Dipahami Karyawan Sebelum Menerapkan ${topik}?`,
-        pilihan: {
-          A: `Dokumen Keuangan Perusahaan`,
-          B: `Laporan Tahunan Pemegang Saham`,
-          C: `Standar Operasional Prosedur (SOP) Yang Berlaku`,
-          D: `Daftar Gaji Karyawan Outlet`,
-          E: `Kontrak Kerja Karyawan Lain`,
-        },
-        kunci: 'C',
-        rasional: `Sebelum Menerapkan ${topik}, Karyawan Wajib Memahami Dan Mengikuti Standar Operasional Prosedur (SOP) Resmi Yang Telah Ditetapkan Perusahaan.`,
-      },
-      {
-        soal: `Apa Manfaat Utama Penerapan ${topik} Secara Konsisten Bagi Pelanggan?`,
-        pilihan: {
-          A: `Membuat Harga Produk Menjadi Lebih Mahal`,
-          B: `Memperlambat Proses Pelayanan`,
-          C: `Mengurangi Pilihan Menu Yang Tersedia`,
-          D: `Memberikan Pengalaman Layanan Yang Konsisten Dan Memuaskan`,
-          E: `Membatasi Kreatifitas Karyawan Dalam Bekerja`,
-        },
-        kunci: 'D',
-        rasional: `Penerapan ${topik} Secara Konsisten Memberikan Pengalaman Layanan Yang Seragam Dan Memuaskan Bagi Setiap Pelanggan Di Semua Outlet.`,
-      },
-      {
-        soal: `Apa Langkah Pertama Yang Harus Dilakukan Saat Menerima Materi ${topik} Baru?`,
-        pilihan: {
-          A: `Langsung Mempraktikkannya Tanpa Membaca`,
-          B: `Menyimpan Dokumen Dan Tidak Membacanya`,
-          C: `Membaca, Memahami, Dan Bertanya Jika Ada Yang Tidak Jelas`,
-          D: `Menyerahkan Ke Rekan Kerja Untuk Dibaca`,
-          E: `Menunggu Perintah Atasan Untuk Membaca`,
-        },
-        kunci: 'C',
-        rasional: `Saat Menerima Materi ${topik} Baru, Karyawan Harus Membaca Dengan Seksama, Memahaminya, Dan Bertanya Jika Ada Hal Yang Masih Belum Dipahami.`,
-      },
-      {
-        soal: `Bagaimana Sikap Profesional Yang Tepat Saat Menghadapi Tantangan Dalam ${topik}?`,
-        pilihan: {
-          A: `Menghindari Tugas Yang Berhubungan Dengan Masalah Tersebut`,
-          B: `Mencari Kambing Hitam Atas Setiap Kegagalan`,
-          C: `Menganalisis Masalah, Berkoordinasi, Dan Mencari Solusi Terbaik`,
-          D: `Langsung Mengundurkan Diri Dari Pekerjaan`,
-          E: `Mengeluh Ke Seluruh Rekan Kerja Di Outlet`,
-        },
-        kunci: 'C',
-        rasional: `Sikap Profesional Dalam Menghadapi Tantangan ${topik} Adalah Menganalisis Masalah Secara Objektif, Berkoordinasi Dengan Tim, Dan Mencari Solusi Terbaik Bersama.`,
-      },
-    ];
+    const templates = getMockQuizQuestions(topik);
+    const shuffled = [...templates].sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, 10);
 
     return {
-      soal: templates
+      soal: selected
     };
   };
 
@@ -1405,129 +1471,9 @@ export default function KuisKompetensi() {
   const generateMockQuiz = useCallback((matTitle, matDesc) => {
     const t = capitalEachWord(matTitle || 'Materi Pelatihan');
     const topik = t.replace(/Modul |Materi |Panduan |Sop |Standar /gi, '').trim() || 'Operasional Restoran';
-
-    const templates = [
-      {
-        soal: `Apa Yang Dimaksud Dengan ${topik} Dalam Standar Operasional Perusahaan?`,
-        pilihan: {
-          A: `Prosedur Baku Yang Wajib Diikuti Seluruh Karyawan`,
-          B: `Panduan Opsional Yang Dapat Diabaikan`,
-          C: `Aturan Khusus Hanya Untuk Manajer`,
-          D: `Kebijakan Yang Berlaku Satu Kali Saja`,
-          E: `Instruksi Verbal Tanpa Dokumen Tertulis`,
-        },
-        kunci: 'A',
-        rasional: `Standar Operasional Dalam ${topik} Adalah Prosedur Baku Yang Wajib Dipatuhi Semua Karyawan Untuk Menjaga Konsistensi Dan Kualitas Layanan.`,
-      },
-      {
-        soal: `Mengapa ${topik} Penting Diterapkan Di Setiap Cabang Barokah Grup?`,
-        pilihan: {
-          A: `Hanya Untuk Memenuhi Persyaratan Audit Eksternal`,
-          B: `Untuk Menjaga Standar Kualitas Dan Konsistensi Layanan Di Semua Outlet`,
-          C: `Supaya Karyawan Tidak Perlu Dilatih Lagi`,
-          D: `Agar Pelanggan Tidak Mengeluh`,
-          E: `Karena Diwajibkan Oleh Pemerintah Daerah`,
-        },
-        kunci: 'B',
-        rasional: `${topik} Diterapkan Untuk Memastikan Konsistensi Kualitas Dan Standar Layanan Di Seluruh Cabang Barokah Grup Secara Menyeluruh.`,
-      },
-      {
-        soal: `Siapa Yang Bertanggung Jawab Memastikan ${topik} Berjalan Sesuai Standar Di Outlet?`,
-        pilihan: {
-          A: `Hanya Direktur Utama Perusahaan`,
-          B: `Tim HRD Pusat Saja`,
-          C: `Kepala Cabang Beserta Seluruh Tim Di Outlet`,
-          D: `Karyawan Baru Yang Baru Bergabung`,
-          E: `Auditor Eksternal Perusahaan`,
-        },
-        kunci: 'C',
-        rasional: `Tanggung Jawab Penerapan ${topik} Ada Pada Kepala Cabang Dan Seluruh Tim Di Outlet, Bukan Hanya Satu Pihak Saja.`,
-      },
-      {
-        soal: `Apa Konsekuensi Jika Karyawan Tidak Mematuhi Prosedur ${topik}?`,
-        pilihan: {
-          A: `Tidak Ada Konsekuensi Karena Bersifat Saran`,
-          B: `Mendapat Penghargaan Khusus Dari Manajemen`,
-          C: `Dipindahkan Ke Outlet Lain Secara Otomatis`,
-          D: `Dapat Dikenai Sanksi Sesuai Peraturan Perusahaan`,
-          E: `Gajinya Langsung Dipotong Penuh Satu Bulan`,
-        },
-        kunci: 'D',
-        rasional: `Ketidakpatuhan Terhadap Prosedur ${topik} Dapat Berujung Pada Sanksi Sesuai Peraturan Perusahaan Yang Berlaku.`,
-      },
-      {
-        soal: `Bagaimana Cara Yang Benar Melaporkan Temuan Masalah Terkait ${topik}?`,
-        pilihan: {
-          A: `Langsung Menyampaikan Ke Media Sosial`,
-          B: `Diam Dan Tidak Melakukan Apa-Apa`,
-          C: `Melaporkan Ke Atasan Langsung Dan Mendokumentasikannya`,
-          D: `Menunggu Audit Dari HRD Pusat`,
-          E: `Hanya Memberitahu Rekan Kerja Saja`,
-        },
-        kunci: 'C',
-        rasional: `Temuan Masalah ${topik} Harus Segera Dilaporkan Ke Atasan Dan Didokumentasikan Agar Dapat Ditindaklanjuti Dengan Cepat Dan Tepat.`,
-      },
-      {
-        soal: `Kapan Evaluasi Penerapan ${topik} Sebaiknya Dilakukan Secara Berkala?`,
-        pilihan: {
-          A: `Hanya Saat Ada Inspeksi Mendadak`,
-          B: `Setiap Hari Tanpa Pengecualian`,
-          C: `Minimal Sekali Dalam Setahun`,
-          D: `Sesuai Jadwal Yang Telah Ditetapkan Manajemen`,
-          E: `Tidak Perlu Dievaluasi Jika Tidak Ada Masalah`,
-        },
-        kunci: 'D',
-        rasional: `Evaluasi ${topik} Dilakukan Sesuai Jadwal Resmi Yang Ditetapkan Manajemen Untuk Memastikan Standar Selalu Terjaga Dan Diperbarui Tepat Waktu.`,
-      },
-      {
-        soal: `Dokumen Apa Yang Harus Dipahami Karyawan Sebelum Menerapkan ${topik}?`,
-        pilihan: {
-          A: `Dokumen Keuangan Perusahaan`,
-          B: `Laporan Tahunan Pemegang Saham`,
-          C: `Standar Operasional Prosedur (SOP) Yang Berlaku`,
-          D: `Daftar Gaji Karyawan Outlet`,
-          E: `Kontrak Kerja Karyawan Lain`,
-        },
-        kunci: 'C',
-        rasional: `Sebelum Menerapkan ${topik}, Karyawan Wajib Memahami Dan Mengikuti Standar Operasional Prosedur (SOP) Resmi Yang Telah Ditetapkan Perusahaan.`,
-      },
-      {
-        soal: `Apa Manfaat Utama Penerapan ${topik} Secara Konsisten Bagi Pelanggan?`,
-        pilihan: {
-          A: `Membuat Harga Produk Menjadi Lebih Mahal`,
-          B: `Memperlambat Proses Pelayanan`,
-          C: `Mengurangi Pilihan Menu Yang Tersedia`,
-          D: `Memberikan Pengalaman Layanan Yang Konsisten Dan Memuaskan`,
-          E: `Membatasi Kreatifitas Karyawan Dalam Bekerja`,
-        },
-        kunci: 'D',
-        rasional: `Penerapan ${topik} Secara Konsisten Memberikan Pengalaman Layanan Yang Seragam Dan Memuaskan Bagi Setiap Pelanggan Di Semua Outlet.`,
-      },
-      {
-        soal: `Apa Langkah Pertama Yang Harus Dilakukan Saat Menerima Materi ${topik} Baru?`,
-        pilihan: {
-          A: `Langsung Mempraktikkannya Tanpa Membaca`,
-          B: `Menyimpan Dokumen Dan Tidak Membacanya`,
-          C: `Membaca, Memahami, Dan Bertanya Jika Ada Yang Tidak Jelas`,
-          D: `Menyerahkan Ke Rekan Kerja Untuk Dibaca`,
-          E: `Menunggu Perintah Atasan Untuk Membaca`,
-        },
-        kunci: 'C',
-        rasional: `Saat Menerima Materi ${topik} Baru, Karyawan Harus Membaca Dengan Seksama, Memahaminya, Dan Bertanya Jika Ada Hal Yang Masih Belum Dipahami.`,
-      },
-      {
-        soal: `Bagaimana Sikap Profesional Yang Tepat Saat Menghadapi Tantangan Dalam ${topik}?`,
-        pilihan: {
-          A: `Menghindari Tugas Yang Berhubungan Dengan Masalah Tersebut`,
-          B: `Mencari Kambing Hitam Atas Setiap Kegagalan`,
-          C: `Menganalisis Masalah, Berkoordinasi, Dan Mencari Solusi Terbaik`,
-          D: `Langsung Mengundurkan Diri Dari Pekerjaan`,
-          E: `Mengeluh Ke Seluruh Rekan Kerja Di Outlet`,
-        },
-        kunci: 'C',
-        rasional: `Sikap Profesional Dalam Menghadapi Tantangan ${topik} Adalah Menganalisis Masalah Secara Objektif, Berkoordinasi Dengan Tim, Dan Mencari Solusi Terbaik Bersama.`,
-      },
-    ];
+    const templates = getMockQuizQuestions(topik);
+    const shuffled = [...templates].sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, 10);
 
     return {
       id: uid(),
@@ -1536,7 +1482,7 @@ export default function KuisKompetensi() {
       durasi_menit: 15,
       periode_aktif_start: new Date().toISOString().slice(0, 10),
       periode_aktif_end: '',
-      soal: templates,
+      soal: selected,
       created_at: new Date().toISOString(),
       status: 'draft',
       generated_from_material: true,
@@ -2301,7 +2247,7 @@ export default function KuisKompetensi() {
                                 : <Badge label="📬 Belum Dibaca" color={C.muted} bg="rgba(158,168,179,0.1)" />}
                             </td>
                             <td style={{ padding: '13px 16px', color: C.muted, fontSize: '0.78rem' }}>
-                              {row.sent_at ? new Date(row.sent_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                              {formatDate(row.sent_at)}
                             </td>
                           </tr>
                         ))}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Plus, Search, Filter, CheckCircle, AlertCircle, Calendar, Download, Send, Trash2, ArrowLeft, ArrowRight, User } from 'lucide-react';
 import { useHRIS } from '../context/HRISContext';
 import jsPDF from 'jspdf';
+import { formatDate } from '../utils/security';
 
 
 export default function KontrakPage({ token, API_URL }) {
@@ -1030,7 +1031,7 @@ export default function KontrakPage({ token, API_URL }) {
                             {c.jenis_kontrak}
                           </span>
                         </td>
-                        <td style={{ color: 'rgba(238, 238, 238, 0.5)' }}>{c.tanggal_pembuatan}</td>
+                        <td style={{ color: 'rgba(238, 238, 238, 0.5)' }}>{formatDate(c.tanggal_pembuatan)}</td>
                         {activeSubTab === 'kontrak' ? (
                           <td>
                             {c.status_persetujuan === 'KONTRAK DITANDATANGANI' || c.status_persetujuan === 'DISETUJUI' ? (

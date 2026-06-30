@@ -97,35 +97,35 @@ export async function requestLeave(req, res) {
       if (amount > 0.5 * employee.basic_salary) {
         return res.status(400).json({
           status: 'error',
-          message: '❌ Gagal: Pengajuan kasbon Anda melanggar ketentuan limit batas aman perusahaan!'
+          message: `❌ Gagal: Jumlah kasbon (${amount}) melebihi batas 50% Gaji Pokok Anda (${0.5 * employee.basic_salary})!`
         });
       }
 
-      // Rule 2: Nominal once requested must not exceed absolute Rp 500.000 limit
-      if (amount > 500000) {
-        return res.status(400).json({
-          status: 'error',
-          message: '❌ Gagal: Pengajuan kasbon Anda melanggar ketentuan limit batas aman perusahaan!'
-        });
-      }
-
-      // Rule 3: Total accumulated approved kasbon for the same outlet/resto in current cutoff period must not exceed Rp 500.000 limit
+      // Rule 2: Allowed kasbon period must be between Payday + 7 days and CutoffEndDate - 7 days.
       const cutoff = await getCutoffRangeForEmployee(employee, start_date);
-      const outletApprovedKasbon = await dbQuery.get(`
-        SELECT SUM(cash_advance_amount) as total
-        FROM leaves
-        WHERE employee_id IN (SELECT id FROM employees WHERE outlet = ?)
-          AND leave_type = 'kasbon'
-          AND status = 'approved'
-          AND start_date >= ?
-          AND start_date <= ?
-      `, [employee.outlet, cutoff.startDate, cutoff.endDate]);
-
-      const existingTotal = parseFloat(outletApprovedKasbon.total) || 0;
-      if (existingTotal + amount > 500000) {
+      const currentCutoffEnd = new Date(cutoff.endDate);
+      const currentCutoffStart = new Date(cutoff.startDate);
+      
+      // Previous cutoff end is 1 day before current cutoff start
+      const prevCutoffEnd = new Date(currentCutoffStart.getTime() - 24 * 60 * 60 * 1000);
+      const prevPayday = new Date(prevCutoffEnd.getTime() + 4 * 24 * 60 * 60 * 1000);
+      
+      const allowedStart = new Date(prevPayday.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const allowedEnd = new Date(currentCutoffEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+      
+      const reqDate = new Date(start_date);
+      
+      reqDate.setHours(0,0,0,0);
+      allowedStart.setHours(0,0,0,0);
+      allowedEnd.setHours(0,0,0,0);
+      
+      if (reqDate < allowedStart || reqDate > allowedEnd) {
+        const formatDateString = (d) => {
+          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+        };
         return res.status(400).json({
           status: 'error',
-          message: '❌ Gagal: Pengajuan kasbon Anda melanggar ketentuan limit batas aman perusahaan!'
+          message: `❌ Gagal: Pengajuan kasbon hanya diperbolehkan antara tanggal ${formatDateString(allowedStart)} dan ${formatDateString(allowedEnd)}.`
         });
       }
     }

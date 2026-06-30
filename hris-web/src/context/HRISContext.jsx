@@ -341,92 +341,112 @@ export function HRISProvider({ children }) {
           } catch (err) {
             console.error('[HRIS] Gagal sync outlets:', err.message);
           }
-        }
 
-        // 3. Fetch materials from main backend
-        const resMat = await fetch(`${API_URL}/training-media`);
-        const jsonMat = await resMat.json();
-        if (jsonMat.status === 'success' && jsonMat.materials) {
-          const localMat = lsRead('hris_training_materials', []);
-          if (JSON.stringify(localMat) !== JSON.stringify(jsonMat.materials)) {
-            Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'hris_training_materials', JSON.stringify(jsonMat.materials));
-            window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'hris_training_materials', value: jsonMat.materials } }));
-          }
-        }
-
-        // 2. Fetch DISC results from main backend
-        const resDisc = await fetch(`${API_URL}/disc-results`);
-        const jsonDisc = await resDisc.json();
-        if (jsonDisc.status === 'success' && jsonDisc.results) {
-          const localDisc = lsRead('hris_disc_results', []);
-          if (JSON.stringify(localDisc) !== JSON.stringify(jsonDisc.results)) {
-            Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'hris_disc_results', JSON.stringify(jsonDisc.results));
-            window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'hris_disc_results', value: jsonDisc.results } }));
-          }
-        }
-
-        // Fetch credentials dari backend utama secara real-time
-        try {
-          const resCred = await fetch(`${API_URL}/credentials`);
-          const jsonCred = await resCred.json();
-          if (jsonCred.status === 'success' && jsonCred.data) {
-            const list = jsonCred.data;
-            const passwords = {};
-            const usernames = {};
-            const roles = {};
-            list.forEach(c => {
-              passwords[c.id] = c.password;
-              usernames[c.id] = c.username;
-              roles[c.id] = c.role;
-            });
-            
-            const localPass = lsRead('hris_user_passwords', {});
-            if (JSON.stringify(localPass) !== JSON.stringify(passwords)) {
-              lsWrite('hris_user_passwords', passwords);
+          // 3. Fetch materials from main backend
+          try {
+            const resMat = await fetch(`${API_URL}/training-media`, { headers: authHeaders });
+            const jsonMat = await resMat.json();
+            if (jsonMat.status === 'success' && jsonMat.materials) {
+              const localMat = lsRead('hris_training_materials', []);
+              if (JSON.stringify(localMat) !== JSON.stringify(jsonMat.materials)) {
+                Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'hris_training_materials', JSON.stringify(jsonMat.materials));
+                window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'hris_training_materials', value: jsonMat.materials } }));
+              }
             }
-            const localUsernames = lsRead('hris_custom_usernames', {});
-            if (JSON.stringify(localUsernames) !== JSON.stringify(usernames)) {
-              lsWrite('hris_custom_usernames', usernames);
+          } catch (err) {
+            console.error('[HRIS] Gagal sync training media:', err.message);
+          }
+
+          // 2. Fetch DISC results from main backend
+          try {
+            const resDisc = await fetch(`${API_URL}/disc-results`, { headers: authHeaders });
+            const jsonDisc = await resDisc.json();
+            if (jsonDisc.status === 'success' && jsonDisc.results) {
+              const localDisc = lsRead('hris_disc_results', []);
+              if (JSON.stringify(localDisc) !== JSON.stringify(jsonDisc.results)) {
+                Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'hris_disc_results', JSON.stringify(jsonDisc.results));
+                window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'hris_disc_results', value: jsonDisc.results } }));
+              }
             }
-            const localRoles = lsRead('hris_user_roles', {});
-            if (JSON.stringify(localRoles) !== JSON.stringify(roles)) {
-              lsWrite('hris_user_roles', roles);
+          } catch (err) {
+            console.error('[HRIS] Gagal sync DISC results:', err.message);
+          }
+
+          // Fetch credentials dari backend utama secara real-time
+          try {
+            const resCred = await fetch(`${API_URL}/credentials`, { headers: authHeaders });
+            const jsonCred = await resCred.json();
+            if (jsonCred.status === 'success' && jsonCred.data) {
+              const list = jsonCred.data;
+              const passwords = {};
+              const usernames = {};
+              const roles = {};
+              list.forEach(c => {
+                passwords[c.id] = c.password;
+                usernames[c.id] = c.username;
+                roles[c.id] = c.role;
+              });
+              
+              const localPass = lsRead('hris_user_passwords', {});
+              if (JSON.stringify(localPass) !== JSON.stringify(passwords)) {
+                lsWrite('hris_user_passwords', passwords);
+              }
+              const localUsernames = lsRead('hris_custom_usernames', {});
+              if (JSON.stringify(localUsernames) !== JSON.stringify(usernames)) {
+                lsWrite('hris_custom_usernames', usernames);
+              }
+              const localRoles = lsRead('hris_user_roles', {});
+              if (JSON.stringify(localRoles) !== JSON.stringify(roles)) {
+                lsWrite('hris_user_roles', roles);
+              }
             }
+          } catch (err) {
+            console.error('[HRIS] Gagal mengambil data kredensial:', err.message);
           }
-        } catch (err) {
-          console.error('[HRIS] Gagal mengambil data kredensial:', err.message);
-        }
 
-        // 4. Fetch mobile slips from main backend
-        const resSlips = await fetch(`${API_URL}/payroll/mobile-slips`);
-        const jsonSlips = await resSlips.json();
-        if (jsonSlips.status === 'success' && jsonSlips.data) {
-          const localSlips = lsRead('hris_payroll_mobile_slips', []);
-          if (JSON.stringify(localSlips) !== JSON.stringify(jsonSlips.data)) {
-            Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'hris_payroll_mobile_slips', JSON.stringify(jsonSlips.data));
-            window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'hris_payroll_mobile_slips', value: jsonSlips.data } }));
+          // 4. Fetch mobile slips from main backend
+          try {
+            const resSlips = await fetch(`${API_URL}/payroll/mobile-slips`, { headers: authHeaders });
+            const jsonSlips = await resSlips.json();
+            if (jsonSlips.status === 'success' && jsonSlips.data) {
+              const localSlips = lsRead('hris_payroll_mobile_slips', []);
+              if (JSON.stringify(localSlips) !== JSON.stringify(jsonSlips.data)) {
+                Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'hris_payroll_mobile_slips', JSON.stringify(jsonSlips.data));
+                window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'hris_payroll_mobile_slips', value: jsonSlips.data } }));
+              }
+            }
+          } catch (err) {
+            console.error('[HRIS] Gagal sync mobile slips:', err.message);
           }
-        }
 
-        // 5. Fetch quizzes from main backend
-        const resQuizzes = await fetch(`${API_URL}/quizzes`);
-        const jsonQuizzes = await resQuizzes.json();
-        if (jsonQuizzes.status === 'success' && jsonQuizzes.data) {
-          const localQuizzes = lsRead('quiz_bank', []);
-          if (JSON.stringify(localQuizzes) !== JSON.stringify(jsonQuizzes.data)) {
-            Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'quiz_bank', JSON.stringify(jsonQuizzes.data));
-            window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'quiz_bank', value: jsonQuizzes.data } }));
+          // 5. Fetch quizzes from main backend
+          try {
+            const resQuizzes = await fetch(`${API_URL}/quizzes`, { headers: authHeaders });
+            const jsonQuizzes = await resQuizzes.json();
+            if (jsonQuizzes.status === 'success' && jsonQuizzes.data) {
+              const localQuizzes = lsRead('quiz_bank', []);
+              if (JSON.stringify(localQuizzes) !== JSON.stringify(jsonQuizzes.data)) {
+                Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'quiz_bank', JSON.stringify(jsonQuizzes.data));
+                window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'quiz_bank', value: jsonQuizzes.data } }));
+              }
+            }
+          } catch (err) {
+            console.error('[HRIS] Gagal sync quizzes:', err.message);
           }
-        }
 
-        // 6. Fetch quiz attempts from main backend
-        const resAttempts = await fetch(`${API_URL}/quizzes/attempts`);
-        const jsonAttempts = await resAttempts.json();
-        if (jsonAttempts.status === 'success' && jsonAttempts.data) {
-          const localResults = lsRead('quiz_results', []);
-          if (JSON.stringify(localResults) !== JSON.stringify(jsonAttempts.data)) {
-            Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'quiz_results', JSON.stringify(jsonAttempts.data));
-            window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'quiz_results', value: jsonAttempts.data } }));
+          // 6. Fetch quiz attempts from main backend
+          try {
+            const resAttempts = await fetch(`${API_URL}/quizzes/attempts`, { headers: authHeaders });
+            const jsonAttempts = await resAttempts.json();
+            if (jsonAttempts.status === 'success' && jsonAttempts.data) {
+              const localResults = lsRead('quiz_results', []);
+              if (JSON.stringify(localResults) !== JSON.stringify(jsonAttempts.data)) {
+                Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'quiz_results', JSON.stringify(jsonAttempts.data));
+                window.dispatchEvent(new CustomEvent('hris:storage', { detail: { key: 'quiz_results', value: jsonAttempts.data } }));
+              }
+            }
+          } catch (err) {
+            console.error('[HRIS] Gagal sync quiz attempts:', err.message);
           }
         }
       } catch (e) {
@@ -446,11 +466,14 @@ export function HRISProvider({ children }) {
     if (!API_URL) return;
     const handleStorageChange = async (e) => {
       const { key, value } = e.detail || {};
+      const tokenVal = sessionStorage.getItem('token');
+      const authHeaders = tokenVal ? { 'Authorization': `Bearer ${tokenVal}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+      
       if (key === 'hris_training_materials') {
         try {
           await fetch(`${API_URL}/training-media`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders,
             body: JSON.stringify({ materials: value })
           });
         } catch (err) {}
@@ -460,7 +483,7 @@ export function HRISProvider({ children }) {
         try {
           await fetch(`${API_URL}/payroll/mobile-slips`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders,
             body: JSON.stringify({ slips: value })
           });
         } catch (err) {}
@@ -469,7 +492,7 @@ export function HRISProvider({ children }) {
         try {
           await fetch(`${API_URL}/quizzes`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders,
             body: JSON.stringify({ quizzes: value })
           });
         } catch (err) {}
@@ -478,7 +501,7 @@ export function HRISProvider({ children }) {
         try {
           await fetch(`${API_URL}/quizzes/attempts`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders,
             body: JSON.stringify({ attempts: value })
           });
         } catch (err) {}

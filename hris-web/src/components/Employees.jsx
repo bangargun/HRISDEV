@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Search, CheckCircle, ChevronLeft, ChevronRight, AlertCircle, Users, Coins, Filter, FileText, TrendingUp, AlertTriangle, Loader2 } from 'lucide-react';
-import { getRoleFromPosition, checkAccess } from '../utils/security';
+import { getRoleFromPosition, checkAccess, formatDate } from '../utils/security';
 import { getLiveOutletList } from '../utils/outletUtils';
 import { useHRIS } from '../context/HRISContext';
 import jsPDF from 'jspdf';
@@ -3132,7 +3132,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                         )}
                         {visibleColumns.start_working_date && (
                           <td style={{ color: isInactive ? '#ffffff' : 'inherit' }}>
-                            {emp.start_working_date || '-'}
+                            {formatDate(emp.start_working_date)}
                           </td>
                         )}
                         {visibleColumns.working_duration && (
@@ -3506,7 +3506,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                               <td style={{ padding: '8px 10px', color: '#fff', fontWeight: 600 }}>{toTitleCase(emp.full_name)}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{toTitleCase(emp.position)}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{toTitleCase(emp.outlet) || '-'}</td>
-                              <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{emp.start_working_date || '-'}</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{formatDate(emp.start_working_date)}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{calculateLamaBekerja(emp.start_working_date)}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{emp.gender || '-'}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{toTitleCase(emp.marital_status) || '-'}</td>
@@ -3516,8 +3516,8 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                               <td style={{ padding: '8px 10px', color: '#fff', fontWeight: 600 }}>{toTitleCase(emp.full_name)}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{toTitleCase(emp.position)}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{toTitleCase(emp.outlet) || '-'}</td>
-                              <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{emp.start_working_date || '-'}</td>
-                              <td style={{ padding: '8px 10px', color: '#ef4444' }}>{formatIndonesianDate(emp.end_working_date)}</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{formatDate(emp.start_working_date)}</td>
+                              <td style={{ padding: '8px 10px', color: '#ef4444' }}>{formatDate(emp.end_working_date)}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{calculateLamaBekerja(emp.start_working_date)}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{emp.gender || '-'}</td>
                             </>

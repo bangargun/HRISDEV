@@ -518,15 +518,8 @@ export default function PenilaianKPI({ token, API_URL }) {
 
       // 6. Briefing Log (Khusus Kepala Cabang - 10% Bobot)
       const isKepalaCabang = String(emp.position || emp.jabatan || '').toLowerCase().trim().includes('kepala cabang');
-      const briefingLogs = JSON.parse(localStorage.getItem('hris_briefing_logs') || '[]');
-      const empBriefings = briefingLogs.filter(b => {
-        const matchesEmp = String(b.employee_id) === String(emp.id);
-        if (!matchesEmp) return false;
-        const d = new Date(b.date);
-        return d.getMonth() + 1 === Number(filterMonth) && d.getFullYear() === Number(filterYear) && b.completed;
-      });
-      const completedCount = empBriefings.length;
-      const briefingPct = totalWorkingDays > 0 ? Math.min(100, Math.round((completedCount / totalWorkingDays) * 100)) : 0;
+      const yesBriefingDays = empAttLogs.filter(l => l.ikut_briefing === 'Ya').length;
+      const briefingPct = presentDays > 0 ? Math.min(100, Math.round((yesBriefingDays / presentDays) * 100)) : 0;
 
       let weightedAttendance, weightedDiscipline, weightedBriefing, finalScore;
 
@@ -627,15 +620,8 @@ export default function PenilaianKPI({ token, API_URL }) {
 
       // Briefing Log (Khusus Kepala Cabang - 10% Bobot)
       const isKepalaCabang = String(emp.position || emp.jabatan || '').toLowerCase().trim().includes('kepala cabang');
-      const briefingLogs = JSON.parse(localStorage.getItem('hris_briefing_logs') || '[]');
-      const empBriefings = briefingLogs.filter(b => {
-        const matchesEmp = String(b.employee_id) === String(emp.id);
-        if (!matchesEmp) return false;
-        const d = new Date(b.date);
-        return d.getMonth() + 1 === Number(lbMonth) && d.getFullYear() === Number(lbYear) && b.completed;
-      });
-      const completedCount = empBriefings.length;
-      const briefingPct = totalWorkingDays > 0 ? Math.min(100, Math.round((completedCount / totalWorkingDays) * 100)) : 0;
+      const yesBriefingDays = empAttLogs.filter(l => l.ikut_briefing === 'Ya').length;
+      const briefingPct = presentDays > 0 ? Math.min(100, Math.round((yesBriefingDays / presentDays) * 100)) : 0;
 
       let weightedAttendance, weightedDiscipline, finalScore;
 

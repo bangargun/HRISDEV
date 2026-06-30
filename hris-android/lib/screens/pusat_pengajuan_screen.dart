@@ -265,9 +265,10 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
       final cutoffStartDate = cutoffPeriod['start']!;
       final cutoffEndDate = cutoffPeriod['end']!;
 
-      final prevSalaryDate = DateTime(cutoffStartDate.year, cutoffStartDate.month, cutoffStartDate.day + 3);
-      final allowedStart = DateTime(prevSalaryDate.year, prevSalaryDate.month, prevSalaryDate.day + 7);
-      final allowedEnd = DateTime(cutoffEndDate.year, cutoffEndDate.month, cutoffEndDate.day - 7);
+      final prevCutoffEnd = cutoffStartDate.subtract(const Duration(days: 1));
+      final prevPayday = prevCutoffEnd.add(const Duration(days: 4));
+      final allowedStart = prevPayday.add(const Duration(days: 7));
+      final allowedEnd = cutoffEndDate.subtract(const Duration(days: 7));
 
       final subDateOnly = DateTime(subDate.year, subDate.month, subDate.day);
       final allowedStartOnly = DateTime(allowedStart.year, allowedStart.month, allowedStart.day);

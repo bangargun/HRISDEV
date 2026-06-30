@@ -896,6 +896,7 @@ export default function Payroll({ token, API_URL }) {
 
   // ── State form input ──
   const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [modalFilterOutlet, setModalFilterOutlet] = useState('');
   const [formBulan, setFormBulan] = useState(new Date().getMonth() + 1);
   const [formTahun, setFormTahun] = useState(currentYear);
   const [income, setIncome] = useState(initIncome);
@@ -1676,6 +1677,7 @@ export default function Payroll({ token, API_URL }) {
   // ── Buka modal tambah ──
   const openAddModal = () => {
     setEditingSlipId(null);
+    setModalFilterOutlet('');
     setSelectedEmployee('');
     setFormBulan(new Date().getMonth() + 1);
     setFormTahun(currentYear);
@@ -1687,6 +1689,8 @@ export default function Payroll({ token, API_URL }) {
   // ── Buka modal edit ──
   const openEditModal = (slip) => {
     setEditingSlipId(slip.id);
+    const emp = employees.find(e => String(e.id) === String(slip.employee_id) || String(e.employee_id) === String(slip.employee_id));
+    setModalFilterOutlet(emp?.outlet || '');
     setSelectedEmployee(slip.employee_id);
     setFormBulan(slip.bulan);
     setFormTahun(slip.tahun);
@@ -1709,6 +1713,7 @@ export default function Payroll({ token, API_URL }) {
     const targetYear = rekapTahun;
     const existingSlip = getExistingSlipForRekap(emp);
     
+    setModalFilterOutlet(emp.outlet || '');
     if (existingSlip) {
       openEditModal(existingSlip);
     } else {
@@ -2950,6 +2955,23 @@ export default function Payroll({ token, API_URL }) {
             {/* Pilih Karyawan + Periode */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '20px' }}>
               <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: PALETTE.creamMuted, textTransform: 'uppercase' }}>Filter Nama Outlet</label>
+                <select
+                  value={modalFilterOutlet}
+                  onChange={e => {
+                    setModalFilterOutlet(e.target.value);
+                    setSelectedEmployee('');
+                  }}
+                  style={{ height: '44px', padding: '0 14px', background: PALETTE.bgMain, border: `1px solid ${PALETTE.accent}`, borderRadius: '8px', color: PALETTE.cream, fontSize: '0.9rem' }}
+                >
+                  <option value="">— Semua Outlet —</option>
+                  {getLiveOutletList().map((o, idx) => (
+                    <option key={idx} value={o}>{o}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 700, color: PALETTE.creamMuted, textTransform: 'uppercase' }}>Nama Karyawan *</label>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <select
@@ -2959,11 +2981,13 @@ export default function Payroll({ token, API_URL }) {
                     style={{ height: '44px', padding: '0 14px', background: PALETTE.bgMain, border: `1px solid ${PALETTE.accent}`, borderRadius: '8px', color: PALETTE.cream, fontSize: '0.9rem', flex: 1 }}
                   >
                     <option value="">— Pilih Karyawan —</option>
-                    {employees.map((e, i) => (
-                      <option key={i} value={e.id || e.employee_id}>
-                        {e.full_name || e.nama} {e.nik ? `(${e.nik})` : ''}
-                      </option>
-                    ))}
+                    {employees
+                      .filter(e => !modalFilterOutlet || String(e.outlet).trim().toLowerCase() === modalFilterOutlet.trim().toLowerCase())
+                      .map((e, i) => (
+                        <option key={i} value={e.id || e.employee_id}>
+                          {e.full_name || e.nama} {e.nik ? `(${e.nik})` : ''}
+                        </option>
+                      ))}
                   </select>
                   {selectedEmployee && (
                     <button

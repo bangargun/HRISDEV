@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../models/models.dart';
 import '../config/api_client.dart';
+import 'sop_screen.dart';
 
 class InformationScreen extends StatefulWidget {
   final int initialIndex;
@@ -920,16 +921,10 @@ class _InformationScreenState extends State<InformationScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                             icon: const Icon(Icons.download, size: 16),
-                            label: const Text('📄 Download PDF', style: TextStyle(fontWeight: FontWeight.bold)),
+                            label: const Text('📄 Lihat Kontrak PDF', style: TextStyle(fontWeight: FontWeight.bold)),
                             onPressed: () {
                               final pdfUrl = '${ApiClient.baseUrl}/contracts/${c.id}/pdf';
-                              Clipboard.setData(ClipboardData(text: pdfUrl));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Link download PDF disalin ke clipboard! Silakan buka di browser handphone Anda.'),
-                                  backgroundColor: Color(0xFF10B981),
-                                ),
-                              );
+                              NativeBrowser.openUrl(pdfUrl);
                             },
                           ),
                         ),

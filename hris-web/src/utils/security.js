@@ -181,3 +181,33 @@ export const checkAccessMobile = (user, targetEmployee, targetOutlet) => {
     reason: 'Akses Ditolak! Pelanggaran aturan keamanan Jabatan/Outlet.'
   };
 };
+
+/**
+ * Standardize Date to DD/MM/YYYY format
+ */
+export const formatDate = (dateInput) => {
+  if (!dateInput) return '-';
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) {
+      // Manual parse for YYYY-MM-DD or DD-MM-YYYY
+      const parts = String(dateInput).split(/[-/]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) { // YYYY-MM-DD
+          return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
+        }
+        if (parts[2].length === 4) { // DD-MM-YYYY
+          return `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[2]}`;
+        }
+      }
+      return String(dateInput);
+    }
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    return String(dateInput);
+  }
+};
+

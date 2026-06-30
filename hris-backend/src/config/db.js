@@ -153,6 +153,10 @@ export async function initializeDatabase() {
       await connection.execute("ALTER TABLE outlets ADD COLUMN radius INT NULL");
       console.log('SUCCESS: Menambahkan kolom radius ke tabel outlets.');
     } catch (_) {}
+    try {
+      await connection.execute("ALTER TABLE attendances ADD COLUMN ikut_briefing VARCHAR(10) DEFAULT 'Tidak'");
+      console.log('SUCCESS: Menambahkan kolom ikut_briefing ke tabel attendances.');
+    } catch (_) {}
 
     connection.release();
   } catch (error) {

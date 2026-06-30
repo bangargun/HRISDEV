@@ -12,11 +12,11 @@ export async function getSops(req, res) {
       
       // Petakan jabatan karyawan ke tingkat sasaran: leader, admin, karyawan
       let mappedLevel = 'karyawan';
-      if (empPosition === 'leader') {
+      if (empPosition.includes('leader') || empPosition.includes('kepala') || empPosition.includes('spv') || empPosition.includes('supervisor')) {
         mappedLevel = 'leader';
-      } else if (empPosition === 'admin') {
+      } else if (empPosition.includes('admin') || empPosition.includes('hr') || empPosition.includes('staff admin') || empPosition.includes('human resources') || empPosition.includes('personalia')) {
         mappedLevel = 'admin';
-      } else if (empPosition === 'owner' || empPosition === 'master') {
+      } else if (empPosition.includes('owner') || empPosition.includes('master') || empPosition.includes('chief') || empPosition.includes('ceo')) {
         mappedLevel = 'admin'; // Owner/Master memiliki akses penuh
       }
 

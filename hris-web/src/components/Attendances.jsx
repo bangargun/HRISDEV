@@ -6,6 +6,9 @@ import autoTable from 'jspdf-autotable';
 import { useHRIS } from '../context/HRISContext';
 
 
+import { formatDate } from '../utils/security';
+
+
 export default function Attendances({ token, API_URL, userPermissions, setActiveTab }) {
   // ─── HRIS Context — Reactive employee list ─────────────────────────────────
   const { activeEmployees: ctxActiveEmployees } = useHRIS();
@@ -118,6 +121,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   const [realtimeCustomOut, setRealtimeCustomOut]   = useState('');
   const [realtimeCustomStartBreak, setRealtimeCustomStartBreak] = useState('');
   const [realtimeCustomEndBreak, setRealtimeCustomEndBreak]     = useState('');
+  const [realtimeBriefing, setRealtimeBriefing] = useState('Tidak');
 
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [editingHistoryId, setEditingHistoryId] = useState(null);
@@ -130,6 +134,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   const [historyNotes, setHistoryNotes]       = useState('');
   const [historyStartBreak, setHistoryStartBreak] = useState('');
   const [historyEndBreak, setHistoryEndBreak]   = useState('');
+  const [historyBriefing, setHistoryBriefing]   = useState('Tidak');
 
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false, title: '', message: '', confirmText: 'YAKIN', cancelText: 'BATAL', onConfirm: null
@@ -491,6 +496,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
         status: 'hadir',
         jam_masuk: '10:00',
         jam_keluar: '',
+        ikut_briefing: 'Tidak',
       }));
     setInputBoardRows(rows);
   };
@@ -521,6 +527,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
       jam_keluar: row.status === 'absen' ? '' : row.jam_keluar,
       realtimeStatus: row.status,
       status_in: row.status === 'absen' ? 'absent' : 'ontime',
+      ikut_briefing: row.status === 'absen' ? 'Tidak' : row.ikut_briefing || 'Tidak',
       sent_status: 'sent',
       created_at: new Date().toISOString(),
     }));
@@ -766,9 +773,9 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     const durasi = calculateWorkDuration(realtimeCustomIn, realtimeCustomOut, realtimeCustomStartBreak, realtimeCustomEndBreak);
     let updated;
     if (editingRealtimeId) {
-      updated = realtimeLogs.map(l => l.id === editingRealtimeId ? { ...l, employee_id:selectedEmpIdRealtime, date:realtimeDate, nama_karyawan:emp.full_name, outlet:outletFinal, jam_masuk:realtimeCustomIn, jam_pulang:realtimeCustomOut, jam_mulai_istirahat:realtimeCustomStartBreak, jam_akhir_istirahat:realtimeCustomEndBreak, status:realtimeStatus, durasi, keterangan:realtimeNotes } : l);
+      updated = realtimeLogs.map(l => l.id === editingRealtimeId ? { ...l, employee_id:selectedEmpIdRealtime, date:realtimeDate, nama_karyawan:emp.full_name, outlet:outletFinal, jam_masuk:realtimeCustomIn, jam_pulang:realtimeCustomOut, jam_mulai_istirahat:realtimeCustomStartBreak, jam_akhir_istirahat:realtimeCustomEndBreak, status:realtimeStatus, durasi, keterangan:realtimeNotes, ikut_briefing:realtimeBriefing } : l);
     } else {
-      updated = [{ id:Date.now(), employee_id:selectedEmpIdRealtime, date:realtimeDate, nama_karyawan:emp.full_name, outlet:outletFinal, jam_masuk:realtimeCustomIn, jam_pulang:realtimeCustomOut, jam_mulai_istirahat:realtimeCustomStartBreak, jam_akhir_istirahat:realtimeCustomEndBreak, status:realtimeStatus, durasi, keterangan:realtimeNotes }, ...realtimeLogs];
+      updated = [{ id:Date.now(), employee_id:selectedEmpIdRealtime, date:realtimeDate, nama_karyawan:emp.full_name, outlet:outletFinal, jam_masuk:realtimeCustomIn, jam_pulang:realtimeCustomOut, jam_mulai_istirahat:realtimeCustomStartBreak, jam_akhir_istirahat:realtimeCustomEndBreak, status:realtimeStatus, durasi, keterangan:realtimeNotes, ikut_briefing:realtimeBriefing }, ...realtimeLogs];
     }
     setRealtimeLogs(updated);
     localStorage.setItem('hris_attendances_realtime', JSON.stringify(updated));
@@ -783,6 +790,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     setRealtimeCustomIn(log.jam_masuk); setRealtimeCustomOut(log.jam_pulang);
     setRealtimeCustomStartBreak(log.jam_mulai_istirahat); setRealtimeCustomEndBreak(log.jam_akhir_istirahat);
     setRealtimeStatus(log.status); setRealtimeNotes(log.keterangan||'');
+    setRealtimeBriefing(log.ikut_briefing || 'Tidak');
     setShowRealtimeModal(true);
   };
 
@@ -799,7 +807,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     setEditingRealtimeId(null); setSelectedEmpIdRealtime(''); setRealtimeOutlet('');
     setRealtimeDate(new Date().toISOString().split('T')[0]);
     setRealtimeCustomIn(''); setRealtimeCustomOut(''); setRealtimeCustomStartBreak(''); setRealtimeCustomEndBreak('');
-    setRealtimeStatus('hadir'); setRealtimeNotes('');
+    setRealtimeStatus('hadir'); setRealtimeNotes(''); setRealtimeBriefing('Tidak');
   };
 
   const handleHistorySubmit = (e) => {
@@ -812,7 +820,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     if (!emp) return;
     const outletFinal = historyOutletForm?.trim() || emp.outlet || '';
     let updated;
-    const record = { employee_id:selectedEmpIdHistory, date:historyDate, nik:emp.nik, full_name:emp.full_name, department:emp.position, outlet:outletFinal, clock_in:historyClockIn, clock_out:historyClockOut, jam_mulai_istirahat:historyStartBreak, jam_akhir_istirahat:historyEndBreak, status_in:historyStatusIn, notes:historyNotes };
+    const record = { employee_id:selectedEmpIdHistory, date:historyDate, nik:emp.nik, full_name:emp.full_name, department:emp.position, outlet:outletFinal, clock_in:historyClockIn, clock_out:historyClockOut, jam_mulai_istirahat:historyStartBreak, jam_akhir_istirahat:historyEndBreak, status_in:historyStatusIn, notes:historyNotes, ikut_briefing:historyBriefing };
     if (editingHistoryId) {
       updated = historyLogs.map(l => l.id === editingHistoryId ? { ...l, ...record } : l);
     } else {
@@ -830,6 +838,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     setHistoryClockIn(log.clock_in||''); setHistoryClockOut(log.clock_out||'');
     setHistoryStatusIn(log.status_in||'ontime'); setHistoryNotes(log.notes||'');
     setHistoryStartBreak(log.jam_mulai_istirahat||''); setHistoryEndBreak(log.jam_akhir_istirahat||'');
+    setHistoryBriefing(log.ikut_briefing || 'Tidak');
     setShowHistoryModal(true);
   };
 
@@ -845,7 +854,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     setEditingHistoryId(null); setSelectedEmpIdHistory(''); setHistoryOutletForm('');
     setHistoryDate(new Date().toISOString().split('T')[0]);
     setHistoryClockIn(''); setHistoryClockOut(''); setHistoryStatusIn('ontime'); setHistoryNotes('');
-    setHistoryStartBreak(''); setHistoryEndBreak('');
+    setHistoryStartBreak(''); setHistoryEndBreak(''); setHistoryBriefing('Tidak');
   };
 
   // ─── BREAK SCHEDULE HANDLERS ───────────────────────────────────────────────
@@ -1167,13 +1176,14 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                 });
                 autoTable(doc, {
                   startY: 22, styles:{fontSize:7.5},
-                  head: [['No','Nama','Outlet','Tanggal','Jam Masuk','Jam Keluar','Status Kehadiran','Durasi Kerja','Terlambat (menit)','Status Kirim']],
+                  head: [['No','Nama','Outlet','Tanggal','Jam Masuk','Jam Keluar','Status Kehadiran','Durasi Kerja','Terlambat (menit)','Ikut Briefing','Status Kirim']],
                   body: filtered.map((l,i) => [
                     i+1, l.full_name||l.nama_karyawan||'-', l.outlet||'-',
                     l.tanggal||l.date||'-', l.jam_masuk||l.clock_in||'-', l.jam_keluar||l.clock_out||'-',
                     getAttendanceStatus(l),
                     calculateWorkDuration(l.jam_masuk||l.clock_in, l.jam_keluar||l.clock_out, l.jam_mulai_istirahat, l.jam_akhir_istirahat),
                     getMenitTerlambat(l) > 0 ? getMenitTerlambat(l) : '-',
+                    l.ikut_briefing || 'Tidak',
                     l.sent_status === 'sent' ? 'Terkirim' : 'Belum'
                   ])
                 });
@@ -1187,7 +1197,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.8rem' }}>
                 <thead>
                   <tr style={{ background:'var(--bg-main)' }}>
-                    {['No','Nama Karyawan','Outlet','Tanggal','Jam Masuk','Jam Keluar','Status Kehadiran','Durasi Kerja','Durasi Istirahat','Terlambat','Status Kirim','Aksi']
+                    {['No','Nama Karyawan','Outlet','Tanggal','Jam Masuk','Jam Keluar','Status Kehadiran','Durasi Kerja','Durasi Istirahat','Terlambat','Ikut Briefing?','Status Kirim','Aksi']
                       .map(h => <th key={h} style={{ padding:'10px 12px', textAlign:'left', fontWeight:700, fontSize:'0.73rem', textTransform:'uppercase', color:'var(--text-muted)', whiteSpace:'nowrap' }}>{h}</th>)}
                   </tr>
                 </thead>
@@ -1213,7 +1223,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                           <td style={{ padding:'10px 12px' }}>{idx+1}</td>
                           <td style={{ padding:'10px 12px', fontWeight:600 }}>{log.full_name||log.nama_karyawan||'-'}</td>
                           <td style={{ padding:'10px 12px' }}>{log.outlet||'-'}</td>
-                          <td style={{ padding:'10px 12px' }}>{log.tanggal||log.date||'-'}</td>
+                          <td style={{ padding:'10px 12px' }}>{formatDate(log.tanggal||log.date)}</td>
                           <td style={{ padding:'10px 12px' }}>{log.jam_masuk||log.clock_in||'-'}</td>
                           <td style={{ padding:'10px 12px' }}>{log.jam_keluar||log.clock_out||'-'}</td>
                           <td style={{ padding:'10px 12px' }}>
@@ -1223,6 +1233,14 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                           <td style={{ padding:'10px 12px' }}>{getBreakDurationStr(log)}</td>
                           <td style={{ padding:'10px 12px', color: terlambat > 0 ? '#f59e0b' : 'var(--text-muted)' }}>
                             {terlambat > 0 ? `+${terlambat} menit` : '-'}
+                          </td>
+                          <td style={{ padding:'10px 12px' }}>
+                            <span style={{ padding:'3px 8px', borderRadius:'20px', fontSize:'0.72rem', fontWeight:700,
+                              background: log.ikut_briefing === 'Ya' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                              color: log.ikut_briefing === 'Ya' ? '#10b981' : '#ef4444',
+                              border: `1px solid ${log.ikut_briefing === 'Ya' ? '#10b98140' : '#ef444440'}` }}>
+                              {log.ikut_briefing || 'Tidak'}
+                            </span>
                           </td>
                           <td style={{ padding:'10px 12px' }}>
                             <span style={{ padding:'3px 8px', borderRadius:'20px', fontSize:'0.71rem', fontWeight:600,
@@ -1308,7 +1326,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.82rem' }}>
                           <thead>
                             <tr style={{ background:'rgba(59,130,246,0.08)' }}>
-                              {['Nama Karyawan','Jabatan','Status','Jam Masuk','Jam Keluar'].map(h =>
+                              {['Nama Karyawan','Jabatan','Status','Jam Masuk','Jam Keluar','Ikut Briefing?'].map(h =>
                                 <th key={h} style={{ padding:'10px 12px', textAlign:'left', fontWeight:700, fontSize:'0.73rem', textTransform:'uppercase', color:'#3B82F6', whiteSpace:'nowrap' }}>{h}</th>
                               )}
                             </tr>
@@ -1337,6 +1355,17 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                                   {row.status === 'hadir' ? (
                                     <input type='time' value={row.jam_keluar} onChange={e => updateInputRow(idx,'jam_keluar',e.target.value)}
                                       style={{ height:'32px', border:'1px solid var(--border-color)', borderRadius:'6px', background:'var(--bg-main)', color:'var(--text-main)', padding:'0 8px', fontSize:'0.8rem' }}/>
+                                  ) : <span style={{ color:'var(--text-muted)', fontSize:'0.78rem' }}>-</span>}
+                                </td>
+                                <td style={{ padding:'10px 12px' }}>
+                                  {row.status === 'hadir' ? (
+                                    <select value={row.ikut_briefing} onChange={e => updateInputRow(idx,'ikut_briefing',e.target.value)}
+                                      style={{ height:'32px', border:'1px solid var(--border-color)', borderRadius:'6px',
+                                        background:row.ikut_briefing==='Ya'?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)',
+                                        color:row.ikut_briefing==='Ya'?'#10b981':'#ef4444', fontWeight:700, padding:'0 8px', fontSize:'0.8rem' }}>
+                                      <option value='Tidak'>Tidak</option>
+                                      <option value='Ya'>Ya</option>
+                                    </select>
                                   ) : <span style={{ color:'var(--text-muted)', fontSize:'0.78rem' }}>-</span>}
                                 </td>
                               </tr>
@@ -1391,7 +1420,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.82rem' }}>
                     <thead>
                       <tr style={{ background:'rgba(16,185,129,0.08)' }}>
-                        {['Nama','Status','Jam Masuk','Jam Keluar','Status Kehadiran'].map(h =>
+                        {['Nama','Status','Jam Masuk','Jam Keluar','Status Kehadiran','Briefing'].map(h =>
                           <th key={h} style={{ padding:'8px 12px', textAlign:'left', fontWeight:700, color:'#10b981', fontSize:'0.73rem', textTransform:'uppercase' }}>{h}</th>
                         )}
                       </tr>
@@ -1544,12 +1573,12 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                   <tbody>
                     {filteredRealtime.length === 0 ? (
                       <tr><td colSpan={Object.values(visibleColumnsRealtime).filter(Boolean).length} style={{ textAlign:'center', color:'var(--text-muted)', padding:'40px' }}>Belum ada log kehadiran.</td></tr>
-                    ) : filteredRealtime.map((log, i) => (
+                  ) : filteredRealtime.map((log, i) => (
                       <tr key={log.id}>
                         {visibleColumnsRealtime.no && <td style={{fontWeight:600}}>{i+1}</td>}
                         {visibleColumnsRealtime.name && <td style={{color:'#fff',fontWeight:700}}>{toTitleCase(log.nama_karyawan)}</td>}
                         {visibleColumnsRealtime.outlet && <td style={{color:'var(--text-muted)'}}>{toTitleCase(log.outlet)}</td>}
-                        {visibleColumnsRealtime.tanggal && <td style={{fontWeight:600}}>{log.date}</td>}
+                        {visibleColumnsRealtime.tanggal && <td style={{fontWeight:600}}>{formatDate(log.date)}</td>}
                         {visibleColumnsRealtime.jam_masuk && <td style={{color:'var(--primary-solid)',fontWeight:600}}>{log.jam_masuk}</td>}
                         {visibleColumnsRealtime.jam_pulang && <td style={{color:'var(--primary-solid)',fontWeight:600}}>{log.jam_pulang}</td>}
                         {visibleColumnsRealtime.jam_mulai_istirahat && <td style={{color:'var(--text-muted)'}}>{log.jam_mulai_istirahat||'-'}</td>}
@@ -1665,7 +1694,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                     else if (isLate) statusLabel = 'terlambat';
                     return (
                       <tr key={log.id}>
-                        {visibleColumnsHistory.date && <td style={{fontWeight:600}}>{log.date}</td>}
+                        {visibleColumnsHistory.date && <td style={{fontWeight:600}}>{formatDate(log.date)}</td>}
                         {visibleColumnsHistory.nik && <td style={{fontFamily:'monospace',fontSize:'11px'}}>{log.nik||'-'}</td>}
                         {visibleColumnsHistory.full_name && <td style={{color:'#fff',fontWeight:700}}>{toTitleCase(log.full_name)}</td>}
                         {visibleColumnsHistory.department && <td style={{color:'var(--text-muted)'}}>{toTitleCase(log.department)}</td>}
@@ -1807,7 +1836,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                                   <tbody>
                                     {r.logs.map((l,li)=>(
                                       <tr key={li} style={{ borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-                                        <td style={{padding:'6px 12px', fontWeight:600}}>{l.date}</td>
+                                        <td style={{padding:'6px 12px', fontWeight:600}}>{formatDate(l.date)}</td>
                                         <td style={{padding:'6px 12px'}}><StatusBadge status={l.status}/></td>
                                         <td style={{padding:'6px 12px', color:'var(--primary-solid)', fontWeight:600}}>{l.clockIn}</td>
                                         <td style={{padding:'6px 12px', color:'var(--text-muted)'}}>{l.clockOut}</td>
@@ -2021,12 +2050,6 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                     </button>
                   ))}
                 </div>
-                <button onClick={exportEvalPDF} style={{ height:'38px', padding:'0 16px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', color:'#ef4444', borderRadius:'8px', fontSize:'0.82rem', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'8px' }}>
-                  <FileText size={14}/><span>Ekspor PDF</span>
-                </button>
-                <button onClick={() => setActiveTab && setActiveTab('payroll')} style={{ height:'38px', padding:'0 16px', background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', color:'var(--accent-primary)', borderRadius:'8px', fontSize:'0.82rem', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'8px' }}>
-                  <span>💰 Kelola Gaji & Denda</span>
-                </button>
               </div>
             </div>
 
@@ -2110,7 +2133,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                       return (
                         <tr key={idx} style={{ background:overage>0?'rgba(239,68,68,0.03)':'transparent' }}>
                           <td>{idx+1}</td>
-                          <td style={{fontWeight:600}}>{log.date}</td>
+                          <td style={{fontWeight:600}}>{formatDate(log.date)}</td>
                           <td style={{color:'#fff',fontWeight:700}}>{toTitleCase(log.full_name||log.nama_karyawan)}</td>
                           <td style={{color:'var(--text-muted)'}}>{toTitleCase(displayOutlet)}</td>
                           <td style={{color:'var(--primary-solid)',fontWeight:600,fontFamily:'monospace'}}>{log.jam_mulai_istirahat} – {log.jam_akhir_istirahat}</td>
@@ -2390,6 +2413,13 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                   <option value="absen">Absen</option>
                 </select>
               </div>
+              <div className="input-group">
+                <label>Ikut Briefing?</label>
+                <select className="input-field" value={realtimeBriefing} onChange={e=>setRealtimeBriefing(e.target.value)} style={{ background:'var(--bg-main)', color:'#fff' }}>
+                  <option value="Tidak">Tidak</option>
+                  <option value="Ya">Ya</option>
+                </select>
+              </div>
               <div className="input-group"><label>Keterangan</label><textarea className="input-field" rows="2" value={realtimeNotes} onChange={e=>setRealtimeNotes(e.target.value)} placeholder="Opsional..."/></div>
               <div style={{ display:'flex', gap:'10px', marginTop:'6px' }}>
                 <button type="submit" className="btn-primary" style={{ flex:1, justifyContent:'center' }}>Simpan Kehadiran</button>
@@ -2439,6 +2469,13 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                 <select className="input-field" value={historyStatusIn} onChange={e=>setHistoryStatusIn(e.target.value)} style={{ background:'var(--bg-main)', color:'#fff' }}>
                   <option value="ontime">Tepat Waktu</option>
                   <option value="late">Terlambat</option>
+                </select>
+              </div>
+              <div className="input-group">
+                <label>Ikut Briefing?</label>
+                <select className="input-field" value={historyBriefing} onChange={e=>setHistoryBriefing(e.target.value)} style={{ background:'var(--bg-main)', color:'#fff' }}>
+                  <option value="Tidak">Tidak</option>
+                  <option value="Ya">Ya</option>
                 </select>
               </div>
               <div className="input-group"><label>Catatan</label><textarea className="input-field" rows="2" value={historyNotes} onChange={e=>setHistoryNotes(e.target.value)} placeholder="Opsional..."/></div>
