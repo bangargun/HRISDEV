@@ -1450,7 +1450,7 @@ export default function KuisKompetensi() {
   const [kerjakanEmpId, setKerjakanEmpId] = useState('');
 
   // ── Filter
-  const allOutlets = [...new Set(activeEmployees.map(e => e.outlet).filter(Boolean))].sort();
+  const allOutlets = [...new Set((activeEmployees || []).map(e => e.outlet).filter(Boolean))].sort();
   const [selectedOutlets, setSelectedOutlets] = useState([]);
   const [showOutletDropdown, setShowOutletDropdown] = useState(false);
 
@@ -1515,12 +1515,12 @@ export default function KuisKompetensi() {
         return [...new Set(roles.map(r => r.jabatan).filter(Boolean))].sort();
       }
     } catch (e) {}
-    return [...new Set(activeEmployees.map(e => e.position).filter(Boolean))].sort();
+    return [...new Set((activeEmployees || []).map(e => e.position).filter(Boolean))].sort();
   })();
 
   const filteredEmployees = selectedOutlets.length
-    ? activeEmployees.filter(e => selectedOutlets.includes(e.outlet))
-    : activeEmployees;
+    ? (activeEmployees || []).filter(e => selectedOutlets.includes(e.outlet))
+    : (activeEmployees || []);
 
   // Persist changes
   const saveQuizBank = useCallback((data) => {
@@ -1595,7 +1595,7 @@ export default function KuisKompetensi() {
 
   // ── Kirim Kuis ke Karyawan
   const handleSendQuiz = (quiz) => {
-    const targetEmps = activeEmployees.filter(e => {
+    const targetEmps = (activeEmployees || []).filter(e => {
       const matchesOutlet = !quiz.outlet || quiz.outlet.length === 0 || 
         (Array.isArray(quiz.outlet) ? quiz.outlet.includes(e.outlet) : (quiz.outlet === 'Semua Outlet' || e.outlet === quiz.outlet));
       const matchesJabatan = !quiz.divisi || quiz.divisi.length === 0 || 
@@ -1796,7 +1796,7 @@ export default function KuisKompetensi() {
     const existing = quizResults.filter(
       r => !(r.quiz_id === kerjakanQuizId && r.employee_id === kerjakanEmpId)
     );
-    const emp = activeEmployees.find(e => e.id === kerjakanEmpId);
+    const emp = (activeEmployees || []).find(e => e.id === kerjakanEmpId);
     const newResult = {
       id: uid(),
       quiz_id: kerjakanQuizId,
@@ -2069,7 +2069,7 @@ export default function KuisKompetensi() {
                         </td>
                         <td style={{ padding: '14px 16px', color: C.muted, fontSize: '0.78rem' }}>
                           {quiz.periode_aktif_start && quiz.periode_aktif_end
-                            ? `${quiz.periode_aktif_start} s/d ${quiz.periode_aktif_end}`
+                            ? `${formatDate(quiz.periode_aktif_start)} s/d ${formatDate(quiz.periode_aktif_end)}`
                             : '-'}
                         </td>
                         <td style={{ padding: '14px 16px' }}>
@@ -2336,7 +2336,7 @@ export default function KuisKompetensi() {
       <KerjakanKuisModal
         isOpen={showKerjakanModal}
         quiz={quizBank.find(q => q.id === kerjakanQuizId) || null}
-        employee={activeEmployees.find(e => e.id === kerjakanEmpId) || null}
+        employee={(activeEmployees || []).find(e => e.id === kerjakanEmpId) || null}
         onClose={() => setShowKerjakanModal(false)}
         onSubmit={(res) => {
           handleKerjakanSubmit(res);
