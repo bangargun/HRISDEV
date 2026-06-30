@@ -22,7 +22,12 @@ import { HRISProvider } from './context/HRISContext';
 import SyncOverlay from './components/SyncOverlay';
 import HakUser from './components/HakUser';
 
-import { Lock, CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import {
+  Lock, CheckCircle, Eye, EyeOff, Loader2, LayoutDashboard,
+  Users, Calendar, ShieldAlert, FileText, Store, Coins,
+  BookOpen, BarChart3, AlertTriangle, Award, ClipboardList,
+  Radio, Shield, Settings, Key, LogOut
+} from 'lucide-react';
 import { checkAccess, getRoleFromPosition } from './utils/security';
 import './App.css';
 
@@ -145,7 +150,7 @@ const validateLocalLogin = (inputEmail, password) => {
 export default function App() {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('menu');
   const [userPermissions, setUserPermissions] = useState(null);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'dark';
@@ -380,13 +385,13 @@ export default function App() {
     setUser(null);
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
-    setActiveTab('dashboard');
+    setActiveTab('menu');
   };
 
   const renderTabContent = () => {
     // 1. Proteksi Halaman Hak Akses & Hak User (settings / hakuser) - Khusus Peran Master
     const currentUserRole = getRoleFromPosition(user?.position, user?.role);
-    if ((activeTab === 'settings' || activeTab === 'hakuser') && currentUserRole !== 'master') {
+    if ((activeTab === 'settings' || activeTab === 'hakuser') && currentUserRole !== 'master' && currentUserRole !== 'owner') {
       return (
         <div style={{
           padding: '40px',
@@ -581,26 +586,345 @@ export default function App() {
     );
   }
 
+  const capitalEachWord = (str) => {
+    if (!str) return '';
+    return String(str).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const titles = {
+    menu: 'Menu Utama Portal',
+    dashboard: 'Dasbor Analitik Utama',
+    employees: 'Manajemen Data Karyawan',
+    attendances: 'Kehadiran Karyawan',
+    leaves: 'Manajemen Cuti & Izin (Pusat Pengajuan)',
+    payroll: 'Pemrosesan Slip Gaji (Payroll)',
+    contracts: 'Manajemen Surat Penugasan',
+    outlets: 'Manajemen Outlet Cabang Utama',
+    revenues: 'Omzet Pendapatan Cabang',
+    sops: 'SOP & Prosedur Operasional',
+    kpis: 'Penilaian Kinerja KPI',
+    sanctions: 'Sanksi & Surat Peringatan (SP)',
+    trainings: 'Program Pelatihan & Sertifikasi',
+    policies: 'Kebijakan & Peraturan Perusahaan',
+    kuis: 'Kuis Kompetensi Karyawan',
+    angket: 'Angket Karyawan',
+    broadcast: 'Broadcast & Notifikasi',
+    settings: 'Hak Akses RBAC',
+    hakuser: 'Hak Akses User & Karyawan',
+  };
+
+  const renderMenuAwal = () => {
+    const currentUserRole = getRoleFromPosition(user?.position, user?.role);
+    const isMaster = (currentUserRole === 'master' || currentUserRole === 'owner' || user?.role === 'owner' || user?.role === 'master');
+
+    const allMenuItems = [
+      { id: 'dashboard', label: 'Dashboard Utama', desc: 'Dasbor analitik, performa, dan statistik HRIS.', icon: LayoutDashboard, color: '#00ADB5' },
+      { id: 'employees', label: 'Kelola Karyawan', desc: 'Manajemen database staf, jabatan, dan kontrak.', icon: Users, color: '#32E0C4' },
+      { id: 'attendances', label: 'Kehadiran Karyawan', desc: 'Pantau absensi harian, keterlambatan, dan jam kerja.', icon: Calendar, color: '#FFD369' },
+      { id: 'leaves', label: 'Pusat Pengajuan', desc: 'Pengajuan cuti, izin, kasbon, dan persetujuan staf.', icon: ShieldAlert, color: '#FF7C7C' },
+      { id: 'payroll', label: 'Payroll', desc: 'Proses penggajian, tunjangan, potongan, dan slip gaji.', icon: FileText, color: '#A5B68D' },
+      { id: 'contracts', label: 'Surat Penugasan', desc: 'Buat dan kelola surat tugas mutasi/demosi staf.', icon: FileText, color: '#b42df1' },
+      { id: 'outlets', label: 'Outlet Cabang', desc: 'Kelola data lokasi cabang dan koordinat geofencing.', icon: Store, color: '#4ECDC4' },
+      { id: 'revenues', label: 'Omzet Cabang', desc: 'Input dan rekap omzet harian tiap outlet cabang.', icon: Coins, color: '#F5A623' },
+      { id: 'sops', label: 'SOP & Prosedur', desc: 'Akses dokumentasi SOP dan prosedur operasional cabang.', icon: BookOpen, color: '#00D2FC' },
+      { id: 'kpis', label: 'Penilaian KPI', desc: 'Evaluasi kinerja dan leaderboard KPI karyawan.', icon: BarChart3, color: '#FF8008' },
+      { id: 'sanctions', label: 'Sanksi & SP', desc: 'Pemberian Surat Peringatan (SP) dan konseling staf.', icon: AlertTriangle, color: '#E05C5C' },
+      { id: 'trainings', label: 'Program Pelatihan', desc: 'Manajemen materi training dan program peningkatan staf.', icon: Award, color: '#6C5CE7' },
+      { id: 'kuis', label: 'Kuis Kompetensi', desc: 'Generate soal dan uji kompetensi berkala staf.', icon: BookOpen, color: '#0984E3' },
+      { id: 'angket', label: 'Angket Karyawan', desc: 'Survey kepuasan dan angket aspirasi tim.', icon: ClipboardList, color: '#00CEC9' },
+      { id: 'broadcast', label: 'Broadcast & Notifikasi', desc: 'Kirim pengumuman massal dan notifikasi push.', icon: Radio, color: '#E84393' },
+      { id: 'policies', label: 'Kebijakan Perusahaan', desc: 'Panduan peraturan, kasbon, dan hak karyawan.', icon: Shield, color: '#636E72' },
+    ];
+
+    const filteredItems = allMenuItems.filter(item => {
+      if (user?.role === 'owner' || user?.role === 'master') return true;
+      if (userPermissions && userPermissions[item.id]) {
+        return userPermissions[item.id].can_view === 1;
+      }
+      return false;
+    });
+
+    if (isMaster) {
+      filteredItems.push(
+        { id: 'settings', label: 'Hak Akses', desc: 'Atur perizinan per modul untuk Admin & Leader.', icon: Settings, color: '#9B59B6' },
+        { id: 'hakuser', label: 'Hak User', desc: 'Kelola username & password login akun web/mobile.', icon: Key, color: '#F1C40F' }
+      );
+    }
+
+    return (
+      <div style={{ padding: '30px', maxWidth: '1400px', margin: '0 auto' }}>
+        {/* Welcome Section */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(57,62,70,0.6) 0%, rgba(34,40,49,0.8) 100%)',
+          borderRadius: '20px',
+          border: '1.5px solid rgba(0,173,181,0.2)',
+          padding: '30px 40px',
+          marginBottom: '35px',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          {/* Decorative Glow */}
+          <div style={{
+            position: 'absolute', top: '-100px', right: '-100px',
+            width: '300px', height: '300px', borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(0,173,181,0.15) 0%, transparent 70%)',
+            pointerEvents: 'none'
+          }} />
+          
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <span>Selamat Datang Kembali, {user?.fullName}!</span>
+            <span style={{ fontSize: '0.9rem', background: 'rgba(0,173,181,0.15)', color: '#00ADB5', padding: '4px 12px', borderRadius: '30px', border: '1px solid rgba(0,173,181,0.3)', fontWeight: 700 }}>
+              {user?.position || 'Pengguna'}
+            </span>
+          </h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: 0, lineHeight: 1.6 }}>
+            Silakan pilih modul di bawah untuk mengelola sistem HRIS Barokah Grup secara terpusat.
+          </p>
+        </div>
+
+        {/* Grid Menu Cards */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gap: '24px',
+          marginBottom: '40px'
+        }}>
+          {filteredItems.map(item => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.id}
+                onClick={() => {
+                  if (navigator.vibrate) navigator.vibrate(30);
+                  setActiveTab(item.id);
+                }}
+                className="menu-card-item animate-fade-in"
+                style={{
+                  background: 'rgba(57,62,70,0.3)',
+                  border: '1.5px solid rgba(255,255,255,0.06)',
+                  borderRadius: '20px',
+                  padding: '24px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  backdropFilter: 'blur(5px)',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-6px)';
+                  e.currentTarget.style.border = `1.5px solid ${item.color}50`;
+                  e.currentTarget.style.boxShadow = `0 12px 30px ${item.color}15`;
+                  const iconBox = e.currentTarget.querySelector('.menu-icon-box');
+                  if (iconBox) {
+                    iconBox.style.background = item.color;
+                    iconBox.style.color = '#222831';
+                    iconBox.style.boxShadow = `0 0 15px ${item.color}80`;
+                  }
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.border = '1.5px solid rgba(255,255,255,0.06)';
+                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.08)';
+                  const iconBox = e.currentTarget.querySelector('.menu-icon-box');
+                  if (iconBox) {
+                    iconBox.style.background = 'rgba(255,255,255,0.04)';
+                    iconBox.style.color = item.color;
+                    iconBox.style.boxShadow = 'none';
+                  }
+                }}
+              >
+                {/* Header Card */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    className="menu-icon-box"
+                    style={{
+                      width: '46px', height: '46px', borderRadius: '12px',
+                      background: 'rgba(255,255,255,0.04)',
+                      color: item.color,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <Icon size={22} />
+                  </div>
+                  <span style={{
+                    fontSize: '0.75rem', fontWeight: 700,
+                    textTransform: 'uppercase', tracking: '1px',
+                    color: item.color, background: `${item.color}10`,
+                    padding: '3px 10px', borderRadius: '30px'
+                  }}>
+                    Buka →
+                  </span>
+                </div>
+
+                {/* Title & Desc */}
+                <div style={{ marginTop: '4px' }}>
+                  <h3 style={{ color: '#fff', fontSize: '1.05rem', fontWeight: 700, margin: '0 0 6px 0' }}>
+                    {item.label}
+                  </h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0, lineHeight: 1.5 }}>
+                    {item.desc}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Logout Special Card */}
+          <div
+            onClick={handleLogout}
+            className="menu-card-item animate-fade-in"
+            style={{
+              background: 'rgba(224,92,92,0.04)',
+              border: '1.5px solid rgba(224,92,92,0.15)',
+              borderRadius: '20px',
+              padding: '24px',
+              cursor: 'pointer',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              position: 'relative',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              backdropFilter: 'blur(5px)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translateY(-6px)';
+              e.currentTarget.style.background = 'rgba(224,92,92,0.12)';
+              e.currentTarget.style.border = '1.5px solid rgba(224,92,92,0.4)';
+              e.currentTarget.style.boxShadow = '0 12px 30px rgba(224,92,92,0.2)';
+              const iconBox = e.currentTarget.querySelector('.menu-icon-box');
+              if (iconBox) {
+                iconBox.style.background = '#E05C5C';
+                iconBox.style.color = '#222831';
+                iconBox.style.boxShadow = '0 0 15px rgba(224,92,92,0.8)';
+              }
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.background = 'rgba(224,92,92,0.04)';
+              e.currentTarget.style.border = '1.5px solid rgba(224,92,92,0.15)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.08)';
+              const iconBox = e.currentTarget.querySelector('.menu-icon-box');
+              if (iconBox) {
+                iconBox.style.background = 'rgba(255,255,255,0.04)';
+                iconBox.style.color = '#E05C5C';
+                iconBox.style.boxShadow = 'none';
+              }
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                className="menu-icon-box"
+                style={{
+                  width: '46px', height: '46px', borderRadius: '12px',
+                  background: 'rgba(255,255,255,0.04)',
+                  color: '#E05C5C',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                <LogOut size={22} />
+              </div>
+              <span style={{
+                fontSize: '0.75rem', fontWeight: 700,
+                textTransform: 'uppercase', tracking: '1px',
+                color: '#E05C5C', background: 'rgba(224,92,92,0.1)',
+                padding: '3px 10px', borderRadius: '30px'
+              }}>
+                Keluar
+              </span>
+            </div>
+
+            <div style={{ marginTop: '4px' }}>
+              <h3 style={{ color: '#E05C5C', fontSize: '1.05rem', fontWeight: 700, margin: '0 0 6px 0' }}>
+                Keluar Sesi
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0, lineHeight: 1.5 }}>
+                Keluar dari akun Anda dan hapus data otentikasi sesi aktif.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Tampilan Dasbor Lengkap Terotentikasi
   return (
     <HRISProvider>
       {/* Global Sync Overlay — Marching Ants Animation */}
       <SyncOverlay />
 
-      <div className="app-container">
-        {/* Sidebar Navigasi Kiri */}
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} user={user} userPermissions={userPermissions} />
+      <div style={{ minHeight: '100vh', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
+        {/* Topbar Header */}
+        <Header activeTab={activeTab} user={user} token={token} API_URL={API_URL} setActiveTab={setActiveTab} theme={theme} setTheme={setTheme} />
 
-        {/* Konten Sisi Kanan */}
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', overflowX: 'hidden' }}>
-          {/* Topbar Header */}
-          <Header activeTab={activeTab} user={user} token={token} API_URL={API_URL} setActiveTab={setActiveTab} theme={theme} setTheme={setTheme} />
+        {/* Sticky Back Button & Breadcrumbs (only if activeTab is not 'menu') */}
+        {activeTab !== 'menu' && (
+          <div style={{
+            background: 'rgba(57,62,70,0.5)',
+            borderBottom: '1px solid rgba(0,173,181,0.15)',
+            padding: '12px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            backdropFilter: 'blur(10px)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 100
+          }}>
+            <button
+              onClick={() => {
+                if (navigator.vibrate) navigator.vibrate(30);
+                setActiveTab('menu');
+              }}
+              style={{
+                background: 'rgba(0,173,181,0.12)',
+                border: '1px solid rgba(0,173,181,0.3)',
+                borderRadius: '10px',
+                padding: '8px 16px',
+                color: '#00ADB5',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 0 10px rgba(0,173,181,0.1)'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#00ADB5';
+                e.currentTarget.style.color = '#222831';
+                e.currentTarget.style.boxShadow = '0 0 16px rgba(0,173,181,0.3)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(0,173,181,0.12)';
+                e.currentTarget.style.color = '#00ADB5';
+                e.currentTarget.style.boxShadow = '0 0 10px rgba(0,173,181,0.1)';
+              }}
+            >
+              ← Menu Utama
+            </button>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>/</span>
+            <span style={{ color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 600 }}>
+              {titles[activeTab] || capitalEachWord(activeTab)}
+            </span>
+          </div>
+        )}
 
-          {/* Konten Halaman Aktif */}
-          <main className="main-content">
-            {renderTabContent()}
-          </main>
-        </div>
+        {/* Konten Halaman Aktif */}
+        <main style={{ flex: 1, padding: '24px', overflowX: 'hidden' }}>
+          {activeTab === 'menu' ? renderMenuAwal() : renderTabContent()}
+        </main>
       </div>
     </HRISProvider>
   );
