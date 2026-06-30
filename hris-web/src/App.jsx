@@ -82,6 +82,17 @@ const validateLocalLogin = (inputEmail, password) => {
     };
   }
 
+  // Support master local fallback login
+  if (inputEmail === 'master' && password === '1234') {
+    return {
+      id: 999,
+      email: 'master',
+      role: 'owner',
+      fullName: 'Master Owner',
+      position: 'Owner'
+    };
+  }
+
   const localEmployees = JSON.parse(localStorage.getItem('hris_employees') || '[]');
   let foundEmp = null;
 
@@ -615,7 +626,14 @@ export default function App() {
 
   const renderMenuAwal = () => {
     const currentUserRole = getRoleFromPosition(user?.position, user?.role);
-    const isMaster = (currentUserRole === 'master' || currentUserRole === 'owner' || user?.role === 'owner' || user?.role === 'master');
+    const isMaster = (
+      user?.email === 'master' ||
+      String(user?.email || '').toLowerCase().includes('master') ||
+      String(user?.role || '').toLowerCase().includes('owner') ||
+      String(user?.role || '').toLowerCase().includes('master') ||
+      currentUserRole === 'master' ||
+      currentUserRole === 'owner'
+    );
 
     const allMenuItems = [
       { id: 'dashboard', label: 'Dashboard Utama', desc: 'Dasbor analitik, performa, dan statistik HRIS.', icon: LayoutDashboard, color: '#00ADB5' },
