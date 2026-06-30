@@ -56,9 +56,21 @@ export default function PenilaianKPI({ token, API_URL }) {
   
   // Form State Tab 1
   const [judulSurvei, setJudulSurvei] = useState('');
+  const [bulanTerkait, setBulanTerkait] = useState(6);
+  const [tahunTerkait, setTahunTerkait] = useState(2026);
   const [tipePaket, setTipePaket] = useState('staf'); // 'staf' | 'leader'
   const [targetOutlet, setTargetOutlet] = useState('Semua Outlet');
   const [tanggalKirim, setTanggalKirim] = useState(new Date().toISOString().slice(0, 10));
+
+  useEffect(() => {
+    const bulanRomawi = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+    const romawi = bulanRomawi[Number(bulanTerkait) - 1] || 'I';
+    const tipeCode = tipePaket === 'staf' ? 'STF' : 'LDR';
+    const outletCode = String(targetOutlet || 'ALL').toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 8);
+    const dateFormatted = tanggalKirim ? tanggalKirim.replace(/-/g, '') : '';
+    
+    setJudulSurvei(`360/SRV/${romawi}/${tahunTerkait}/${tipeCode}/${outletCode}/${dateFormatted}`);
+  }, [bulanTerkait, tahunTerkait, tipePaket, targetOutlet, tanggalKirim]);
 
   // Animasi & Konfirmasi Modal States
   const [showConfirm1, setShowConfirm1] = useState(false);
@@ -1087,9 +1099,28 @@ export default function PenilaianKPI({ token, API_URL }) {
               🚀 Kirim Instrumen Survei Baru
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>BULAN TERKAIT</label>
+                  <select className="form-select" value={bulanTerkait} onChange={e => setBulanTerkait(Number(e.target.value))}>
+                    {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m, idx) => (
+                      <option key={idx + 1} value={idx + 1}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>TAHUN TERKAIT</label>
+                  <select className="form-select" value={tahunTerkait} onChange={e => setTahunTerkait(Number(e.target.value))}>
+                    {[2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>JUDUL SURVEI</label>
-                <input type="text" className="form-input" placeholder="Misal: Evaluasi Pelayanan Q2 Staf" value={judulSurvei} onChange={e => setJudulSurvei(e.target.value)} />
+                <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>NOMOR SURVEI 360 (OTOMATIS)</label>
+                <input type="text" className="form-input" value={judulSurvei} readOnly style={{ background: 'var(--bg-main)', opacity: 0.8, color: C.cyan, fontWeight: 'bold' }} />
               </div>
               
               <div>
