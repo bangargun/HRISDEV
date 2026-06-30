@@ -1430,14 +1430,22 @@ export default function KuisKompetensi() {
   const [quizBank, setQuizBank] = useState(() => {
     const main = lsGet('quiz_bank', []);
     const gen  = lsGet('quiz_bank_generated', []);
-    if (gen.length === 0) return main;
-    const merged = [...main, ...gen];
+    const mainArr = Array.isArray(main) ? main : [];
+    const genArr = Array.isArray(gen) ? gen : [];
+    if (genArr.length === 0) return mainArr;
+    const merged = [...mainArr, ...genArr];
     try { localStorage.setItem('quiz_bank', JSON.stringify(merged)); } catch {}
     try { localStorage.removeItem('quiz_bank_generated'); } catch {}
     return merged;
   });
-  const [quizResults, setQuizResults] = useState(() => lsGet('quiz_results', []));
-  const [notifications, setNotifications] = useState(() => lsGet('hris_notifications', []));
+  const [quizResults, setQuizResults] = useState(() => {
+    const r = lsGet('quiz_results', []);
+    return Array.isArray(r) ? r : [];
+  });
+  const [notifications, setNotifications] = useState(() => {
+    const n = lsGet('hris_notifications', []);
+    return Array.isArray(n) ? n : [];
+  });
 
 
   // ── Pagination
@@ -1548,13 +1556,14 @@ export default function KuisKompetensi() {
       if (e.detail?.key === 'quiz_bank') setQuizBank(lsGet('quiz_bank', []));
       if (e.detail?.key === 'hris_training_materials') setTrainingMaterials(lsGet('hris_training_materials', []));
       if (e.detail?.key === 'quiz_bank_generated') {
-        // Merge generated quizzes into main bank
         const gen = lsGet('quiz_bank_generated', []);
-        if (gen.length > 0) {
+        const genArr = Array.isArray(gen) ? gen : [];
+        if (genArr.length > 0) {
           setQuizBank(prev => {
-            const existingIds = new Set(prev.map(q => q.id));
-            const newOnes = gen.filter(q => !existingIds.has(q.id));
-            const merged = [...prev, ...newOnes];
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const existingIds = new Set(prevArr.map(q => q.id));
+            const newOnes = genArr.filter(q => !existingIds.has(q.id));
+            const merged = [...prevArr, ...newOnes];
             try { localStorage.setItem('quiz_bank', JSON.stringify(merged)); } catch {}
             try { localStorage.removeItem('quiz_bank_generated'); } catch {}
             return merged;
@@ -1755,9 +1764,13 @@ export default function KuisKompetensi() {
   // ── Data Gabungan Tab Hasil
   const getHasilRows = () => {
     const rows = [];
-    notifications.forEach(notif => {
-      const quiz = quizBank.find(q => q.id === notif.quiz_id);
-      const result = quizResults.find(r => r.quiz_id === notif.quiz_id && r.employee_id === notif.employee_id);
+    const notifs = Array.isArray(notifications) ? notifications : [];
+    const bank = Array.isArray(quizBank) ? quizBank : [];
+    const results = Array.isArray(quizResults) ? quizResults : [];
+    
+    notifs.forEach(notif => {
+      const quiz = bank.find(q => q.id === notif.quiz_id);
+      const result = results.find(r => r.quiz_id === notif.quiz_id && r.employee_id === notif.employee_id);
       if (!quiz) return;
 
       // Filter outlet
@@ -1777,7 +1790,11 @@ export default function KuisKompetensi() {
         sent_at: notif.sent_at,
       });
     });
-    return rows.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+    return rows.sort((a, b) => {
+      const timeA = a.sent_at ? new Date(a.sent_at).getTime() : 0;
+      const timeB = b.sent_at ? new Date(b.sent_at).getTime() : 0;
+      return timeB - timeA;
+    });
   };
 
 
@@ -1813,12 +1830,12 @@ export default function KuisKompetensi() {
   };
 
   // ── Stats
-  const totalKuis = quizBank.length;
-  const totalTerkirim = quizBank.filter(q => q.status === 'terkirim').length;
-  const totalHasil = quizResults.length;
-  const totalLulus = quizResults.filter(r => r.skor > 80).length;
+  const totalKuis = Array.isArray(quizBank) ? quizBank.length : 0;
+  const totalTerkirim = (Array.isArray(quizBank) ? quizBank : []).filter(q => q.status === 'terkirim').length;
+  const totalHasil = Array.isArray(quizResults) ? quizResults.length : 0;
+  const totalLulus = (Array.isArray(quizResults) ? quizResults : []).filter(r => r.skor > 80).length;
   const hasilRows = getHasilRows();
-  const totalBelumBaca = notifications.filter(n => n.status === 'unread').length;
+  const totalBelumBaca = (Array.isArray(notifications) ? notifications : []).filter(n => n.status === 'unread').length;
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
