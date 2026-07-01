@@ -341,9 +341,11 @@ export async function getAttendanceHistory(req, res) {
 
   try {
     let sql = `
-      SELECT a.id, a.date, a.clock_in, a.clock_out, a.status_in, a.notes, e.full_name, e.nik, e.department, e.outlet, a.jam_mulai_istirahat, a.jam_akhir_istirahat, a.ikut_briefing
+      SELECT a.id, a.date, a.clock_in, a.clock_out, a.status_in, a.notes, e.full_name, e.nik, e.department, e.outlet, a.jam_mulai_istirahat, a.jam_akhir_istirahat, a.ikut_briefing,
+             bs.jam_mulai AS jadwal_mulai_istirahat, bs.jam_selesai AS jadwal_selesai_istirahat
       FROM attendances a
       JOIN employees e ON a.employee_id = e.id
+      LEFT JOIN break_schedules bs ON a.employee_id = bs.employee_id AND a.date = bs.date
     `;
     const params = [];
 

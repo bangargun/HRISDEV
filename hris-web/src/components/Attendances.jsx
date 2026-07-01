@@ -1131,7 +1131,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
 
           {/* Filter Bar */}
           <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'center',
-            background:'var(--bg-card)', border:'1px solid var(--border-color)', borderRadius:'12px', padding:'12px 16px' }}>
+            background:'var(--bg-card)', border:'1px solid var(--border-color)', borderRadius:'12px', padding:'12px 16px', marginBottom:'16px' }}>
             <Filter size={15} color='var(--text-muted)'/>
             <select value={attFilterOutlet} onChange={e=>setAttFilterOutlet(e.target.value)}
               style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
@@ -1139,19 +1139,13 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
               <option value=''>Semua Outlet</option>
               {availableOutlets.map(o=><option key={o} value={o}>{o}</option>)}
             </select>
-            <input type='date' value={attFilterDate} onChange={e=>setAttFilterDate(e.target.value)}
-              style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
-                background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px' }}/>
-            <select value={attFilterMonth} onChange={e=>setAttFilterMonth(Number(e.target.value))}
-              style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
-                background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px' }}>
-              {BULAN.map((b,i)=><option key={i+1} value={i+1}>{b}</option>)}
-            </select>
-            <select value={attFilterYear} onChange={e=>setAttFilterYear(Number(e.target.value))}
-              style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
-                background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px' }}>
-              {Array.from({length:20},(_,i)=>2020+i).map(y=><option key={y} value={y}>{y}</option>)}
-            </select>
+            <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+              <span style={{ fontSize:'0.78rem', color:'var(--text-muted)', fontWeight:600 }}>📅 Kalender:</span>
+              <input type='date' value={attFilterDate} onChange={e=>setAttFilterDate(e.target.value)}
+                min="2020-01-01" max="2040-12-31"
+                style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
+                  background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px' }}/>
+            </div>
             <select value={attFilterStatus} onChange={e=>setAttFilterStatus(e.target.value)}
               style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
                 background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px', minWidth:'160px' }}>
@@ -1172,16 +1166,20 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                 doc.setFontSize(14); doc.text('Laporan Kehadiran Karyawan', 14, 15);
                 const filtered = realtimeLogs.filter(l => {
                   if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
+                  if (attFilterDate && (l.tanggal||l.date||'') !== attFilterDate) return false;
+                  if (attFilterStatus) { const s = getAttendanceStatus(l); if (!s.toLowerCase().includes(attFilterStatus.toLowerCase())) return false; }
                   return true;
                 });
                 autoTable(doc, {
                   startY: 22, styles:{fontSize:7.5},
-                  head: [['No','Nama','Outlet','Tanggal','Jam Masuk','Jam Keluar','Status Kehadiran','Durasi Kerja','Terlambat (menit)','Ikut Briefing','Status Kirim']],
+                  head: [['Tanggal, Bulan & Tahun','Nama','Outlet','Jam Masuk','Jam Keluar','Jam Istirahat','Status Kehadiran','Durasi Kerja','Durasi Istirahat','Terlambat (menit)','Ikut Briefing','Status Kirim']],
                   body: filtered.map((l,i) => [
-                    i+1, l.full_name||l.nama_karyawan||'-', l.outlet||'-',
-                    l.tanggal||l.date||'-', l.jam_masuk||l.clock_in||'-', l.jam_keluar||l.clock_out||'-',
+                    formatDate(l.tanggal||l.date), l.full_name||l.nama_karyawan||'-', l.outlet||'-',
+                    l.jam_masuk||l.clock_in||'-', l.jam_keluar||l.clock_out||'-',
+                    (l.jam_mulai_istirahat && l.jam_akhir_istirahat) ? `${l.jam_mulai_istirahat} - ${l.jam_akhir_istirahat}` : (l.jadwal_mulai_istirahat && l.jadwal_selesai_istirahat) ? `${l.jadwal_mulai_istirahat} - ${l.jadwal_selesai_istirahat} (Jadwal)` : '-',
                     getAttendanceStatus(l),
                     calculateWorkDuration(l.jam_masuk||l.clock_in, l.jam_keluar||l.clock_out, l.jam_mulai_istirahat, l.jam_akhir_istirahat),
+                    getBreakDurationStr(l),
                     getMenitTerlambat(l) > 0 ? getMenitTerlambat(l) : '-',
                     l.ikut_briefing || 'Tidak',
                     l.sent_status === 'sent' ? 'Terkirim' : 'Belum'
@@ -1197,7 +1195,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.8rem' }}>
                 <thead>
                   <tr style={{ background:'var(--bg-main)' }}>
-                    {['No','Nama Karyawan','Outlet','Tanggal','Jam Masuk','Jam Keluar','Status Kehadiran','Durasi Kerja','Durasi Istirahat','Terlambat','Ikut Briefing?','Status Kirim','Aksi']
+                    {['Tanggal, Bulan & Tahun','Nama Karyawan','Outlet','Jam Masuk','Jam Keluar','Jam Istirahat','Status Kehadiran','Durasi Kerja','Durasi Istirahat','Terlambat','Ikut Briefing?','Status Kirim','Aksi']
                       .map(h => <th key={h} style={{ padding:'10px 12px', textAlign:'left', fontWeight:700, fontSize:'0.73rem', textTransform:'uppercase', color:'var(--text-muted)', whiteSpace:'nowrap' }}>{h}</th>)}
                   </tr>
                 </thead>
@@ -1207,11 +1205,6 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                       if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
                       if (attFilterDate && (l.tanggal||l.date||'') !== attFilterDate) return false;
                       if (attFilterStatus) { const s = getAttendanceStatus(l); if (!s.toLowerCase().includes(attFilterStatus.toLowerCase())) return false; }
-                      const d = new Date(l.tanggal||l.date||l.created_at||'');
-                      if (!isNaN(d.getTime())) {
-                        if (attFilterMonth && d.getMonth()+1 !== attFilterMonth) return false;
-                        if (attFilterYear && d.getFullYear() !== attFilterYear) return false;
-                      }
                       return true;
                     })
                     .map((log, idx) => {
@@ -1220,12 +1213,14 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                       const statusColor = status.includes('Tepat') ? '#10b981' : status.includes('Terlambat') ? '#f59e0b' : status.includes('Setengah') ? '#a78bfa' : '#ef4444';
                       return (
                         <tr key={log.id||idx} style={{ borderTop:'1px solid var(--border-color)', background: idx%2===0?'transparent':'rgba(59,130,246,0.02)' }}>
-                          <td style={{ padding:'10px 12px' }}>{idx+1}</td>
+                          <td style={{ padding:'10px 12px', fontWeight:600 }}>{formatDate(log.tanggal||log.date)}</td>
                           <td style={{ padding:'10px 12px', fontWeight:600 }}>{log.full_name||log.nama_karyawan||'-'}</td>
                           <td style={{ padding:'10px 12px' }}>{log.outlet||'-'}</td>
-                          <td style={{ padding:'10px 12px' }}>{formatDate(log.tanggal||log.date)}</td>
                           <td style={{ padding:'10px 12px' }}>{log.jam_masuk||log.clock_in||'-'}</td>
                           <td style={{ padding:'10px 12px' }}>{log.jam_keluar||log.clock_out||'-'}</td>
+                          <td style={{ padding:'10px 12px' }}>
+                            {(log.jam_mulai_istirahat && log.jam_akhir_istirahat) ? `${log.jam_mulai_istirahat} - ${log.jam_akhir_istirahat}` : (log.jadwal_mulai_istirahat && log.jadwal_selesai_istirahat) ? `${log.jadwal_mulai_istirahat} - ${log.jadwal_selesai_istirahat} (Jadwal)` : '-'}
+                          </td>
                           <td style={{ padding:'10px 12px' }}>
                             <span style={{ padding:'3px 8px', borderRadius:'20px', fontSize:'0.72rem', fontWeight:700, background:`${statusColor}18`, color:statusColor, border:`1px solid ${statusColor}40` }}>{status}</span>
                           </td>
@@ -1270,6 +1265,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
               </table>
               {realtimeLogs.filter(l => {
                 if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
+                if (attFilterDate && (l.tanggal||l.date||'') !== attFilterDate) return false;
                 return true;
               }).length === 0 && (
                 <div style={{ textAlign:'center', padding:'40px', color:'var(--text-muted)', fontSize:'0.88rem' }}>📋 Belum ada data kehadiran.</div>
