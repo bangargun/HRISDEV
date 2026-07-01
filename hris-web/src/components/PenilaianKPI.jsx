@@ -9,6 +9,12 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PDFCompileOverlay from './PDFCompileOverlay';
 
+// Import subcomponents modular
+import KpiTargetDistribution from './kpi/KpiTargetDistribution';
+import Kpi360EvaluationSummary from './kpi/Kpi360EvaluationSummary';
+import KpiAccumulativeScores from './kpi/KpiAccumulativeScores';
+import KpiLeaderboard from './kpi/KpiLeaderboard';
+
 
 // ─── Palet Warna Resmi (Menggunakan Light Theme Variables) ───────────────────
 const C = {
@@ -1227,549 +1233,85 @@ export default function PenilaianKPI({ token, API_URL }) {
           TAB 1: FORM & KELOLA SURVEI 360 (COMMAND CENTER SURVEI)
           ======================================================================= */}
       {activeTab === 'survei-form' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.9fr', gap: '24px', alignItems: 'start' }}>
-          
-          {/* FORM KIRIM SURVEI */}
-          <div style={{ background: C.surface, borderRadius: '14px', border: `1.5px solid ${C.cyanBorder}`, padding: '24px', boxShadow: '0 4px 30px rgba(0,0,0,0.15)' }}>
-            <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '18px', color: C.cyan, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              🚀 Kirim Instrumen Survei Baru
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>BULAN TERKAIT</label>
-                  <select className="form-select" value={bulanTerkait} onChange={e => setBulanTerkait(Number(e.target.value))}>
-                    {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m, idx) => (
-                      <option key={idx + 1} value={idx + 1}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>TAHUN TERKAIT</label>
-                  <select className="form-select" value={tahunTerkait} onChange={e => setTahunTerkait(Number(e.target.value))}>
-                    {[2025, 2026, 2027, 2028, 2029, 2030].map(y => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>NOMOR SURVEI 360 (OTOMATIS)</label>
-                <input type="text" className="form-input" value={judulSurvei} readOnly style={{ background: 'var(--bg-main)', opacity: 0.8, color: C.cyan, fontWeight: 'bold' }} />
-              </div>
-              
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>TIPE PAKET SOAL</label>
-                <select className="form-select" value={tipePaket} onChange={e => setTipePaket(e.target.value)}>
-                  <option value="staf">👥 Paket Soal Karyawan (Staff Peer-to-Peer)</option>
-                  <option value="leader">👑 Paket Soal Leader (Feedback Lintas Jabatan)</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>TARGET OUTLET DISTRIBUSI</label>
-                <select className="form-select" value={targetOutlet} onChange={e => setTargetOutlet(e.target.value)}>
-                  {outletsList.map(o => (
-                    <option key={o} value={o}>{o}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: C.muted, fontWeight: 700, marginBottom: '6px' }}>TANGGAL PENGIRIMAN</label>
-                <input type="date" className="form-input" value={tanggalKirim} onChange={e => setTanggalKirim(e.target.value)} />
-              </div>
-
-              <div style={{ marginTop: '10px', background: 'rgba(0,173,181,0.06)', borderRadius: '10px', border: `1px dashed ${C.cyanBorder}`, padding: '12px' }}>
-                <span style={{ fontSize: '0.72rem', color: C.cyan, fontWeight: 700, display: 'block', marginBottom: '4px' }}>ℹ️ MATRIKS LOGIKA TARGET JABATAN:</span>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: C.muted, lineHeight: '1.4' }}>
-                  {tipePaket === 'staf' 
-                    ? '• Karyawan biasa di outlet target akan otomatis saling menilai satu sama lain (Peer-to-Peer).' 
-                    : '• Kepala Cabang dinilai oleh seluruh kru outlet.\n• Kepala Produksi dinilai Koki, Helper, Bartender.\n• Kepala Layanan dinilai Kasir & Waiters.'}
-                </p>
-              </div>
-
-              <button className="action-btn btn-cyan" style={{ justifyContent: 'center', width: '100%', padding: '12px', marginTop: '10px' }} onClick={handleKirimSurvei} disabled={!judulSurvei.trim()}>
-                🚀 Kirim & Siarkan Survei ke HP Target ({getTargetEmployeesForSurvey(tipePaket, targetOutlet).length} Orang)
-              </button>
-            </div>
-          </div>
-
-          {/* TRACKER STATUS PENGIRIMAN */}
-          <div style={{ background: C.surface, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '24px' }}>
-            <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              📋 Tracker Status Pengiriman Survei
-            </h2>
-            {surveys.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px', border: `1px dashed ${C.border}`, borderRadius: '10px' }}>
-                <Clipboard size={40} color={C.muted} style={{ marginBottom: '12px' }} />
-                <p style={{ color: C.muted, margin: 0, fontSize: '0.84rem' }}>Belum ada survei yang didistribusikan. Kirim survei baru di sebelah kiri.</p>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="kpi-table">
-                  <thead>
-                    <tr>
-                      <th>TANGGAL KIRIM</th>
-                      <th>JUDUL SURVEI</th>
-                      <th>TIPE PAKET</th>
-                      <th>TARGET OUTLET</th>
-                      <th>KETERANGAN PENERIMA</th>
-                      <th style={{ textAlign: 'center' }}>AKSI</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {surveys.map(s => (
-                      <tr key={s.id}>
-                        <td style={{ fontWeight: 600 }}>{s.tanggal_kirim}</td>
-                        <td style={{ color: C.cyan, fontWeight: 700 }}>{s.judul}</td>
-                        <td>
-                          <span style={{ padding: '3px 8px', borderRadius: '4px', background: s.tipe_paket === 'leader' ? 'rgba(245,166,35,0.15)' : 'rgba(78,205,196,0.15)', color: s.tipe_paket === 'leader' ? C.warn : C.success, fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase' }}>
-                            {s.tipe_paket === 'leader' ? '👑 Leader' : '👥 Staf'}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: 600 }}>{s.outlet}</td>
-                        <td style={{ fontWeight: 700, color: C.success }}>
-                          🟢 {s.penerima_count} Karyawan Telah Menerima
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button className="action-btn btn-danger-dim" style={{ padding: '6px 10px', margin: '0 auto' }} onClick={() => handleHapusSurvei(s.id)}>
-                            <Trash2 size={13} /> Hapus
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
+        <KpiTargetDistribution
+          C={C}
+          bulanTerkait={bulanTerkait}
+          setBulanTerkait={setBulanTerkait}
+          tahunTerkait={tahunTerkait}
+          setTahunTerkait={setTahunTerkait}
+          judulSurvei={judulSurvei}
+          tipePaket={tipePaket}
+          setTipePaket={setTipePaket}
+          targetOutlet={targetOutlet}
+          setTargetOutlet={setTargetOutlet}
+          outletsList={outletsList}
+          tanggalKirim={tanggalKirim}
+          setTanggalKirim={setTanggalKirim}
+          handleKirimSurvei={handleKirimSurvei}
+          getTargetEmployeesForSurvey={getTargetEmployeesForSurvey}
+          surveys={surveys}
+          handleHapusSurvei={handleHapusSurvei}
+        />
       )}
 
       {/* =======================================================================
           TAB 2: HASIL EVALUASI SURVEI 360 (DATA REVENUE STORAGE)
           ======================================================================= */}
       {activeTab === 'hasil-survei' && (
-        <div>
-          {/* HEADER FILTER REAKTIF */}
-          <div style={{ display: 'flex', gap: '16px', background: C.surface, padding: '20px', borderRadius: '12px', border: `1px solid ${C.border}`, marginBottom: '24px', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: C.cyan, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-              ⚡ Filter Reaktif:
-            </span>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr', gap: '12px', flex: 1 }}>
-              <select className="form-select" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
-                {monthsList.map(m => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
-              <select className="form-select" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
-                {yearsList.map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-              <select className="form-select" value={filterOutlet} onChange={e => setFilterOutlet(e.target.value)}>
-                {outletsList.map(o => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* TABEL HASIL EVALUASI */}
-          <div style={{ background: C.surface, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
-                📊 Akumulasi Skor Evaluasi 360°
-              </h2>
-              <span style={{ fontSize: '0.8rem', color: C.muted }}>
-                Bulan: <strong>{monthsList.find(m=>m.value === Number(filterMonth))?.label} {filterYear}</strong> • Outlet: <strong>{filterOutlet}</strong>
-              </span>
-            </div>
-
-            {hasil360Rows.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px' }}>
-                <ShieldAlert size={40} color={C.muted} style={{ marginBottom: '12px' }} />
-                <p style={{ color: C.muted, margin: 0, fontSize: '0.84rem' }}>Tidak ditemukan data penilaian 360° pada periode dan outlet ini.</p>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="kpi-table">
-                  <thead>
-                    <tr>
-                      <th>NAMA KARYAWAN & OUTLET</th>
-                      <th>JABATAN</th>
-                      <th style={{ textAlign: 'center' }}>RATAAN SKOR KARYAWAN (PEER)</th>
-                      <th style={{ textAlign: 'center' }}>RATAAN SKOR LEADER</th>
-                      <th style={{ textAlign: 'center' }}>TOTAL RESPONDEN MENILAI</th>
-                      <th style={{ textAlign: 'center', color: C.cyan }}>NILAI KONVERSI AKHIR (100)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {hasil360Rows.map(row => (
-                      <tr key={row.employee_id}>
-                        <td>
-                          <div style={{ fontWeight: 700, color: C.text }}>{row.name}</div>
-                          <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '2px' }}>📍 {row.outlet}</div>
-                        </td>
-                        <td style={{ textTransform: 'capitalize', fontWeight: 600 }}>{row.position}</td>
-                        <td style={{ textAlign: 'center', fontWeight: 700, color: row.avgStaf ? C.success : C.muted }}>
-                          {row.avgStaf !== null ? `${row.avgStaf} Poin` : '—'}
-                        </td>
-                        <td style={{ textAlign: 'center', fontWeight: 700, color: row.avgLeader ? C.warn : C.muted }}>
-                          {row.avgLeader !== null ? `${row.avgLeader} Poin` : '—'}
-                        </td>
-                        <td style={{ textAlign: 'center', fontWeight: 700 }}>
-                          👥 {row.totalResponders} Responden
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span style={{ padding: '6px 12px', borderRadius: '20px', background: `${C.cyan}18`, border: `1.5px solid ${C.cyanBorder}`, color: C.cyan, fontWeight: 800, fontSize: '0.9rem' }}>
-                            {row.finalScore} / 100
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
+        <Kpi360EvaluationSummary
+          C={C}
+          filterMonth={filterMonth}
+          setFilterMonth={setFilterMonth}
+          monthsList={monthsList}
+          filterYear={filterYear}
+          setFilterYear={setFilterYear}
+          yearsList={yearsList}
+          filterOutlet={filterOutlet}
+          setFilterOutlet={setFilterOutlet}
+          outletsList={outletsList}
+          hasil360Rows={hasil360Rows}
+        />
       )}
 
       {/* =======================================================================
           TAB 3: REKAPAN KPI AKUMULATIF GLOBAL (THE BRAIN ENGINE)
           ======================================================================= */}
       {activeTab === 'kpi-akumulatif' && (
-        <div>
-          {/* HEADER FILTER REAKTIF */}
-          <div style={{ display: 'flex', gap: '16px', background: C.surface, padding: '20px', borderRadius: '12px', border: `1px solid ${C.border}`, marginBottom: '24px', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: C.cyan, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-              🧠 Filter Brain Engine:
-            </span>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr', gap: '12px', flex: 1 }}>
-              <select className="form-select" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
-                {monthsList.map(m => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
-              <select className="form-select" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
-                {yearsList.map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-              <select className="form-select" value={filterOutlet} onChange={e => setFilterOutlet(e.target.value)}>
-                {outletsList.map(o => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* TABLE REKAPAN GLOBAL */}
-          <div style={{ background: C.surface, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div>
-                <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
-                  🧠 Lembar Rekapitulasi KPI Lintas Modul
-                </h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: C.muted }}>
-                  Berdasarkan formula: <strong>Absensi (25%) + Keterlambatan (25%) + Survei 360 (30%) + Training (10%) + Kuis (10%)</strong>
-                </p>
-              </div>
-              <span style={{ fontSize: '0.75rem', padding: '6px 12px', borderRadius: '6px', background: C.dangerDim, color: C.danger, border: `1px solid ${C.dangerBorder}`, fontWeight: 700 }}>
-                ⚠️ Alarm KPI &lt; 75 Aktif
-              </span>
-            </div>
-
-            {kpiAkumulatifRows.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px' }}>
-                <ShieldAlert size={40} color={C.muted} style={{ marginBottom: '12px' }} />
-                <p style={{ color: C.muted, margin: 0, fontSize: '0.84rem' }}>Tidak ditemukan data karyawan pada filter ini.</p>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="kpi-table">
-                  <thead>
-                    <tr>
-                      <th>NAMA KARYAWAN & OUTLET</th>
-                      <th>JABATAN</th>
-                      <th style={{ textAlign: 'center' }}>ABSENSI (25%*)</th>
-                      <th style={{ textAlign: 'center' }}>DISIPLIN (25%*)</th>
-                      <th style={{ textAlign: 'center' }}>SURVEI 360 (30%)</th>
-                      <th style={{ textAlign: 'center' }}>TRAINING (10%)</th>
-                      <th style={{ textAlign: 'center' }}>KUIS (10%)</th>
-                      <th style={{ textAlign: 'center' }}>BRIEFING (10%*)</th>
-                      <th style={{ textAlign: 'center', color: C.cyan }}>FINAL SCORE KPI</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {kpiAkumulatifRows.map(row => {
-                      const isAlarm = row.finalScore < 75;
-                      return (
-                        <tr key={row.id} style={{ background: isAlarm ? C.dangerDim : 'transparent' }}>
-                          <td>
-                            {isAlarm ? (
-                              <span style={{ background: C.danger, color: '#FFFFFF', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.88rem', display: 'inline-block' }}>
-                                🚨 {row.name}
-                              </span>
-                            ) : (
-                              <div style={{ fontWeight: 700 }}>{row.name}</div>
-                            )}
-                            <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '3px' }}>📍 {row.outlet}</div>
-                          </td>
-                          <td style={{ textTransform: 'capitalize', fontWeight: 600 }}>
-                            {row.position}
-                            {row.isKepalaCabang && (
-                              <button
-                                onClick={() => handleOpenBriefingModal(row.id, row.name)}
-                                style={{
-                                  display: 'block',
-                                  marginTop: '6px',
-                                  padding: '4px 8px',
-                                  fontSize: '0.7rem',
-                                  fontWeight: 700,
-                                  background: 'rgba(59, 130, 246, 0.1)',
-                                  border: '1.5px solid rgba(59, 130, 246, 0.3)',
-                                  borderRadius: '6px',
-                                  color: '#3B82F6',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s'
-                                }}
-                                onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
-                                onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
-                              >
-                                📝 Briefing Log
-                              </button>
-                            )}
-                          </td>
-                          
-                          {/* Absensi */}
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{ fontWeight: 700 }}>{row.attendancePct}%</div>
-                            <div style={{ fontSize: '0.68rem', color: C.muted }}>
-                              +{row.weightedAttendance} Poin
-                              {row.isKepalaCabang && <span style={{ display: 'block', fontSize: '0.6rem', color: C.cyan }}>(Bobot 20%)</span>}
-                            </div>
-                          </td>
-
-                          {/* Disiplin */}
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{ fontWeight: 700 }}>{row.disciplinePct}%</div>
-                            <div style={{ fontSize: '0.68rem', color: C.muted }}>
-                              +{row.weightedDiscipline} Poin
-                              {row.isKepalaCabang && <span style={{ display: 'block', fontSize: '0.6rem', color: C.cyan }}>(Bobot 20%)</span>}
-                            </div>
-                          </td>
-
-                          {/* Survei 360 */}
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{ fontWeight: 700 }}>{row.surveyPct} Poin</div>
-                            <div style={{ fontSize: '0.68rem', color: C.muted }}>+{row.weightedSurvey} Poin</div>
-                          </td>
-
-                          {/* Training */}
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{ fontWeight: 700 }}>{row.trainingPct} Poin</div>
-                            <div style={{ fontSize: '0.68rem', color: C.muted }}>+{row.weightedTraining} Poin</div>
-                          </td>
-
-                          {/* Kuis */}
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{ fontWeight: 700 }}>{row.quizPct} Poin</div>
-                            <div style={{ fontSize: '0.68rem', color: C.muted }}>+{row.weightedQuiz} Poin</div>
-                          </td>
-
-                          {/* Briefing */}
-                          <td style={{ textAlign: 'center' }}>
-                            {row.isKepalaCabang ? (
-                              <>
-                                <div style={{ fontWeight: 700 }}>{row.briefingPct}%</div>
-                                <div style={{ fontSize: '0.68rem', color: C.muted }}>+{row.weightedBriefing} Poin</div>
-                              </>
-                            ) : (
-                              <div style={{ color: C.muted, fontSize: '0.78rem' }}>—</div>
-                            )}
-                          </td>
-
-                          {/* Final Score */}
-                          <td style={{ textAlign: 'center' }}>
-                            <span style={{ 
-                              padding: '6px 14px', 
-                              borderRadius: '20px', 
-                              background: isAlarm ? C.danger : `${C.success}18`, 
-                              border: `1.5px solid ${isAlarm ? C.danger : C.cyan}`, 
-                              color: isAlarm ? '#FFFFFF' : C.success, 
-                              fontWeight: 900, 
-                              fontSize: '0.94rem' 
-                            }}>
-                              {row.finalScore} Poin
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <div style={{ marginTop: '16px', padding: '12px', background: C.bg, borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '0.74rem', color: C.muted, lineHeight: '1.4' }}>
-              💡 <strong>Keterangan Bobot Formula:</strong>
-              <ul style={{ margin: '4px 0 0 0', paddingLeft: '16px' }}>
-                <li><strong>Karyawan / Staf Biasa:</strong> Absensi (25%) + Disiplin (25%) + Survei 360 (30%) + Training (10%) + Kuis (10%)</li>
-                <li><strong>Kepala Cabang:</strong> Absensi (20%) + Disiplin (20%) + Survei 360 (30%) + Training (10%) + Kuis (10%) + Kegiatan Briefing (10%)</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+        <KpiAccumulativeScores
+          C={C}
+          filterMonth={filterMonth}
+          setFilterMonth={setFilterMonth}
+          monthsList={monthsList}
+          filterYear={filterYear}
+          setFilterYear={setFilterYear}
+          yearsList={yearsList}
+          filterOutlet={filterOutlet}
+          setFilterOutlet={setFilterOutlet}
+          outletsList={outletsList}
+          kpiAccumulativeRows={kpiAkumulatifRows}
+          handleOpenBriefingModal={handleOpenBriefingModal}
+        />
       )}
 
       {/* =======================================================================
           TAB 4: RANKING PRESTASI TERTINGGI (LEADERBOARD SYSTEM)
           ======================================================================= */}
       {activeTab === 'leaderboard' && (
-        <div>
-          {/* HEADER MULTI-SELECT OUTLET & PERIOD */}
-          <div style={{ background: C.surface, padding: '24px', borderRadius: '14px', border: `1px solid ${C.border}`, marginBottom: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: C.cyan, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                🏆 Filter Leaderboard (Multi-Select Outlet)
-              </span>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <select className="form-select" style={{ width: '140px', padding: '6px 10px' }} value={lbMonth} onChange={e => setLbMonth(e.target.value)}>
-                  {monthsList.map(m => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
-                <select className="form-select" style={{ width: '100px', padding: '6px 10px' }} value={lbYear} onChange={e => setLbYear(e.target.value)}>
-                  {yearsList.map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-              gap: '10px',
-              marginTop: '12px'
-            }}>
-              {outletsList.map(o => {
-                const isSelected = lbSelectedOutlets.includes(o);
-                const displayLabel = o === 'Semua Outlet' 
-                  ? '🌐 Semua Outlet' 
-                  : '📍 ' + o.replace('AYAM PECAK 2001 SEAFOOD ', '').replace('PECEL LELE ', '');
-                return (
-                  <button
-                    key={o}
-                    onClick={() => toggleLbOutlet(o)}
-                    style={{
-                      background: isSelected ? `${C.cyan}18` : C.surface,
-                      border: `1.5px solid ${isSelected ? C.cyan : C.border}`,
-                      color: isSelected ? C.cyan : C.muted,
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      cursor: 'pointer',
-                      fontWeight: 700,
-                      fontSize: '0.78rem',
-                      transition: 'all 0.2s ease',
-                      textAlign: 'left',
-                      whiteSpace: 'nowrap',
-                      textOverflow: 'ellipsis',
-                      overflow: 'hidden'
-                    }}
-                    title={o}
-                  >
-                    {displayLabel}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* LEADERBOARD TABLE dengan Pagination & PDF Download */}
-          <div style={{ background: C.surface, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: C.cyan, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                🏆 Klasemen Performa Karyawan Barokah Grup
-              </h2>
-            </div>
-            
-            {leaderboardRows.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px' }}>
-                <ShieldAlert size={40} color={C.muted} style={{ marginBottom: '12px' }} />
-                <p style={{ color: C.muted, margin: 0, fontSize: '0.84rem' }}>Tidak ditemukan data penilaian performa pada kriteria saringan ini.</p>
-              </div>
-            ) : (() => {
-              const LB_PAGE_SIZE = 10;
-              const totalLbPages = Math.ceil(leaderboardRows.length / LB_PAGE_SIZE);
-              const paginatedRows = leaderboardRows.slice((lbPage - 1) * LB_PAGE_SIZE, lbPage * LB_PAGE_SIZE);
-              const startIndex = (lbPage - 1) * LB_PAGE_SIZE;
-
-              return (
-                <div>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="kpi-table">
-                      <thead>
-                        <tr>
-                          <th style={{ textAlign: 'center', width: '90px' }}>PERINGKAT</th>
-                          <th>NAMA STAF &amp; CABANG</th>
-                          <th>JABATAN</th>
-                          <th style={{ textAlign: 'center' }}>TOTAL POIN AKHIR KPI</th>
-                          <th>REKOMENDASI BONUS INSENTIF</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginatedRows.map((row, idx) => {
-                          const rank = startIndex + idx + 1;
-                          let rankBadge = null;
-                          if (rank === 1) rankBadge = (<span style={{ background: 'linear-gradient(135deg, #FFD700, #FFA500)', color: '#222831', padding: '6px 14px', borderRadius: '20px', fontWeight: 900, fontSize: '0.78rem', boxShadow: '0 0 10px rgba(255,215,0,0.3)' }}>🥇 1st Gold</span>);
-                          else if (rank === 2) rankBadge = (<span style={{ background: 'linear-gradient(135deg, #C0C0C0, #808080)', color: '#222831', padding: '6px 14px', borderRadius: '20px', fontWeight: 900, fontSize: '0.78rem' }}>🥈 2nd Silver</span>);
-                          else if (rank === 3) rankBadge = (<span style={{ background: 'linear-gradient(135deg, #CD7F32, #8B4513)', color: '#FFFFFF', padding: '6px 14px', borderRadius: '20px', fontWeight: 900, fontSize: '0.78rem' }}>🥉 3rd Bronze</span>);
-                          else rankBadge = (<span style={{ fontWeight: 800, color: C.muted }}>#{rank}</span>);
-
-                          return (
-                            <tr key={row.id}>
-                              <td style={{ textAlign: 'center' }}>{rankBadge}</td>
-                              <td>
-                                <div style={{ fontWeight: 700, color: C.text }}>{row.name}</div>
-                                <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '2px' }}>📍 {row.outlet}</div>
-                              </td>
-                              <td style={{ textTransform: 'capitalize', fontWeight: 600 }}>{row.position}</td>
-                              <td style={{ textAlign: 'center' }}>
-                                <span style={{ padding: '6px 12px', borderRadius: '8px', background: `${C.cyan}12`, border: `1px solid ${C.cyanBorder}`, color: C.cyan, fontWeight: 900, fontSize: '0.88rem' }}>
-                                  {row.finalScore} / 100
-                                </span>
-                              </td>
-                              <td style={{ fontWeight: 700, color: row.finalScore >= 75 ? C.success : C.danger }}>
-                                {row.bonusRecommendation}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  {totalLbPages > 1 && (
-                    <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:'8px', marginTop:'16px' }}>
-                      <button onClick={() => setLbPage(p => Math.max(1, p-1))} disabled={lbPage===1}
-                        style={{ background: lbPage===1 ? C.surface : C.cyanDim, border:`1px solid ${lbPage===1 ? C.border : C.cyanBorder}`, color: lbPage===1 ? C.muted : C.cyan, borderRadius:'8px', padding:'6px 14px', cursor: lbPage===1 ? 'not-allowed' : 'pointer', fontWeight:700, fontSize:'0.82rem' }}>
-                        &laquo; Prev
-                      </button>
-                      <span style={{ color: C.muted, fontSize:'0.82rem' }}>{lbPage} / {totalLbPages}</span>
-                      <button onClick={() => setLbPage(p => Math.min(totalLbPages, p+1))} disabled={lbPage===totalLbPages}
-                        style={{ background: lbPage===totalLbPages ? C.surface : C.cyanDim, border:`1px solid ${lbPage===totalLbPages ? C.border : C.cyanBorder}`, color: lbPage===totalLbPages ? C.muted : C.cyan, borderRadius:'8px', padding:'6px 14px', cursor: lbPage===totalLbPages ? 'not-allowed' : 'pointer', fontWeight:700, fontSize:'0.82rem' }}>
-                        Next &raquo;
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
+        <KpiLeaderboard
+          C={C}
+          lbMonth={lbMonth}
+          setLbMonth={setLbMonth}
+          monthsList={monthsList}
+          lbYear={lbYear}
+          setLbYear={setLbYear}
+          yearsList={yearsList}
+          outletsList={outletsList}
+          lbSelectedOutlets={lbSelectedOutlets}
+          toggleLbOutlet={toggleLbOutlet}
+          leaderboardRows={leaderboardRows}
+          lbPage={lbPage}
+          setLbPage={setLbPage}
+        />
       )}
 
       {/* =======================================================================

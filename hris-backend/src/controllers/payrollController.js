@@ -1,7 +1,5 @@
 import { dbQuery } from '../config/db.js';
-
-const LATE_DEDUCTION_AMOUNT = 50000.0; // Potongan terlambat: Rp 50.000 per terlambat
-const DEFAULT_ALLOWANCE = 500000.0; // Tunjangan makan & transport default: Rp 500.000
+import { calculateSalary } from '../utils/payrollCalculator.js';
 
 /**
  * Menghasilkan rekapan payroll bulanan karyawan (Khusus Owner/Admin)
@@ -42,10 +40,8 @@ export async function generatePayroll(req, res) {
         );
         const lateCount = lateData ? lateData.late_count : 0;
 
-        // Hitung potongan keterlambatan
-        const deductions = lateCount * LATE_DEDUCTION_AMOUNT;
-        const allowances = DEFAULT_ALLOWANCE;
-        const netSalary = emp.basic_salary + allowances - deductions;
+        // Hitung tunjangan, potongan, dan gaji bersih menggunakan utility
+        const { allowances, deductions, netSalary } = calculateSalary(emp.basic_salary, lateCount);
 
         // Hapus jika sudah ada data payroll untuk periode tersebut agar tidak terjadi duplikasi (idempotent)
         await dbQuery.run("DELETE FROM payrolls WHERE employee_id = ? AND period = ?", [emp.id, period]);
