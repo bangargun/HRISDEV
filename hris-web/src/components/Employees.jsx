@@ -86,17 +86,31 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
     return 1200000;
   };
 
-  const positionOptions = [
-    'Supervisor',
-    'Admin',
-    'Quality Control',
-    'Kepala Cabang',
-    'Kepala Produksi',
-    'Kepala Layanan',
-    'Koki',
-    'Helper',
-    'Waiters'
-  ];
+  const positionOptions = React.useMemo(() => {
+    try {
+      const raw = localStorage.getItem('organizational_roles');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const list = parsed.map(r => r.jabatan).filter(Boolean);
+          return [...new Set(list)];
+        }
+      }
+    } catch (e) {
+      console.error('[Employees] Error loading roles:', e);
+    }
+    return [
+      'Supervisor',
+      'Admin',
+      'Quality Control',
+      'Kepala Cabang',
+      'Kepala Produksi',
+      'Kepala Layanan',
+      'Koki',
+      'Helper',
+      'Waiters'
+    ];
+  }, [ctxActiveEmployees]);
 
   const getClosestValidPosition = (pos) => {
     if (!pos) return 'helper';

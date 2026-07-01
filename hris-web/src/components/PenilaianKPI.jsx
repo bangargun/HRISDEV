@@ -206,6 +206,136 @@ export default function PenilaianKPI({ token, API_URL }) {
     }
   }, [activeEmployees]);
 
+  // Sync calculated standings to backend standings API
+  useEffect(() => {
+    if (!employees || employees.length === 0) return;
+    
+    const computeAndSyncStandings = async () => {
+      try {
+        const attLogs = JSON.parse(localStorage.getItem('hris_attendances_history') || localStorage.getItem('hris_attendance_history') || localStorage.getItem('attendance_logs') || '[]');
+        const quizResults = JSON.parse(localStorage.getItem('quiz_results') || '[]');
+        const trainingKpiScores = JSON.parse(localStorage.getItem('hris_training_kpi_scores') || localStorage.getItem('hris_training_results') || '[]');
+
+        const standings = employees.map(emp => {
+          // 1. Absensi (25% or 20% for Kepala Cabang)
+          const empAttLogs = attLogs.filter(l => {
+            const d = new Date(l.date || '');
+            const matchesEmp = String(l.employee_id) === String(emp.id) || l.nik === emp.nik;
+            const matchesPeriod = d.getMonth() + 1 === Number(filterMonth) && d.getFullYear() === Number(filterYear);
+            return matchesEmp && matchesPeriod;
+          });
+
+          const outletLogs = attLogs.filter(l => {
+            const d = new Date(l.date || '');
+            return l.outlet === emp.outlet && d.getMonth() + 1 === Number(filterMonth) && d.getFullYear() === Number(filterYear);
+          });
+          const uniqueDates = [...new Set(outletLogs.map(l => l.date))];
+          const totalWorkingDays = uniqueDates.length > 0 ? uniqueDates.length : 25;
+
+          const presentDays = empAttLogs.filter(l => l.clock_in || l.status === 'Hadir' || l.status === 'Terlambat').length;
+          const attendancePct = totalWorkingDays > 0 ? Math.min(100, Math.round((presentDays / totalWorkingDays) * 100)) : 0;
+
+          // 2. Keterlambatan / Disiplin (25% or 20% for Kepala Cabang)
+          const lateDays = empAttLogs.filter(l => l.status_in === 'late' || l.status === 'Terlambat' || (l.notes && /terlambat|late/i.test(l.notes))).length;
+          const disciplinePct = presentDays > 0 ? Math.max(0, Math.round(100 - (lateDays / presentDays) * 100)) : 100;
+
+          // 3. Survei 360 (30%)
+          const empResponses = responses.filter(r => {
+            return String(r.target_id) === String(emp.id) && r.month === Number(filterMonth) && r.year === Number(filterYear);
+          });
+          const surveyPct = empResponses.length > 0
+            ? Math.round(empResponses.reduce((sum, r) => sum + (r.score || 0), 0) / empResponses.length)
+            : 75;
+          const weightedSurvey = parseFloat((surveyPct * 0.30).toFixed(1));
+
+          // 4. Nilai Training (10%)
+          const empTrainingScores = trainingKpiScores.filter(t => {
+            const d = new Date(t.updated_at || t.created_at || t.date || '');
+            const matchesEmp = String(t.employee_id) === String(emp.id);
+            const matchesPeriod = d.getMonth() + 1 === Number(filterMonth) && d.getFullYear() === Number(filterYear);
+            return matchesEmp && matchesPeriod;
+          });
+          const trainingPct = empTrainingScores.length > 0
+            ? Math.round(empTrainingScores.reduce((sum, t) => sum + (t.score || 0), 0) / empTrainingScores.length)
+            : 80;
+          const weightedTraining = parseFloat((trainingPct * 0.10).toFixed(1));
+
+          // 5. Skor Kuis (10%)
+          const empQuizzes = quizResults.filter(q => {
+            const d = new Date(q.tanggal_selesai || q.date || '');
+            const matchesEmp = String(q.employee_id) === String(emp.id);
+            const matchesPeriod = d.getMonth() + 1 === Number(filterMonth) && d.getFullYear() === Number(filterYear);
+            return matchesEmp && matchesPeriod;
+          });
+          const quizPct = empQuizzes.length > 0
+            ? Math.round(empQuizzes.reduce((sum, q) => sum + (q.skor || q.score || 0), 0) / empQuizzes.length)
+            : 80;
+          const weightedQuiz = parseFloat((quizPct * 0.10).toFixed(1));
+
+          // 6. Briefing Log (Khusus Kepala Cabang - 10% Bobot)
+          const isKepalaCabang = String(emp.position || emp.jabatan || '').toLowerCase().trim().includes('kepala cabang');
+          const yesBriefingDays = empAttLogs.filter(l => l.ikut_briefing === 'Ya').length;
+          const briefingPct = presentDays > 0 ? Math.min(100, Math.round((yesBriefingDays / presentDays) * 100)) : 0;
+
+          let weightedAttendance, weightedDiscipline, weightedBriefing, finalScore;
+
+          if (isKepalaCabang) {
+            weightedAttendance = parseFloat((attendancePct * 0.20).toFixed(1));
+            weightedDiscipline = parseFloat((disciplinePct * 0.20).toFixed(1));
+            weightedBriefing = parseFloat((briefingPct * 0.10).toFixed(1));
+            finalScore = parseFloat((weightedAttendance + weightedDiscipline + weightedSurvey + weightedTraining + weightedQuiz + weightedBriefing).toFixed(1));
+          } else {
+            weightedAttendance = parseFloat((attendancePct * 0.25).toFixed(1));
+            weightedDiscipline = parseFloat((disciplinePct * 0.25).toFixed(1));
+            weightedBriefing = 0;
+            finalScore = parseFloat((weightedAttendance + weightedDiscipline + weightedSurvey + weightedTraining + weightedQuiz).toFixed(1));
+          }
+
+          return {
+            id: emp.id,
+            name: emp.full_name || emp.nama || '',
+            outlet: emp.outlet,
+            position: emp.position,
+            attendancePct,
+            weightedAttendance,
+            disciplinePct,
+            weightedDiscipline,
+            surveyPct,
+            weightedSurvey,
+            trainingPct,
+            weightedTraining,
+            quizPct,
+            weightedQuiz,
+            isKepalaCabang,
+            briefingPct,
+            weightedBriefing,
+            finalScore
+          };
+        });
+
+        const token = sessionStorage.getItem('token');
+        if (token) {
+          const apiBase = window.location.port === '3000' ? 'http://' + window.location.hostname + ':3001' : '';
+          const res = await fetch(`${apiBase}/api/kpis/standings`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ standings })
+          });
+          if (res.status === 200) {
+            console.log('[HRIS] Successfully synchronized standings list to backend API.');
+          }
+        }
+      } catch (err) {
+        console.error('[HRIS] Failed to sync standings to backend:', err);
+      }
+    };
+
+    computeAndSyncStandings();
+  }, [employees, responses, filterMonth, filterYear]);
+
   // ─── Tab 1: Logika Distribusi Target Otomatis ──────────────────────────────
   const getTargetEmployeesForSurvey = (tipe, outlet) => {
     const outletList = outlet === 'Semua Outlet'
@@ -403,22 +533,28 @@ export default function PenilaianKPI({ token, API_URL }) {
 
   // ─── Tab 2: Logika Hasil Evaluasi 360 ──────────────────────────────────────
   const getEvaluasi360Summary = () => {
-    // Filter responses by month, year, outlet
-    const filteredResp = responses.filter(r => {
-      const isPeriodMatch = r.month === Number(filterMonth) && r.year === Number(filterYear);
-      const isOutletMatch = filterOutlet === 'Semua Outlet' || r.target_outlet === filterOutlet;
-      return isPeriodMatch && isOutletMatch;
-    });
-
-    // Group by target employee
     const targetGroup = {};
-    filteredResp.forEach(r => {
+    
+    (responses || []).forEach(r => {
+      const isPeriodMatch = r.month === Number(filterMonth) && r.year === Number(filterYear);
+      if (!isPeriodMatch) return;
+
+      const emp = (employees || []).find(e => String(e.id) === String(r.target_id));
+      const currentName = emp ? (emp.full_name || emp.nama) : r.target_name;
+      const currentOutlet = emp ? emp.outlet : r.target_outlet;
+      const currentPosition = emp ? emp.position : r.target_position;
+
+      // Filter by current outlet
+      const isOutletMatch = filterOutlet === 'Semua Outlet' || 
+        String(currentOutlet || '').toLowerCase().trim() === String(filterOutlet || '').toLowerCase().trim();
+      if (!isOutletMatch) return;
+
       if (!targetGroup[r.target_id]) {
         targetGroup[r.target_id] = {
           employee_id: r.target_id,
-          name: r.target_name,
-          outlet: r.target_outlet,
-          position: r.target_position,
+          name: currentName,
+          outlet: currentOutlet,
+          position: currentPosition,
           stafScores: [],
           leaderScores: [],
           allScores: []

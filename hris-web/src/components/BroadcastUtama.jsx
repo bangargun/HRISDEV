@@ -376,6 +376,90 @@ export default function BroadcastUtama() {
   const [quoteAuthor, setQuoteAuthor] = useState('');
   const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
 
+  // States untuk pool quotes Sapaan AI
+  const [quotesWorkText, setQuotesWorkText] = useState('');
+  const [quotesGratitudeText, setQuotesGratitudeText] = useState('');
+  const [isLoadingQuotes, setIsLoadingQuotes] = useState(false);
+  const [isSavingQuotes, setIsSavingQuotes] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'sapaan_ai') {
+      const fetchSapaanSettings = async () => {
+        setIsLoadingQuotes(true);
+        try {
+          const token = sessionStorage.getItem('token');
+          const res = await fetch(`${getApiUrl()}/settings`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data)) {
+            const rowWork = json.data.find(s => s.key === 'motivasi_kerja_quotes');
+            const rowGrat = json.data.find(s => s.key === 'motivasi_bersyukur_quotes');
+            
+            if (rowWork && rowWork.value) {
+              try {
+                const parsed = JSON.parse(rowWork.value);
+                setQuotesWorkText(parsed.join('\n'));
+              } catch (e) {
+                setQuotesWorkText(rowWork.value);
+              }
+            }
+            if (rowGrat && rowGrat.value) {
+              try {
+                const parsed = JSON.parse(rowGrat.value);
+                setQuotesGratitudeText(parsed.join('\n'));
+              } catch (e) {
+                setQuotesGratitudeText(rowGrat.value);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching settings:', err);
+        } finally {
+          setIsLoadingQuotes(false);
+        }
+      };
+      
+      fetchSapaanSettings();
+    }
+  }, [activeTab]);
+
+  const handleSaveQuotes = async () => {
+    setIsSavingQuotes(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      const workList = quotesWorkText.split('\n').map(q => q.trim()).filter(Boolean);
+      const gratList = quotesGratitudeText.split('\n').map(q => q.trim()).filter(Boolean);
+      
+      const payload = {
+        settings: [
+          { key: 'motivasi_kerja_quotes', value: JSON.stringify(workList) },
+          { key: 'motivasi_bersyukur_quotes', value: JSON.stringify(gratList) }
+        ]
+      };
+      
+      const res = await fetch(`${getApiUrl()}/settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (res.status === 200 && json.status === 'success') {
+        alert('Pengaturan Sapaan Motivasi AI berhasil diperbarui!');
+      } else {
+        alert('Gagal memperbarui pengaturan: ' + (json.message || 'Error'));
+      }
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      alert('Koneksi gagal atau terjadi error.');
+    } finally {
+      setIsSavingQuotes(false);
+    }
+  };
+
   const quotesList = [
     { text: "Pekerjaan yang dilakukan dengan keikhlasan akan mendatangkan keberkahan yang berlipat ganda.", author: "Barokah AI" },
     { text: "Senyuman tulus kepada pelanggan adalah kunci pembuka pintu rezeki yang berkah.", author: "Barokah AI" },
@@ -1214,8 +1298,8 @@ export default function BroadcastUtama() {
         )}
 
         {activeTab === 'sapaan_ai' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '28px', alignItems: 'start' }} className="bc-anim">
-            {/* Form Generator Sapaan AI */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '28px', alignItems: 'start' }} className="bc-anim">
+            {/* Panel Motivasi Kerja (Jam Masuk) */}
             <div style={{
               background: C.surface, borderRadius: '20px',
               border: `1px solid ${C.border}`, padding: '24px 28px',
@@ -1224,166 +1308,81 @@ export default function BroadcastUtama() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <Zap size={18} color={C.cyan} />
-                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: C.text }}>
-                    Asisten AI Quote Motivasi
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text }}>
+                    🌅 Motivasi Jam Masuk (Motivasi Kerja)
                   </h3>
                 </div>
                 <p style={{ color: C.muted, fontSize: '0.78rem' }}>
-                  Gunakan kecerdasan AI untuk merancang quote inspiratif harian bagi karyawan.
+                  Daftar quote motivasi kerja yang akan dikirim secara acak saat karyawan melakukan Clock-In. Satu quote per baris.
                 </p>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: C.muted, marginBottom: '6px' }}>
-                  Quote Motivasi Hari Ini <span style={{ color: C.danger }}>*</span>
-                </label>
                 <textarea
-                  value={quoteText}
-                  onChange={e => setQuoteText(e.target.value)}
-                  placeholder="Ketik quote di sini atau klik tombol 'Generate Quote AI' di bawah..."
-                  required
-                  rows={4}
+                  value={quotesWorkText}
+                  onChange={e => setQuotesWorkText(e.target.value)}
+                  placeholder="Format: Isi quote motivasi ~ Penulis"
+                  rows={12}
                   style={{
                     width: '100%', background: C.bg, border: `1px solid ${C.border}`,
                     borderRadius: '10px', padding: '12px 14px', color: C.text,
                     fontSize: '0.88rem', resize: 'vertical', lineHeight: '1.6',
-                    boxSizing: 'border-box', minHeight: '90px'
+                    boxSizing: 'border-box', minHeight: '220px', fontFamily: 'monospace'
                   }}
                 />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: C.muted, marginBottom: '6px' }}>
-                  Penulis / Sumber Tokoh
-                </label>
-                <input
-                  type="text"
-                  value={quoteAuthor}
-                  onChange={e => setQuoteAuthor(e.target.value)}
-                  placeholder="Contoh: Barokah AI, Ki Hajar Dewantara, dll"
-                  style={{
-                    width: '100%', background: C.bg, border: `1px solid ${C.border}`,
-                    borderRadius: '10px', padding: '11px 14px', color: C.text,
-                    fontSize: '0.9rem', boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
-                <button
-                  type="button"
-                  onClick={handleGenerateQuoteAI}
-                  disabled={isGeneratingQuote}
-                  style={{
-                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    padding: '12px', borderRadius: '12px', border: `1px solid ${C.cyan}`,
-                    background: 'transparent', color: C.cyan, fontWeight: 700, cursor: 'pointer',
-                    fontSize: '0.86rem', transition: 'all 0.15s'
-                  }}
-                >
-                  {isGeneratingQuote ? 'Berpikir...' : '✨ Generate Quote AI'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleKirimQuote}
-                  disabled={isSendingEvent || !quoteText.trim()}
-                  style={{
-                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    padding: '12px', borderRadius: '12px', border: 'none',
-                    background: quoteText.trim() ? `linear-gradient(135deg, ${C.success}, #3dbbb2)` : 'rgba(238,238,238,0.1)',
-                    color: quoteText.trim() ? '#fff' : C.muted, fontWeight: 800, cursor: quoteText.trim() ? 'pointer' : 'not-allowed',
-                    fontSize: '0.86rem', transition: 'all 0.15s',
-                    boxShadow: quoteText.trim() ? '0 4px 14px rgba(78,205,196,0.3)' : 'none'
-                  }}
-                >
-                  🚀 Aktifkan & Kirim
-                </button>
               </div>
             </div>
 
-            {/* Handphone Preview Screen Mockup */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{
-                width: '280px', height: '490px', borderRadius: '36px',
-                border: '10px solid #1E222B', backgroundColor: '#16191E',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.6)', overflow: 'hidden',
-                position: 'relative', display: 'flex', flexDirection: 'column'
-              }}>
-                {/* Notch */}
-                <div style={{
-                  position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-                  width: '110px', height: '18px', backgroundColor: '#1E222B',
-                  borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px', zIndex: 10
-                }} />
-
-                {/* Status Bar */}
-                <div style={{
-                  padding: '24px 16px 8px', display: 'flex', justifyContent: 'space-between',
-                  fontSize: '0.62rem', color: '#6A7280', fontWeight: 'bold'
-                }}>
-                  <span>14:40</span>
-                  <span>📶 🔋 100%</span>
+            {/* Panel Motivasi Bersyukur (Jam Pulang) */}
+            <div style={{
+              background: C.surface, borderRadius: '20px',
+              border: `1px solid ${C.border}`, padding: '24px 28px',
+              display: 'flex', flexDirection: 'column', gap: '20px'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <Zap size={18} color={C.cyan} />
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text }}>
+                    🌌 Motivasi Jam Keluar (Motivasi Bersyukur)
+                  </h3>
                 </div>
-
-                {/* App Content Preview */}
-                <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {/* Greeting header */}
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#6A7280' }}>Selamat Datang,</span>
-                    <span style={{ fontSize: '0.95rem', color: C.text, fontWeight: 'bold', marginTop: '2px' }}>Ahmad Karyawan</span>
-                  </div>
-
-                  {/* Dynamic Active Quote Widget */}
-                  <div style={{
-                    background: `linear-gradient(135deg, ${C.surface} 0%, #222831 100%)`,
-                    border: `1.5px solid ${C.cyan}44`, borderRadius: '16px',
-                    padding: '14px', boxShadow: '0 8px 20px rgba(0,173,181,0.15)',
-                    animation: 'pulseGlow 3s ease infinite'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '0.85rem' }}>✨</span>
-                      <span style={{ fontSize: '0.62rem', fontWeight: 800, color: C.cyan, letterSpacing: '0.5px' }}>
-                        MOTIVASI HARI INI
-                      </span>
-                    </div>
-                    <p style={{
-                      fontSize: '0.72rem', color: '#E5E7EB', fontStyle: 'italic',
-                      lineHeight: '1.45', fontWeight: 600, marginBottom: '6px'
-                    }}>
-                      {quoteText.trim() ? `"${quoteText.trim()}"` : '"Kejujuran dan integritas adalah kunci utama menjemput rezeki yang barokah."'}
-                    </p>
-                    <p style={{ fontSize: '0.62rem', color: C.cyan, fontWeight: 700, textAlign: 'right' }}>
-                      — {quoteAuthor.trim() || 'Barokah AI'}
-                    </p>
-                  </div>
-
-                  {/* Dummy Absensi Status */}
-                  <div style={{
-                    background: C.surface, borderRadius: '12px', padding: '10px',
-                    border: '1px solid rgba(255,255,255,0.03)'
-                  }}>
-                    <span style={{ fontSize: '0.6rem', fontWeight: 'bold', color: '#9CA3AF' }}>STATUS KEHADIRAN</span>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '0.5rem', color: '#6B7280' }}>Masuk</span>
-                        <span style={{ fontSize: '0.68rem', color: '#EEEEEE', fontWeight: 'bold' }}>08:00</span>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '0.5rem', color: '#6B7280' }}>Keluar</span>
-                        <span style={{ fontSize: '0.68rem', color: '#EEEEEE', fontWeight: 'bold' }}>--:--</span>
-                      </div>
-                      <span style={{
-                        fontSize: '0.55rem', color: '#10B981', fontWeight: 'bold',
-                        alignSelf: 'center', background: 'rgba(16,185,129,0.1)',
-                        padding: '2px 6px', borderRadius: '4px'
-                      }}>Tepat Waktu</span>
-                    </div>
-                  </div>
-                </div>
+                <p style={{ color: C.muted, fontSize: '0.78rem' }}>
+                  Daftar quote motivasi bersyukur yang akan dikirim secara acak saat karyawan melakukan Clock-Out. Satu quote per baris.
+                </p>
               </div>
-              <span style={{ fontSize: '0.74rem', color: C.muted, marginTop: '8px', fontWeight: 600 }}>
-                Pratinjau Layar Utama HP Karyawan
-              </span>
+
+              <div>
+                <textarea
+                  value={quotesGratitudeText}
+                  onChange={e => setQuotesGratitudeText(e.target.value)}
+                  placeholder="Format: Isi quote bersyukur ~ Penulis"
+                  rows={12}
+                  style={{
+                    width: '100%', background: C.bg, border: `1px solid ${C.border}`,
+                    borderRadius: '10px', padding: '12px 14px', color: C.text,
+                    fontSize: '0.88rem', resize: 'vertical', lineHeight: '1.6',
+                    boxSizing: 'border-box', minHeight: '220px', fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  onClick={handleSaveQuotes}
+                  disabled={isLoadingQuotes || isSavingQuotes}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    padding: '12px 24px', borderRadius: '12px', border: 'none',
+                    background: `linear-gradient(135deg, ${C.cyan}, #3dbbb2)`,
+                    color: '#fff', fontWeight: 800, cursor: 'pointer',
+                    fontSize: '0.9rem', transition: 'all 0.15s',
+                    boxShadow: '0 4px 14px rgba(0,173,181,0.3)'
+                  }}
+                >
+                  {isSavingQuotes ? 'Menyimpan...' : '💾 Simpan Pengaturan'}
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -241,6 +241,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       DataColumn(label: Text('Mulai Istirahat', style: TextStyle(color: violet, fontWeight: FontWeight.bold, fontSize: 12))),
                       DataColumn(label: Text('Akhir Istirahat', style: TextStyle(color: violet, fontWeight: FontWeight.bold, fontSize: 12))),
                       DataColumn(label: Text('Pulang', style: TextStyle(color: violet, fontWeight: FontWeight.bold, fontSize: 12))),
+                      DataColumn(label: Text('Briefing', style: TextStyle(color: violet, fontWeight: FontWeight.bold, fontSize: 12))),
                       DataColumn(label: Text('Status', style: TextStyle(color: violet, fontWeight: FontWeight.bold, fontSize: 12))),
                       DataColumn(label: Text('Keterangan', style: TextStyle(color: violet, fontWeight: FontWeight.bold, fontSize: 12))),
                     ],
@@ -262,6 +263,31 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           DataCell(Text(log.jamMulaiIstirahat ?? '-', style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 11))),
                           DataCell(Text(log.jamAkhirIstirahat ?? '-', style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 11))),
                           DataCell(Text(log.clockOut ?? '-', style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 11))),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: (log.ikutBriefing == 'Ya')
+                                    ? success.withOpacity(0.15)
+                                    : textMuted.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: (log.ikutBriefing == 'Ya')
+                                      ? success.withOpacity(0.5)
+                                      : textMuted.withOpacity(0.2),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Text(
+                                log.ikutBriefing ?? 'Tidak',
+                                style: TextStyle(
+                                  color: (log.ikutBriefing == 'Ya') ? success : textMuted,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
                           DataCell(
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

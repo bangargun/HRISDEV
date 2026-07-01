@@ -158,6 +158,39 @@ export async function initializeDatabase() {
       console.log('SUCCESS: Menambahkan kolom ikut_briefing ke tabel attendances.');
     } catch (_) {}
 
+    // Seed Sapaan AI settings
+    try {
+      const [rowsWork] = await connection.execute("SELECT id FROM system_settings WHERE `key` = 'motivasi_kerja_quotes'");
+      if (rowsWork.length === 0) {
+        const defaultWork = JSON.stringify([
+          'Setiap langkah kecil kedisiplinan hari ini adalah investasi kesuksesan hari esok. ~ Barokah AI',
+          'Kejujuran dan integritas adalah kunci utama menjemput rezeki yang barokah. ~ Barokah AI',
+          'Kerja keras mendatangkan hasil, kerja cerdas mendatangkan efisiensi, kerja ikhlas mendatangkan berkah. ~ Barokah AI',
+          'Kualitas pelayanan terbaik lahir dari hati yang tulus dan senyum yang ramah. ~ Barokah AI'
+        ]);
+        await connection.execute("INSERT INTO system_settings (`key`, `value`, description) VALUES ('motivasi_kerja_quotes', ?, 'Daftar sapaan motivasi masuk kerja (Format JSON)')", [defaultWork]);
+        console.log('SUCCESS: Seeded motivasi_kerja_quotes.');
+      }
+    } catch (err) {
+      console.error('Error seeding motivasi_kerja_quotes:', err.message);
+    }
+
+    try {
+      const [rowsGrat] = await connection.execute("SELECT id FROM system_settings WHERE `key` = 'motivasi_bersyukur_quotes'");
+      if (rowsGrat.length === 0) {
+        const defaultGrat = JSON.stringify([
+          'Alhamdulillah untuk hari ini. Mari pulang dengan rasa syukur dan damai di hati. ~ Barokah AI',
+          'Lelah hari ini adalah bukti perjuangan halal Anda untuk keluarga tercinta. Bersyukurlah! ~ Barokah AI',
+          'Bekerja dengan baik, pulang dengan bersyukur. Hari yang indah telah kita lewati bersama. ~ Barokah AI',
+          'Bersyukur atas rezeki hari ini membuka pintu rezeki yang lebih luas esok hari. ~ Barokah AI'
+        ]);
+        await connection.execute("INSERT INTO system_settings (`key`, `value`, description) VALUES ('motivasi_bersyukur_quotes', ?, 'Daftar sapaan motivasi pulang bersyukur (Format JSON)')", [defaultGrat]);
+        console.log('SUCCESS: Seeded motivasi_bersyukur_quotes.');
+      }
+    } catch (err) {
+      console.error('Error seeding motivasi_bersyukur_quotes:', err.message);
+    }
+
     connection.release();
   } catch (error) {
     console.error('CRITICAL: Gagal membangun koneksi pool ke MySQL:', error.message);

@@ -30,10 +30,43 @@ class _KpiReportScreenState extends State<KpiReportScreen> {
   double _avgKebersihan = 0;
   double _avgEtika = 0;
 
+  // Standings data
+  List<dynamic> _standings = [];
+  bool _isStandingsLoading = false;
+
   @override
   void initState() {
     super.initState();
     _loadCacheAndFetch();
+    _fetchStandingsFromServer();
+  }
+
+  Future<void> _fetchStandingsFromServer() async {
+    if (!mounted) return;
+    setState(() {
+      _isStandingsLoading = true;
+    });
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final res = await ApiClient.get('kpis/standings', token: auth.token);
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['status'] == 'success') {
+        _standings = data['data'] ?? [];
+        _standings.sort((a, b) {
+          final scoreA = (a['finalScore'] ?? 0.0).toDouble();
+          final scoreB = (b['finalScore'] ?? 0.0).toDouble();
+          return scoreB.compareTo(scoreA);
+        });
+      }
+    } catch (e) {
+      print('Error fetching standings: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isStandingsLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadCacheAndFetch() async {
@@ -203,202 +236,354 @@ class _KpiReportScreenState extends State<KpiReportScreen> {
     const accentColor = Color(0xFFEEEEEE);
     const textMuted = Color(0x8DEEEEEE);
 
-    return Scaffold(
-      backgroundColor: darkBg,
-      appBar: AppBar(
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
         backgroundColor: darkBg,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFEEEEEE)),
-          onPressed: () => Navigator.pop(context),
+        appBar: AppBar(
+          backgroundColor: darkBg,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Color(0xFFEEEEEE)),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            'RAPOR KPI PENILAIAN 360°',
+            style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1),
+          ),
+          centerTitle: true,
+          bottom: const TabBar(
+            indicatorColor: Color(0xFF00ADB5),
+            labelColor: Color(0xFF00ADB5),
+            unselectedLabelColor: Color(0x8DEEEEEE),
+            tabs: [
+              Tab(text: 'Rapor Saya'),
+              Tab(text: 'Klasemen Outlet'),
+            ],
+          ),
         ),
-        title: const Text(
-          'RAPOR KPI PENILAIAN 360°',
-          style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1),
-        ),
-        centerTitle: true,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5)))
-          : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 48),
-                        const SizedBox(height: 12),
-                        Text(_errorMessage!, style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 14), textAlign: TextAlign.center),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: cardBg),
-                          onPressed: _loadCacheAndFetch,
-                          child: const Text('Coba Lagi', style: TextStyle(color: accentColor)),
-                        )
-                      ],
-                    ),
-                  ),
-                )
-              : RefreshIndicator(
-                  color: accentColor,
-                  onRefresh: _fetchRatingsFromServer,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16.0),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      // Ringkasan Profil Karyawan
-                      Container(
-                        padding: const EdgeInsets.all(16.0),
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Color(0xFFEEEEEE).withOpacity(0.04)),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 24,
-                              backgroundColor: Color(0xFFEEEEEE).withOpacity(0.08),
-                              child: const Icon(Icons.person, color: accentColor, size: 28),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    toTitleCase(profile?.fullName ?? 'Karyawan'),
-                                    style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${toTitleCase(profile?.position ?? "-")} | Outlet: ${toTitleCase(profile?.outlet ?? "-")}',
-                                    style: const TextStyle(color: textMuted, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Card Skor Utama Rapor
-                      Container(
-                        padding: const EdgeInsets.all(24.0),
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Color(0xFFEEEEEE).withOpacity(0.04)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _kpiScore != null ? _predicateColor.withOpacity(0.05) : Colors.transparent,
-                              blurRadius: 20,
-                              spreadRadius: 2,
-                            )
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'SKOR AKHIR KPI',
-                              style: TextStyle(color: textMuted, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.8),
-                            ),
-                            const SizedBox(height: 16),
-                            
-                            // Visualisasi Skor Berwarna
-                            Text(
-                              _kpiScore != null ? '$_kpiScore' : '-',
-                              style: TextStyle(
-                                color: _kpiScore != null ? _predicateColor : Color(0x1AEEEEEE),
-                                fontSize: 64,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const Text(
-                              'Skala 100',
-                              style: TextStyle(color: textMuted, fontSize: 11),
-                            ),
-                            const SizedBox(height: 20),
-                            
-                            // Badge Predikat
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: _kpiScore != null ? _predicateColor.withOpacity(0.08) : Colors.transparent,
-                                border: Border.all(color: _kpiScore != null ? _predicateColor : Color(0x1AEEEEEE), width: 1.5),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                toTitleCase(_predicate),
-                                style: TextStyle(
-                                  color: _predicateColor,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            
-                            // Keterangan Evaluator
-                            Text(
-                              _kpiScore != null
-                                  ? 'Diakumulasikan secara anonim dari ulasan $_evaluatorCount rekan kerja Anda.'
-                                  : 'Belum ada penilaian sejawat yang masuk untuk Anda.',
-                              style: const TextStyle(color: textMuted, fontSize: 11),
-                              textAlign: TextAlign.center,
-                            )
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Detail Kompetensi
-                      if (_kpiScore != null) ...[
-                        const Text(
-                          'RINCIAN KOMPETENSI KERJA',
-                          style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(20.0),
-                          decoration: BoxDecoration(
-                            color: cardBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Color(0xFFEEEEEE).withOpacity(0.04)),
-                          ),
+        body: TabBarView(
+          children: [
+            // Tab 1: Rapor Saya
+            _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5)))
+                : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
                           child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _buildCompetencyRow('Kedisiplinan Kerja', _avgDisiplin),
-                              _buildCompetencyRow('Inisiatif Kerja', _avgInisiatif),
-                              _buildCompetencyRow('Keramahan & Kerja Sama', _avgKerjasama),
-                              _buildCompetencyRow('Kebersihan & SOP', _avgKebersihan),
-                              _buildCompetencyRow('Etika Profesional', _avgEtika),
+                              const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 48),
+                              const SizedBox(height: 12),
+                              Text(_errorMessage!, style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 14), textAlign: TextAlign.center),
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: cardBg),
+                                onPressed: _loadCacheAndFetch,
+                                child: const Text('Coba Lagi', style: TextStyle(color: accentColor)),
+                              )
                             ],
                           ),
                         ),
-                      ] else ...[
-                        Container(
-                          padding: const EdgeInsets.all(24.0),
-                          decoration: BoxDecoration(
-                            color: cardBg,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'Hasil rincian kompetensi akan muncul di sini setelah rekan kerja menyelesaikan penilaian 360° untuk Anda.',
-                              style: TextStyle(color: textMuted, fontSize: 12),
-                              textAlign: TextAlign.center,
+                      )
+                    : RefreshIndicator(
+                        color: accentColor,
+                        onRefresh: _fetchRatingsFromServer,
+                        child: ListView(
+                          padding: const EdgeInsets.all(16.0),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            // Ringkasan Profil Karyawan
+                            Container(
+                              padding: const EdgeInsets.all(16.0),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Color(0xFFEEEEEE).withOpacity(0.04)),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 24,
+                                    backgroundColor: Color(0xFFEEEEEE).withOpacity(0.08),
+                                    child: const Icon(Icons.person, color: accentColor, size: 28),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          toTitleCase(profile?.fullName ?? 'Karyawan'),
+                                          style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${toTitleCase(profile?.position ?? "-")} | Outlet: ${toTitleCase(profile?.outlet ?? "-")}',
+                                          style: const TextStyle(color: textMuted, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                ],
+                              ),
                             ),
-                          ),
-                        )
-                      ],
-                      const SizedBox(height: 40),
+                            const SizedBox(height: 20),
+
+                            // Card Skor Utama Rapor
+                            Container(
+                              padding: const EdgeInsets.all(24.0),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Color(0xFFEEEEEE).withOpacity(0.04)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _kpiScore != null ? _predicateColor.withOpacity(0.05) : Colors.transparent,
+                                    blurRadius: 20,
+                                    spreadRadius: 2,
+                                  )
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    'SKOR AKHIR KPI',
+                                    style: TextStyle(color: textMuted, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  
+                                  // Visualisasi Skor Berwarna
+                                  Text(
+                                    _kpiScore != null ? '$_kpiScore' : '-',
+                                    style: TextStyle(
+                                      color: _kpiScore != null ? _predicateColor : Color(0x1AEEEEEE),
+                                      fontSize: 64,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const Text(
+                                    'Skala 100',
+                                    style: TextStyle(color: textMuted, fontSize: 11),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  
+                                  // Badge Predikat
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: _kpiScore != null ? _predicateColor.withOpacity(0.08) : Colors.transparent,
+                                      border: Border.all(color: _kpiScore != null ? _predicateColor : Color(0x1AEEEEEE), width: 1.5),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      toTitleCase(_predicate),
+                                      style: TextStyle(
+                                        color: _predicateColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  
+                                  // Keterangan Evaluator
+                                  Text(
+                                    _kpiScore != null
+                                        ? 'Diakumulasikan secara anonim dari ulasan $_evaluatorCount rekan kerja Anda.'
+                                        : 'Belum ada penilaian sejawat yang masuk untuk Anda.',
+                                    style: const TextStyle(color: textMuted, fontSize: 11),
+                                    textAlign: TextAlign.center,
+                                  )
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Detail Kompetensi
+                            if (_kpiScore != null) ...[
+                              const Text(
+                                'RINCIAN KOMPETENSI KERJA',
+                                style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(20.0),
+                                decoration: BoxDecoration(
+                                  color: cardBg,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Color(0xFFEEEEEE).withOpacity(0.04)),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _buildCompetencyRow('Kedisiplinan Kerja', _avgDisiplin),
+                                    _buildCompetencyRow('Inisiatif Kerja', _avgInisiatif),
+                                    _buildCompetencyRow('Keramahan & Kerja Sama', _avgKerjasama),
+                                    _buildCompetencyRow('Kebersihan & SOP', _avgKebersihan),
+                                    _buildCompetencyRow('Etika Profesional', _avgEtika),
+                                  ],
+                                ),
+                              ),
+                            ] else ...[
+                              Container(
+                                padding: const EdgeInsets.all(24.0),
+                                decoration: BoxDecoration(
+                                  color: cardBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Hasil rincian kompetensi akan muncul di sini setelah rekan kerja menyelesaikan penilaian 360° untuk Anda.',
+                                    style: TextStyle(color: textMuted, fontSize: 12),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              )
+                            ],
+                            const SizedBox(height: 40),
+                          ],
+                        ),
+                      ),
+            
+            // Tab 2: Klasemen Outlet
+            _buildStandingsTab(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStandingsTab() {
+    const cardBg = Color(0xFF393E46);
+    const textMuted = Color(0x8DEEEEEE);
+
+    if (_isStandingsLoading && _standings.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5)));
+    }
+
+    if (_standings.isEmpty) {
+      return RefreshIndicator(
+        color: const Color(0xFF00ADB5),
+        onRefresh: _fetchStandingsFromServer,
+        child: ListView(
+          padding: const EdgeInsets.all(24.0),
+          children: const [
+            SizedBox(height: 100),
+            Icon(Icons.leaderboard_outlined, color: textMuted, size: 48),
+            SizedBox(height: 16),
+            Text(
+              'Klasemen outlet belum tersedia.\nHarap hubungi Admin untuk melakukan penilaian KPI.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: const Color(0xFF00ADB5),
+      onRefresh: _fetchStandingsFromServer,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16.0),
+        itemCount: _standings.length,
+        itemBuilder: (context, index) {
+          final item = _standings[index];
+          final name = item['name'] ?? 'Karyawan';
+          final position = item['position'] ?? 'Staf';
+          final score = (item['finalScore'] ?? 0.0).toDouble();
+
+          final rank = index + 1;
+          Color rankColor = const Color(0xFFEEEEEE);
+          if (rank == 1) {
+            rankColor = const Color(0xFFF1C40F);
+          } else if (rank == 2) {
+            rankColor = const Color(0xFFBDC3C7);
+          } else if (rank == 3) {
+            rankColor = const Color(0xFFE67E22);
+          }
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: rank <= 3 ? rankColor.withOpacity(0.3) : const Color(0xFFEEEEEE).withOpacity(0.04),
+                width: rank <= 3 ? 1.0 : 0.5,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: rank <= 3 ? rankColor.withOpacity(0.15) : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$rank',
+                    style: TextStyle(
+                      color: rank <= 3 ? rankColor : const Color(0xFFEEEEEE),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        toTitleCase(name),
+                        style: const TextStyle(
+                          color: Color(0xFFEEEEEE),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        toTitleCase(position),
+                        style: const TextStyle(
+                          color: textMuted,
+                          fontSize: 11,
+                        ),
+                      ),
                     ],
                   ),
                 ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${score.toStringAsFixed(1)}',
+                      style: const TextStyle(
+                        color: Color(0xFF00ADB5),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text(
+                      'Poin',
+                      style: TextStyle(
+                        color: textMuted,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

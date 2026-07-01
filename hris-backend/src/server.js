@@ -120,7 +120,8 @@ let backendState = {
   credentials: [],
   payroll_mobile_slips: [],
   quiz_bank: [],
-  quiz_results: []
+  quiz_results: [],
+  kpi_standings: []
 };
 
 if (fs.existsSync(BACKEND_DB_FILE)) {
@@ -135,6 +136,7 @@ backendState.credentials = backendState.credentials || [];
 backendState.payroll_mobile_slips = backendState.payroll_mobile_slips || [];
 backendState.quiz_bank = backendState.quiz_bank || [];
 backendState.quiz_results = backendState.quiz_results || [];
+backendState.kpi_standings = backendState.kpi_standings || [];
 
 const hrisDatabase = backendState;
 
@@ -238,6 +240,46 @@ app.post('/api/disc-results', (req, res) => {
   backendState.disc_results.push(result);
   saveBackendDb();
   res.json({ status: 'success', data: result });
+});
+
+// Standings KPI Endpoints
+app.get('/api/kpis/standings', authenticateToken, async (req, res) => {
+  try {
+    const list = backendState.kpi_standings || [];
+    
+    // Jika role employee, filter standings berdasarkan outlet karyawan
+    if (req.user.role === 'employee') {
+      const empId = req.user.employeeId;
+      const employee = await dbQuery.get("SELECT outlet FROM employees WHERE id = ?", [empId]);
+      if (employee && employee.outlet) {
+        const outlet = employee.outlet.toLowerCase().trim();
+        const filtered = list.filter(item => (item.outlet || '').toLowerCase().trim() === outlet);
+        return res.json({ status: 'success', data: filtered });
+      }
+      return res.json({ status: 'success', data: [] });
+    }
+    
+    // Jika admin / owner, kembalikan semua standings
+    return res.json({ status: 'success', data: list });
+  } catch (error) {
+    console.error('GET /api/kpis/standings error:', error.message);
+    res.status(500).json({ status: 'error', message: 'Gagal mengambil data klasemen.' });
+  }
+});
+
+app.post('/api/kpis/standings', authenticateToken, (req, res) => {
+  try {
+    const { standings } = req.body;
+    if (!Array.isArray(standings)) {
+      return res.status(400).json({ status: 'error', message: 'Format data standings salah (harus array).' });
+    }
+    backendState.kpi_standings = standings;
+    saveBackendDb();
+    res.json({ status: 'success', message: 'Data klasemen berhasil diperbarui.' });
+  } catch (error) {
+    console.error('POST /api/kpis/standings error:', error.message);
+    res.status(500).json({ status: 'error', message: 'Gagal menyimpan data klasemen.' });
+  }
 });
 
 // Endpoint menerima akun baru dari Web Admin

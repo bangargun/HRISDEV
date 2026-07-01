@@ -170,6 +170,9 @@ export async function clockIn(req, res) {
       notes ? notes.trim() : null
     ]);
 
+    // Kirim sapaan motivasi masuk kerja otomatis
+    await sendSapaanAI(employeeId, 'masuk');
+
     return res.status(200).json({
       status: 'success',
       message: 'Absensi masuk (Clock-In) berhasil dicatat.',
@@ -276,6 +279,9 @@ export async function clockOut(req, res) {
       SET clock_out = ?, lat_out = ?, lng_out = ?, photo_out_url = ?
       WHERE id = ?
     `, [clockOutTime, latitude, longitude, photoPath || null, attendance.id]);
+    
+    // Kirim sapaan motivasi bersyukur pulang otomatis
+    await sendSapaanAI(employeeId, 'keluar');
 
     return res.status(200).json({
       status: 'success',
@@ -335,7 +341,7 @@ export async function getAttendanceHistory(req, res) {
 
   try {
     let sql = `
-      SELECT a.id, a.date, a.clock_in, a.clock_out, a.status_in, a.notes, e.full_name, e.nik, e.department, e.outlet, a.jam_mulai_istirahat, a.jam_akhir_istirahat
+      SELECT a.id, a.date, a.clock_in, a.clock_out, a.status_in, a.notes, e.full_name, e.nik, e.department, e.outlet, a.jam_mulai_istirahat, a.jam_akhir_istirahat, a.ikut_briefing
       FROM attendances a
       JOIN employees e ON a.employee_id = e.id
     `;
@@ -627,5 +633,68 @@ export async function syncBreakSchedule(req, res) {
       status: 'error',
       message: 'Gagal melakukan sinkronisasi jadwal istirahat.'
     });
+  }
+}
+
+/**
+ * Mengirimkan notifikasi Sapaan AI motivasi secara otomatis
+ */
+async function sendSapaanAI(employeeId, category) {
+  try {
+    const employee = await dbQuery.get("SELECT outlet FROM employees WHERE id = ?", [employeeId]);
+    const outlet = employee ? (employee.outlet || 'Semua Outlet') : 'Semua Outlet';
+    
+    const settingKey = category === 'masuk' ? 'motivasi_kerja_quotes' : 'motivasi_bersyukur_quotes';
+    const settingRow = await dbQuery.get("SELECT `value` FROM system_settings WHERE `key` = ?", [settingKey]);
+    
+    let quotes = [];
+    if (settingRow && settingRow.value) {
+      try {
+        quotes = JSON.parse(settingRow.value);
+      } catch (e) {
+        if (typeof settingRow.value === 'string' && settingRow.value.trim()) {
+          quotes = [settingRow.value];
+        }
+      }
+    }
+    
+    if (!Array.isArray(quotes) || quotes.length === 0) {
+      if (category === 'masuk') {
+        quotes = [
+          'Setiap langkah kecil kedisiplinan hari ini adalah investasi kesuksesan hari esok. ~ Barokah AI',
+          'Kejujuran dan integritas adalah kunci utama menjemput rezeki yang barokah. ~ Barokah AI',
+          'Kerja keras mendatangkan hasil, kerja cerdas mendatangkan efisiensi, kerja ikhlas mendatangkan berkah. ~ Barokah AI',
+          'Kualitas pelayanan terbaik lahir dari hati yang tulus dan senyum yang ramah. ~ Barokah AI'
+        ];
+      } else {
+        quotes = [
+          'Alhamdulillah untuk hari ini. Mari pulang dengan rasa syukur dan damai di hati. ~ Barokah AI',
+          'Lelah hari ini adalah bukti perjuangan halal Anda untuk keluarga tercinta. Bersyukurlah! ~ Barokah AI',
+          'Bekerja dengan baik, pulang dengan bersyukur. Hari yang indah telah kita lewati bersama. ~ Barokah AI',
+          'Bersyukur atas rezeki hari ini membuka pintu rezeki yang lebih luas esok hari. ~ Barokah AI'
+        ];
+      }
+    }
+    
+    const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+    let text = randomQuote;
+    let author = 'Barokah AI';
+    if (randomQuote.includes('~')) {
+      const parts = randomQuote.split('~');
+      text = parts[0].trim();
+      author = parts[1].trim();
+    }
+    
+    const title = `[Sapaan AI] Motivasi ${category === 'masuk' ? 'Kerja' : 'Bersyukur'}`;
+    const message = `${text} ~ ${author}`;
+    
+    await dbQuery.run(
+      `INSERT INTO mobile_user_notifications (employee_id, outlet, title, message, type, is_read)
+       VALUES (?, ?, ?, ?, 'broadcast', 0)`,
+      [employeeId, outlet, title, message]
+    );
+    console.log(`[Sapaan AI] Notification sent to employee ID ${employeeId} (${category})`);
+  } catch (err) {
+    console.error('Error sending Sapaan AI:', err.message);
   }
 }

@@ -655,9 +655,9 @@ export default function OutletPage({ token, API_URL, user }) {
       alamat,
       permodalan: formPermodalan.toUpperCase(),
       status: formStatus.toUpperCase(),
-      lat: formLat.trim() || null,
-      lng: formLng.trim() || null,
-      radius: formRadius.trim() ? Number(formRadius.trim()) : 100,
+      lat: null,
+      lng: null,
+      radius: null,
       nama_tablet: getNamaTablet({ nama, wilayah }),
       created_at: new Date().toISOString(),
     };
@@ -2144,55 +2144,6 @@ export default function OutletPage({ token, API_URL, user }) {
                 </div>
               </div>
 
-              {/* ─── GPS Geofence ─── */}
-              <div style={{ border: '1px solid #3B82F6', borderRadius: '10px', padding: '14px', background: 'rgba(59,130,246,0.04)', marginTop: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '1rem' }}>📍</span>
-                  <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#3B82F6' }}>Konfigurasi GPS Geofence Kehadiran</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={{ ...S.inputLabel, fontSize: '0.78rem' }}>Latitude</label>
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="-3.585000"
-                      value={formLat}
-                      onChange={e => setFormLat(e.target.value)}
-                      style={{ ...S.input, fontSize: '0.82rem' }}
-                      onFocus={inputFocus} onBlur={inputBlur}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ ...S.inputLabel, fontSize: '0.78rem' }}>Longitude</label>
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="98.687000"
-                      value={formLng}
-                      onChange={e => setFormLng(e.target.value)}
-                      style={{ ...S.input, fontSize: '0.82rem' }}
-                      onFocus={inputFocus} onBlur={inputBlur}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ ...S.inputLabel, fontSize: '0.78rem' }}>Radius (meter)</label>
-                    <input
-                      type="number"
-                      min="10"
-                      max="5000"
-                      placeholder="100"
-                      value={formRadius}
-                      onChange={e => setFormRadius(e.target.value)}
-                      style={{ ...S.input, fontSize: '0.82rem' }}
-                      onFocus={inputFocus} onBlur={inputBlur}
-                    />
-                  </div>
-                </div>
-                <p style={{ fontSize: '0.73rem', color: '#64748B', marginTop: '8px', margin: '8px 0 0' }}>
-                  💡 Koordinat GPS digunakan mobile APK untuk validasi absensi. Isi hanya jika karyawan harus absen dalam radius tertentu dari lokasi outlet.
-                </p>
-              </div>
 
               {/* Tombol Aksi */}
               <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>

@@ -63,6 +63,7 @@ class AttendanceRecord {
   final String? jamMulaiIstirahat;
   final String? jamAkhirIstirahat;
   final String? outlet;
+  final String? ikutBriefing;
 
   AttendanceRecord({
     required this.id,
@@ -81,6 +82,7 @@ class AttendanceRecord {
     this.jamMulaiIstirahat,
     this.jamAkhirIstirahat,
     this.outlet,
+    this.ikutBriefing,
   });
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) {
@@ -101,6 +103,7 @@ class AttendanceRecord {
       jamMulaiIstirahat: json['jam_mulai_istirahat'] as String?,
       jamAkhirIstirahat: json['jam_akhir_istirahat'] as String?,
       outlet: json['outlet'] as String?,
+      ikutBriefing: json['ikut_briefing'] as String?,
     );
   }
 }
