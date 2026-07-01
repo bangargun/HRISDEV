@@ -1575,6 +1575,10 @@ export default function KuisKompetensi() {
     return () => window.removeEventListener('hris:storage', h);
   }, []);
 
+  useEffect(() => {
+    setHasilPage(1);
+  }, [selectedOutlets]);
+
   // ── Upload ke bank soal setelah pratinjau
   const handleUpload = () => {
     if (!previewData) return;
@@ -1602,13 +1606,18 @@ export default function KuisKompetensi() {
   };
 
 
-  // ── Kirim Kuis ke Karyawan
   const handleSendQuiz = (quiz) => {
     const targetEmps = (activeEmployees || []).filter(e => {
+      const eOutletLower = String(e.outlet || '').toLowerCase();
+      const ePosLower = String(e.position || '').toLowerCase();
       const matchesOutlet = !quiz.outlet || quiz.outlet.length === 0 || 
-        (Array.isArray(quiz.outlet) ? quiz.outlet.includes(e.outlet) : (quiz.outlet === 'Semua Outlet' || e.outlet === quiz.outlet));
+        (Array.isArray(quiz.outlet) 
+          ? quiz.outlet.map(o => String(o).toLowerCase()).includes(eOutletLower) 
+          : (quiz.outlet === 'Semua Outlet' || eOutletLower === String(quiz.outlet).toLowerCase()));
       const matchesJabatan = !quiz.divisi || quiz.divisi.length === 0 || 
-        (Array.isArray(quiz.divisi) ? quiz.divisi.includes(e.position) : (quiz.divisi === 'Semua' || e.position === quiz.divisi));
+        (Array.isArray(quiz.divisi) 
+          ? quiz.divisi.map(j => String(j).toLowerCase()).includes(ePosLower) 
+          : (quiz.divisi === 'Semua' || ePosLower === String(quiz.divisi).toLowerCase()));
       return matchesOutlet && matchesJabatan;
     });
 
@@ -1774,7 +1783,7 @@ export default function KuisKompetensi() {
       if (!quiz) return;
 
       // Filter outlet
-      if (selectedOutlets.length && !selectedOutlets.includes(notif.outlet)) return;
+      if (selectedOutlets.length && !selectedOutlets.map(x => String(x).toLowerCase()).includes(String(notif.outlet || '').toLowerCase())) return;
 
       rows.push({
         id: notif.id,
@@ -1830,8 +1839,19 @@ export default function KuisKompetensi() {
   };
 
   // ── Stats
+  const filteredQuizBank = (quizBank || []).filter(quiz => {
+    if (selectedOutlets.length === 0) return true;
+    if (!quiz.outlet || quiz.outlet === 'Semua Outlet') return true;
+    const outletsLower = selectedOutlets.map(o => String(o).toLowerCase());
+    if (Array.isArray(quiz.outlet)) {
+      if (quiz.outlet.length === 0) return true;
+      return quiz.outlet.some(o => outletsLower.includes(String(o).toLowerCase()));
+    }
+    return outletsLower.includes(String(quiz.outlet).toLowerCase());
+  });
   const totalKuis = Array.isArray(quizBank) ? quizBank.length : 0;
   const totalTerkirim = (Array.isArray(quizBank) ? quizBank : []).filter(q => q.status === 'terkirim').length;
+  const totalTerkirimFiltered = filteredQuizBank.filter(q => q.status === 'terkirim').length;
   const totalHasil = Array.isArray(quizResults) ? quizResults.length : 0;
   const totalLulus = (Array.isArray(quizResults) ? quizResults : []).filter(r => r.skor > 80).length;
   const hasilRows = getHasilRows();
@@ -2032,7 +2052,7 @@ export default function KuisKompetensi() {
               <div>
                 <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: C.text }}>Bank Soal Kuis Aktif</h2>
                 <p style={{ color: C.muted, fontSize: '0.82rem', marginTop: '2px' }}>
-                  {quizBank.length} kuis tersimpan — {totalTerkirim} telah dikirim
+                  {filteredQuizBank.length} kuis tersimpan — {totalTerkirimFiltered} telah dikirim
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -2066,7 +2086,7 @@ export default function KuisKompetensi() {
                     </tr>
                   </thead>
                   <tbody>
-                    {quizBank.map((quiz, i) => (
+                    {filteredQuizBank.map((quiz, i) => (
                       <tr key={quiz.id} className="kuis-row"
                         style={{ borderBottom: `1px solid ${C.border}`, transition: 'background 0.15s' }}>
                         <td style={{ padding: '14px 16px', color: C.text, fontWeight: 600 }}>
