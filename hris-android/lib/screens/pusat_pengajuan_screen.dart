@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../models/models.dart';
 import '../config/api_client.dart';
@@ -137,7 +138,120 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
   }
 
   bool _validateKasbon(double amount, double basicSalary) {
+    if (basicSalary <= 0) return true; // Skip validasi jika gaji pokok tidak diketahui
     return amount <= (basicSalary * 0.5);
+  }
+
+  // ── Ambil Gaji Pokok Efektif dari Payroll (bukan profile) ──────────────
+  // Urutan prioritas:
+  // 1. Payroll slip terakhir dari SharedPreferences cache
+  // 2. payrollHistory dari provider
+  // 3. Estimasi berdasarkan lama bekerja
+  // 4. Fallback 0 (skip validasi)
+  Future<double> _getEffectiveBasicSalary(AuthProvider auth) async {
+    // 1. Coba ambil dari payroll slip cache di SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final slipsJson = prefs.getString('hris_payroll_mobile_slips');
+      if (slipsJson != null) {
+        final List<dynamic> slips = jsonDecode(slipsJson);
+        if (slips.isNotEmpty) {
+          // Urutkan by bulan/tahun terbaru
+          slips.sort((a, b) {
+            final aTahun = (a['tahun'] as num?)?.toInt() ?? 0;
+            final aBulan = (a['bulan'] as num?)?.toInt() ?? 0;
+            final bTahun = (b['tahun'] as num?)?.toInt() ?? 0;
+            final bBulan = (b['bulan'] as num?)?.toInt() ?? 0;
+            final aVal = aTahun * 100 + aBulan;
+            final bVal = bTahun * 100 + bBulan;
+            return bVal.compareTo(aVal); // Descending
+          });
+          final latestSlip = slips.first;
+          final inc = latestSlip['income'] as Map<String, dynamic>? ?? {};
+          final gajiPokok = double.tryParse(inc['gaji_pokok']?.toString() ?? '') ?? 0.0;
+          if (gajiPokok > 0) {
+            print('Kasbon: Gaji pokok dari payroll slip cache = $gajiPokok');
+            // Simpan lamaBekerja juga jika ada
+            final lamaBekerja = latestSlip['lama_bekerja']?.toString() ?? '';
+            if (lamaBekerja.isNotEmpty) {
+              print('Kasbon: Lama bekerja dari slip = $lamaBekerja');
+            }
+            return gajiPokok;
+          }
+        }
+      }
+    } catch (e) {
+      print('Kasbon: Gagal baca slip dari cache: $e');
+    }
+
+    // 2. Coba dari payrollHistory di provider
+    if (auth.payrollHistory.isNotEmpty) {
+      final sorted = List.of(auth.payrollHistory)
+        ..sort((a, b) => b.period.compareTo(a.period));
+      final latest = sorted.first;
+      if (latest.basicSalary > 0) {
+        print('Kasbon: Gaji pokok dari payrollHistory provider = ${latest.basicSalary}');
+        return latest.basicSalary;
+      }
+    }
+
+    // 3. Estimasi berdasarkan lama bekerja (joined_date dari profile atau slip)
+    // Tabel tunjangan lama bekerja Barokah Grup
+    // Anda bisa sesuaikan tabel ini sesuai kebijakan
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final slipsJson = prefs.getString('hris_payroll_mobile_slips');
+      if (slipsJson != null) {
+        final List<dynamic> slips = jsonDecode(slipsJson);
+        if (slips.isNotEmpty) {
+          slips.sort((a, b) {
+            final aVal = (a['tahun'] as num? ?? 0).toInt() * 100 + (a['bulan'] as num? ?? 0).toInt();
+            final bVal = (b['tahun'] as num? ?? 0).toInt() * 100 + (b['bulan'] as num? ?? 0).toInt();
+            return bVal.compareTo(aVal);
+          });
+          final lamaBekerja = slips.first['lama_bekerja']?.toString().toLowerCase() ?? '';
+          // Parse angka bulan dari string seperti "14 bulan" atau "1 tahun 2 bulan"
+          int totalBulan = _parseLamaBekerjaToMonths(lamaBekerja);
+          // Tabel gaji pokok berdasarkan lama bekerja (sesuaikan dengan kebijakan Barokah)
+          double estimatedSalary = _estimateSalaryFromMonths(totalBulan);
+          if (estimatedSalary > 0) {
+            print('Kasbon: Gaji pokok estimasi dari lama bekerja ($lamaBekerja = $totalBulan bulan) = $estimatedSalary');
+            return estimatedSalary;
+          }
+        }
+      }
+    } catch (e) {
+      print('Kasbon: Gagal estimasi dari lama bekerja: $e');
+    }
+
+    // 4. Tidak ada data — skip validasi
+    print('Kasbon: Tidak ada data gaji pokok, skip validasi limit.');
+    return 0.0;
+  }
+
+  int _parseLamaBekerjaToMonths(String lamaBekerja) {
+    int total = 0;
+    // Match "X tahun"
+    final tahunMatch = RegExp(r'(\d+)\s*tahun').firstMatch(lamaBekerja);
+    if (tahunMatch != null) total += int.parse(tahunMatch.group(1)!) * 12;
+    // Match "Y bulan"
+    final bulanMatch = RegExp(r'(\d+)\s*bulan').firstMatch(lamaBekerja);
+    if (bulanMatch != null) total += int.parse(bulanMatch.group(1)!);
+    return total;
+  }
+
+  double _estimateSalaryFromMonths(int months) {
+    // Tabel estimasi gaji pokok berdasarkan lama bekerja Barokah Grup
+    // Sesuaikan dengan kebijakan internal
+    if (months <= 0) return 0;
+    if (months < 3)  return 1500000;  // Masa percobaan
+    if (months < 6)  return 2000000;
+    if (months < 12) return 2200000;
+    if (months < 24) return 2500000;
+    if (months < 36) return 2800000;
+    if (months < 48) return 3000000;
+    if (months < 60) return 3200000;
+    return 3500000; // 5 tahun+
   }
 
   Future<void> _selectDate(BuildContext context, bool isStart) async {
@@ -308,126 +422,122 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
         );
         return;
       }
-      final basicSalary = auth.profile?.basicSalary ?? 0.0;
-      final maxLimit = basicSalary * 0.5;
 
-      // ── 1. VALIDASI BATAS MAKSIMAL 50% GAJI POKOK ────────────────────
-      if (!_validateKasbon(amount, basicSalary)) {
-        HapticFeedback.heavyImpact();
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xFF393E46),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-            title: const Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 24),
-                SizedBox(width: 10),
-                Text('Batas Kasbon Terlampaui', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: Text(
-              'Pengajuan gagal: Nominal kasbon ${currencyFormatter.format(amount)} melebihi batas ketentuan 50% dari gaji pokok Anda.\n\nBatas Maksimal Kasbon Anda: ${currencyFormatter.format(maxLimit)}',
-              style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.5),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
+      // Ambil gaji pokok dari payroll (async) lalu lanjut validasi
+      _getEffectiveBasicSalary(auth).then((basicSalary) {
+        if (!mounted) return;
+        final maxLimit = basicSalary * 0.5;
+
+        // ── 1. VALIDASI BATAS MAKSIMAL 50% GAJI POKOK (skip jika basicSalary = 0) ──
+        if (!_validateKasbon(amount, basicSalary)) {
+          HapticFeedback.heavyImpact();
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF393E46),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              title: const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 24),
+                  SizedBox(width: 10),
+                  Expanded(child: Text('Batas Kasbon Terlampaui', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold))),
+                ],
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _amountFocusNode.requestFocus();
-                },
-                child: const Text('Edit Jumlah', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
+              content: Text(
+                'Pengajuan gagal: Nominal kasbon ${currencyFormatter.format(amount)} melebihi batas ketentuan 50% dari gaji pokok Anda.\n\n'
+                'Gaji Pokok: ${currencyFormatter.format(basicSalary)}\n'
+                'Batas Maksimal Kasbon: ${currencyFormatter.format(maxLimit)}',
+                style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.5),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _selectDate(context, true);
-                },
-                child: const Text('Edit Tanggal', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-
-      // ── 2. VALIDASI PERIODE PENGADAAN KASBON ─────────────────────────
-      final cutoffDay = getCutoffStartDayFromPolicies(auth.policies, auth.profile?.outlet);
-      final subDate = _startDate ?? DateTime.now();
-      final cutoffPeriod = getActiveCutoffPeriod(cutoffDay, subDate);
-      final cutoffStartDate = cutoffPeriod['start']!;
-      final cutoffEndDate = cutoffPeriod['end']!;
-
-      final prevCutoffEnd = cutoffStartDate.subtract(const Duration(days: 1));
-      final prevPayday = prevCutoffEnd.add(const Duration(days: 4));
-      final allowedStart = prevPayday.add(const Duration(days: 7));
-      final allowedEnd = cutoffEndDate.subtract(const Duration(days: 7));
-
-      final subDateOnly = DateTime(subDate.year, subDate.month, subDate.day);
-      final allowedStartOnly = DateTime(allowedStart.year, allowedStart.month, allowedStart.day);
-      final allowedEndOnly = DateTime(allowedEnd.year, allowedEnd.month, allowedEnd.day);
-
-      final isInPeriod = !subDateOnly.isBefore(allowedStartOnly) && !subDateOnly.isAfter(allowedEndOnly);
-
-      if (!isInPeriod) {
-        HapticFeedback.heavyImpact();
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xFF393E46),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-            title: const Row(
-              children: [
-                Icon(Icons.lock_clock, color: Colors.red, size: 24),
-                SizedBox(width: 10),
-                Text('Tanggal Tidak Diizinkan', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Pengajuan kasbon gagal dan ditolak otomatis.',
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'Kasbon hanya diizinkan mulai 7 hari setelah tanggal gajian hingga 7 hari sebelum tanggal cut-off.\n\n'
-                  'Periode diizinkan untuk siklus ini:\n'
-                  '${allowedStart.day}/${allowedStart.month}/${allowedStart.year} s/d ${allowedEnd.day}/${allowedEnd.month}/${allowedEnd.year}',
-                  style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.5),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _amountFocusNode.requestFocus();
+                  },
+                  child: const Text('Edit Jumlah', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
+          );
+          return;
+        }
+
+        // ── 2. VALIDASI PERIODE PENGADAAN KASBON ──────────────────────────
+        final cutoffDay = getCutoffStartDayFromPolicies(auth.policies, auth.profile?.outlet);
+        final subDate = _startDate ?? DateTime.now();
+        final cutoffPeriod = getActiveCutoffPeriod(cutoffDay, subDate);
+        final cutoffStartDate = cutoffPeriod['start']!;
+        final cutoffEndDate = cutoffPeriod['end']!;
+
+        final prevCutoffEnd = cutoffStartDate.subtract(const Duration(days: 1));
+        final prevPayday = prevCutoffEnd.add(const Duration(days: 4));
+        final allowedStart = prevPayday.add(const Duration(days: 7));
+        final allowedEnd = cutoffEndDate.subtract(const Duration(days: 7));
+
+        final subDateOnly = DateTime(subDate.year, subDate.month, subDate.day);
+        final allowedStartOnly = DateTime(allowedStart.year, allowedStart.month, allowedStart.day);
+        final allowedEndOnly = DateTime(allowedEnd.year, allowedEnd.month, allowedEnd.day);
+
+        final isInPeriod = !subDateOnly.isBefore(allowedStartOnly) && !subDateOnly.isAfter(allowedEndOnly);
+
+        if (!isInPeriod) {
+          HapticFeedback.heavyImpact();
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF393E46),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              title: const Row(
+                children: [
+                  Icon(Icons.lock_clock, color: Colors.red, size: 24),
+                  SizedBox(width: 10),
+                  Expanded(child: Text('Tanggal Tidak Diizinkan', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold))),
+                ],
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _amountFocusNode.requestFocus();
-                },
-                child: const Text('Edit Jumlah', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Pengajuan kasbon gagal dan ditolak otomatis.',
+                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Kasbon hanya diizinkan mulai 7 hari setelah tanggal gajian hingga 7 hari sebelum tanggal cut-off.\n\n'
+                    'Periode diizinkan untuk siklus ini:\n'
+                    '${allowedStart.day}/${allowedStart.month}/${allowedStart.year} s/d ${allowedEnd.day}/${allowedEnd.month}/${allowedEnd.year}',
+                    style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.5),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _selectDate(context, true);
-                },
-                child: const Text('Edit Tanggal', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _selectDate(context, true);
+                  },
+                  child: const Text('Edit Tanggal', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+
+        // Semua validasi kasbon lolos → lanjut ke konfirmasi
+        _showDoubleConfirmationDialog(auth);
+      });
+      return; // Tunggu Future async selesai
     }
     
     if (_selectedType == 'setengah_hari') {
