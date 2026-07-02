@@ -44,7 +44,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   const [attFilterStatus, setAttFilterStatus] = useState('');
   const [attFilterMonth, setAttFilterMonth] = useState(new Date().getMonth() + 1);
   const [attFilterYear, setAttFilterYear] = useState(new Date().getFullYear());
-  const [attFilterDate, setAttFilterDate] = useState('');
+  const [attFilterDate, setAttFilterDate] = useState(new Date().toISOString().slice(0, 7));
 
   // ─── REALTIME FILTERS (reactive — no confirm dialog) ───────────────────────
   const [searchRealtime, setSearchRealtime]   = useState('');
@@ -311,6 +311,21 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   };
 
   useEffect(() => { loadData(); }, [token, API_URL]);
+
+  // Reactive listener to reload attendance logs dynamically when approved in Pusat Pengajuan
+  useEffect(() => {
+    const handleSyncUpdate = () => {
+      console.log('Syncing updated attendance logs from localStorage (event triggered)...');
+      setRealtimeLogs(JSON.parse(localStorage.getItem('hris_attendances_realtime') || '[]'));
+      setHistoryLogs(JSON.parse(localStorage.getItem('hris_attendances_history') || '[]'));
+    };
+    window.addEventListener('storage', handleSyncUpdate);
+    window.addEventListener('hris_attendance_update', handleSyncUpdate);
+    return () => {
+      window.removeEventListener('storage', handleSyncUpdate);
+      window.removeEventListener('hris_attendance_update', handleSyncUpdate);
+    };
+  }, []);
 
   // Reactive: update employees dari HRISContext (saat data karyawan berubah)
   useEffect(() => {
@@ -1141,8 +1156,8 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
             </select>
             <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
               <span style={{ fontSize:'0.78rem', color:'var(--text-muted)', fontWeight:600 }}>📅 Kalender:</span>
-              <input type='date' value={attFilterDate} onChange={e=>setAttFilterDate(e.target.value)}
-                min="2020-01-01" max="2040-12-31"
+              <input type='month' value={attFilterDate} onChange={e=>setAttFilterDate(e.target.value)}
+                min="2020-01" max="2040-12"
                 style={{ height:'36px', border:'1px solid var(--border-color)', borderRadius:'8px',
                   background:'var(--bg-surface)', color:'var(--text-main)', fontSize:'0.82rem', padding:'0 10px' }}/>
             </div>
@@ -1166,7 +1181,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                 doc.setFontSize(14); doc.text('Laporan Kehadiran Karyawan', 14, 15);
                 const filtered = realtimeLogs.filter(l => {
                   if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
-                  if (attFilterDate && (l.tanggal||l.date||'') !== attFilterDate) return false;
+                  if (attFilterDate && !(l.tanggal||l.date||'').startsWith(attFilterDate)) return false;
                   if (attFilterStatus) { const s = getAttendanceStatus(l); if (!s.toLowerCase().includes(attFilterStatus.toLowerCase())) return false; }
                   return true;
                 });
@@ -1203,7 +1218,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                   {realtimeLogs
                     .filter(l => {
                       if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
-                      if (attFilterDate && (l.tanggal||l.date||'') !== attFilterDate) return false;
+                      if (attFilterDate && !(l.tanggal||l.date||'').startsWith(attFilterDate)) return false;
                       if (attFilterStatus) { const s = getAttendanceStatus(l); if (!s.toLowerCase().includes(attFilterStatus.toLowerCase())) return false; }
                       return true;
                     })
@@ -1265,7 +1280,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
               </table>
               {realtimeLogs.filter(l => {
                 if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
-                if (attFilterDate && (l.tanggal||l.date||'') !== attFilterDate) return false;
+                if (attFilterDate && !(l.tanggal||l.date||'').startsWith(attFilterDate)) return false;
                 return true;
               }).length === 0 && (
                 <div style={{ textAlign:'center', padding:'40px', color:'var(--text-muted)', fontSize:'0.88rem' }}>📋 Belum ada data kehadiran.</div>

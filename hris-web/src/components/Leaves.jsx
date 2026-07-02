@@ -469,6 +469,7 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
     }
 
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('hris_attendance_update'));
   };
 
   const executeAction = async (id, status) => {
