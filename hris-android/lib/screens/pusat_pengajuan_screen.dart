@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../models/models.dart';
+import '../config/api_client.dart';
 
 class PusatPengajuanScreen extends StatefulWidget {
   const PusatPengajuanScreen({Key? key}) : super(key: key);
@@ -200,6 +201,102 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
     }
   }
 
+  // ── Cek konflik training aktif via API ──────────────────────────────────
+  Future<bool> _checkTrainingConflict(AuthProvider auth) async {
+    if (_startDate == null) return false;
+    final startStr = DateFormat('yyyy-MM-dd').format(_startDate!);
+    final endStr = _endDate != null ? DateFormat('yyyy-MM-dd').format(_endDate!) : startStr;
+    try {
+      final res = await ApiClient.get(
+        'training-schedule/active-check?start_date=$startStr&end_date=$endStr',
+        token: auth.token,
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['has_conflict'] == true) {
+          final trainings = (data['conflicting_trainings'] as List<dynamic>? ?? []);
+          if (mounted) {
+            _showTrainingBlockDialog(trainings);
+          }
+          return true;
+        }
+      }
+    } catch (e) {
+      // Jika gagal cek (offline), biarkan lanjut
+      print('Training conflict check skipped (offline): $e');
+    }
+    return false;
+  }
+
+  void _showTrainingBlockDialog(List<dynamic> trainings) {
+    String trainingNames = trainings.map((t) {
+      final nm = t['nama_program'] ?? 'Training';
+      final mulai = t['tanggal_mulai'] ?? '';
+      final selesai = t['tanggal_selesai'] ?? '';
+      return '• $nm\n  ($mulai s/d $selesai)';
+    }).join('\n\n');
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF393E46),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.block_rounded, color: Colors.redAccent, size: 24),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Pengajuan Diblokir',
+                style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Kamu tidak dapat mengajukan cuti/izin pada tanggal ini karena terdaftar dalam jadwal Training aktif:',
+              style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+              ),
+              child: Text(
+                trainingNames,
+                style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 12, height: 1.6),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Silakan hubungi admin atau atasan untuk pengecualian khusus.',
+              style: TextStyle(color: Color(0x8DEEEEEE), fontSize: 11, height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEEEEEE),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Mengerti', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _onSubmit(AuthProvider auth) {
     if (_selectedType == 'kasbon') {
       final text = _amountController.text.trim();
@@ -356,16 +453,25 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
       return;
     }
 
-    if (_selectedType == 'cuti' || _selectedType == 'izin' || _selectedType == 'sakit') {
-      if (_startDate != null && _endDate != null) {
-        final hasWeekendOrPeak = _checkHasWeekendOrPeakDay(_startDate!, _endDate!, auth.peakDays);
-        if (hasWeekendOrPeak) {
-          _showConsequenceDialog(() {
-            _showDoubleConfirmationDialog(auth);
-          });
-          return;
+    // ── Blokir jika ada jadwal training aktif (cuti / izin / sakit / setengah_hari) ──
+    if (_selectedType == 'cuti' || _selectedType == 'izin' ||
+        _selectedType == 'sakit' || _selectedType == 'setengah_hari') {
+      _checkTrainingConflict(auth).then((hasConflict) {
+        if (hasConflict) return; // dialog sudah ditampilkan di dalam _checkTrainingConflict
+        // Lanjut: cek weekend / peak day
+        if ((_selectedType == 'cuti' || _selectedType == 'izin' || _selectedType == 'sakit') &&
+            _startDate != null && _endDate != null) {
+          final hasWeekendOrPeak = _checkHasWeekendOrPeakDay(_startDate!, _endDate!, auth.peakDays);
+          if (hasWeekendOrPeak) {
+            _showConsequenceDialog(() {
+              _showDoubleConfirmationDialog(auth);
+            });
+            return;
+          }
         }
-      }
+        _showDoubleConfirmationDialog(auth);
+      });
+      return;
     }
 
     _showDoubleConfirmationDialog(auth);

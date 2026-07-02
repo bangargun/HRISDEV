@@ -229,6 +229,165 @@ app.post('/api/training-media', (req, res) => {
   res.json({ status: 'success' });
 });
 
+// ─── MOBILE TRAINING ENDPOINTS ────────────────────────────────────────────────
+
+// GET /api/training-schedule/employee
+// Mengembalikan jadwal training yang relevan untuk karyawan yang sedang login
+// Filter berdasarkan divisi (position) atau outlet karyawan
+app.get('/api/training-schedule/employee', authenticateToken, async (req, res) => {
+  try {
+    const empId = req.user.employeeId;
+    const employee = await dbQuery.get(
+      'SELECT full_name, position, outlet FROM employees WHERE id = ?',
+      [empId]
+    );
+
+    if (!employee) {
+      return res.status(404).json({ status: 'error', message: 'Data karyawan tidak ditemukan.' });
+    }
+
+    const myOutlet  = (employee.outlet   || '').toLowerCase().trim();
+    const myPos     = (employee.position || '').toLowerCase().trim();
+
+    // Ambil semua jadwal training
+    const allTrainings = await dbQuery.all(
+      'SELECT * FROM trainings ORDER BY tanggal_mulai DESC'
+    );
+
+    // Filter: jadwal yang relevan untuk karyawan ini
+    // Matching: divisi = posisi karyawan (case-insensitive), atau divisi = 'Semua'
+    const relevantTrainings = allTrainings.filter(t => {
+      const tDivisi = (t.divisi || '').toLowerCase().trim();
+      const matchDivisi = tDivisi === 'semua' || tDivisi === '' ||
+                          myPos.includes(tDivisi) || tDivisi.includes(myPos) || tDivisi === myPos;
+      return matchDivisi;
+    });
+
+    return res.json({ status: 'success', data: relevantTrainings });
+  } catch (error) {
+    console.error('GET /api/training-schedule/employee error:', error.message);
+    return res.status(500).json({ status: 'error', message: 'Gagal mengambil jadwal training karyawan.' });
+  }
+});
+
+// GET /api/training-results/outlet
+// Mengembalikan data hasil & evaluasi seluruh karyawan di outlet yang sama
+app.get('/api/training-results/outlet', authenticateToken, async (req, res) => {
+  try {
+    const empId = req.user.employeeId;
+    const employee = await dbQuery.get(
+      'SELECT outlet FROM employees WHERE id = ?',
+      [empId]
+    );
+
+    if (!employee) {
+      return res.status(404).json({ status: 'error', message: 'Data karyawan tidak ditemukan.' });
+    }
+
+    const myOutlet = (employee.outlet || '').toLowerCase().trim();
+
+    // Ambil semua training
+    const allTrainings = await dbQuery.all(
+      'SELECT * FROM trainings ORDER BY tanggal_mulai DESC'
+    );
+
+    // Ambil semua karyawan di outlet yang sama
+    const outletEmployees = await dbQuery.all(
+      "SELECT id, full_name, position FROM employees WHERE LOWER(TRIM(outlet)) = ?",
+      [myOutlet]
+    );
+
+    // Susun data hasil: untuk setiap training, tampilkan peserta dari outlet ini
+    const results = allTrainings.map(t => {
+      const participants = outletEmployees.map(emp => ({
+        employee_id: emp.id,
+        full_name: emp.full_name,
+        position: emp.position,
+        // Data evaluasi akan diisi jika ada di training_evaluations (future), default null
+        nilai: null,
+        status: t.status === 'selesai' ? 'Selesai' : (t.status === 'berjalan' ? 'Sedang Berjalan' : 'Mendatang'),
+        kehadiran: null
+      }));
+
+      return {
+        training_id: t.id,
+        nama_program: t.nama_program,
+        divisi: t.divisi,
+        tanggal_mulai: t.tanggal_mulai,
+        tanggal_selesai: t.tanggal_selesai,
+        status: t.status,
+        kuota: t.kuota,
+        outlet: myOutlet,
+        participants: participants
+      };
+    });
+
+    return res.json({ status: 'success', data: results });
+  } catch (error) {
+    console.error('GET /api/training-results/outlet error:', error.message);
+    return res.status(500).json({ status: 'error', message: 'Gagal mengambil data hasil evaluasi.' });
+  }
+});
+
+// GET /api/training-schedule/active-check?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+// Mengecek apakah ada jadwal training aktif dalam rentang tanggal tertentu
+// Digunakan oleh Pusat Pengajuan untuk memblokir pengajuan cuti/izin
+app.get('/api/training-schedule/active-check', authenticateToken, async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+
+    if (!start_date) {
+      return res.status(400).json({ status: 'error', message: 'Parameter start_date wajib diisi.' });
+    }
+
+    const endCheck = end_date || start_date;
+    const empId = req.user.employeeId;
+
+    const employee = await dbQuery.get(
+      'SELECT position FROM employees WHERE id = ?',
+      [empId]
+    );
+
+    const myPos = (employee?.position || '').toLowerCase().trim();
+
+    // Cari training yang overlap dengan rentang tanggal pengajuan
+    const conflictingTrainings = await dbQuery.all(
+      `SELECT * FROM trainings 
+       WHERE status IN ('mendatang', 'berjalan')
+         AND tanggal_mulai <= ? 
+         AND tanggal_selesai >= ?
+       ORDER BY tanggal_mulai ASC`,
+      [endCheck, start_date]
+    );
+
+    // Filter berdasarkan divisi karyawan
+    const relevant = conflictingTrainings.filter(t => {
+      const tDivisi = (t.divisi || '').toLowerCase().trim();
+      return tDivisi === 'semua' || tDivisi === '' ||
+             myPos.includes(tDivisi) || tDivisi.includes(myPos) || tDivisi === myPos;
+    });
+
+    const hasConflict = relevant.length > 0;
+
+    return res.json({
+      status: 'success',
+      has_conflict: hasConflict,
+      conflicting_trainings: hasConflict ? relevant.map(t => ({
+        id: t.id,
+        nama_program: t.nama_program,
+        tanggal_mulai: t.tanggal_mulai,
+        tanggal_selesai: t.tanggal_selesai,
+        divisi: t.divisi
+      })) : []
+    });
+  } catch (error) {
+    console.error('GET /api/training-schedule/active-check error:', error.message);
+    return res.status(500).json({ status: 'error', message: 'Gagal memeriksa jadwal training.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.get('/api/disc-results', (req, res) => {
   res.json({ status: 'success', results: backendState.disc_results });
 });
