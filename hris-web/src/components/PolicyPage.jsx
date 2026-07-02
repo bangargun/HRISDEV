@@ -1172,7 +1172,7 @@ export default function PolicyPage({ token, API_URL, userPermissions, user }) {
 
   // ── Deteksi Hak Akses RBAC ──
   const currentRole = getRoleFromPosition(user?.position, user?.role);
-  const canEdit = checkAccess(user, 'edit');
+  const canEdit = ['master', 'leader'].includes(currentRole) || checkAccess(user, 'edit');
   const canDelete = ['master', 'leader'].includes(currentRole);
 
   const showToast = useCallback((type, text) => {
@@ -1248,7 +1248,7 @@ export default function PolicyPage({ token, API_URL, userPermissions, user }) {
 
   // ── Buka modal edit ──
   const openEdit = (pol) => {
-    if (!checkAccess(user, 'edit')) {
+    if (!['master', 'leader'].includes(currentRole) && !checkAccess(user, 'edit')) {
       showError("Akses Ditolak! Anda tidak memiliki izin untuk melakukan aksi ini.");
       return;
     }
@@ -1273,6 +1273,26 @@ export default function PolicyPage({ token, API_URL, userPermissions, user }) {
       return;
     }
 
+    setConfirmModal({
+      open: true,
+      title: '🚨 PERINGATAN KERAS & DANA KRITIKAL!',
+      isDanger: true,
+      msg: `PENTING: Mengubah Kebijakan Perusahaan akan berdampak langsung pada:
+1. Perhitungan Gaji & Slip Payroll seluruh karyawan di outlet terpilih.
+2. Jam Masuk/Pulang & Denda Istirahat di halaman Kehadiran Karyawan.
+3. Parameter limit & durasi kerja di aplikasi mobile karyawan.
+4. Alur kontrak & sanksi karyawan secara sistematis.
+
+Semua perhitungan slip gaji (Payroll Draft) akan otomatis dihitung ulang menggunakan kebijakan baru ini. Perubahan ini bersifat permanen.
+
+Apakah Anda yakin ingin menyimpan perubahan ini?`,
+      confirmText: 'YA, SAYA BERTANGGUNG JAWAB',
+      cancelText: 'BATAL',
+      onConfirm: executeSave,
+    });
+  };
+
+  const executeSave = () => {
     const existing = loadPolicies();
     const allSelected = outletOptions.length > 0 && formOutlets.length === outletOptions.length;
 
@@ -1942,21 +1962,22 @@ export default function PolicyPage({ token, API_URL, userPermissions, user }) {
       {/* ── Modal Konfirmasi ── */}
       {confirmModal.open && (
         <div className="confirm-overlay">
-          <div className="confirm-card">
-            <h3 className="confirm-title">{confirmModal.title}</h3>
-            <p className="confirm-message">{confirmModal.msg}</p>
+          <div className="confirm-card" style={{ maxWidth: confirmModal.isDanger ? '500px' : '400px', border: confirmModal.isDanger ? '1px solid #ef4444' : '1px solid var(--accent-primary)' }}>
+            <h3 className="confirm-title" style={{ color: confirmModal.isDanger ? '#ef4444' : 'var(--text-main)' }}>{confirmModal.title}</h3>
+            <p className="confirm-message" style={{ whiteSpace: 'pre-line' }}>{confirmModal.msg}</p>
             <div className="confirm-actions">
               <button
                 className="btn-confirm-yes"
+                style={{ background: confirmModal.isDanger ? '#ef4444' : 'var(--text-main)', color: confirmModal.isDanger ? '#fff' : 'var(--bg-main)' }}
                 onClick={() => { confirmModal.onConfirm(); setConfirmModal(p => ({ ...p, open: false })); }}
               >
-                YA, HAPUS
+                {confirmModal.confirmText || 'YA, PROSES'}
               </button>
               <button
                 className="btn-confirm-cancel"
                 onClick={() => setConfirmModal(p => ({ ...p, open: false }))}
               >
-                BATAL
+                {confirmModal.cancelText || 'BATAL'}
               </button>
             </div>
           </div>
