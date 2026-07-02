@@ -1374,6 +1374,14 @@ Apakah Anda yakin ingin menyimpan perubahan ini?`,
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <style>{`
+        .policy-hover-parent {
+          position: relative !important;
+        }
+        .policy-hover-parent:hover .policy-hover-child {
+          display: block !important;
+        }
+      `}</style>
 
       {/* ── Toast ── */}
       {toast && (
@@ -1479,8 +1487,7 @@ Apakah Anda yakin ingin menyimpan perubahan ini?`,
               <thead>
                 <tr>
                   <th style={{ ...S.th, width: '52px', textAlign: 'center' }}>NO</th>
-                  <th style={{ ...S.th, minWidth: '180px' }}>NAMA ATURAN</th>
-                  <th style={{ ...S.th, minWidth: '200px', whiteSpace: 'normal' }}>DESKRIPSI</th>
+                  <th style={{ ...S.th, minWidth: '220px' }}>NAMA ATURAN (SOROT DETAIL)</th>
                   <th style={{ ...S.th, minWidth: '240px', whiteSpace: 'normal' }}>NAMA OUTLET</th>
                   <th style={{ ...S.th, minWidth: '120px', textAlign: 'center' }}>STATUS</th>
                   <th style={{ ...S.th, minWidth: '140px', textAlign: 'center' }}>AKSI</th>
@@ -1494,7 +1501,7 @@ Apakah Anda yakin ingin menyimpan perubahan ini?`,
               }}>
                 {currentRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ ...S.td, textAlign: 'center', padding: '40px', color: P.creamMuted }}>
+                    <td colSpan={5} style={{ ...S.td, textAlign: 'center', padding: '40px', color: P.creamMuted }}>
                       📋 Belum ada kebijakan yang dibuat.<br />
                       Klik <strong style={{ color: P.cream }}>TAMBAH KEBIJAKAN</strong> untuk menambahkan aturan baru.
                     </td>
@@ -1521,16 +1528,45 @@ Apakah Anda yakin ingin menyimpan perubahan ini?`,
                         </td>
 
                         {/* Nama Aturan */}
-                        <td style={{ ...S.td, fontWeight: 700, color: P.cream, whiteSpace: 'normal', minWidth: '180px' }}>
+                        <td 
+                          style={{ ...S.td, fontWeight: 700, color: P.cream, whiteSpace: 'normal', minWidth: '220px', position: 'relative', cursor: 'pointer' }}
+                          className="policy-hover-parent"
+                        >
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: isActive ? P.success : P.danger, flexShrink: 0, marginTop: '6px' }} />
                             <span>{pol.nama_aturan}</span>
                           </div>
-                        </td>
 
-                        {/* Deskripsi Aturan */}
-                        <td style={{ ...S.td, color: P.cream, whiteSpace: 'normal', minWidth: '200px', fontSize: '0.82rem', lineHeight: 1.5 }}>
-                          {renderDescription(pol.deskripsi)}
+                          {/* Tooltip Hover Panel */}
+                          <div className="policy-hover-child" style={{
+                            display: 'none',
+                            position: 'absolute',
+                            bottom: '100%',
+                            left: '0',
+                            transform: 'translateY(-8px)',
+                            background: P.bgSurface,
+                            border: `1px solid ${P.accent}`,
+                            boxShadow: '0 10px 30px rgba(0,0,0,0.5), 0 0 20px rgba(223, 177, 91, 0.1)',
+                            borderRadius: '10px',
+                            padding: '14px',
+                            width: '340px',
+                            whiteSpace: 'normal',
+                            zIndex: 9999,
+                            color: '#fff',
+                            fontSize: '0.82rem',
+                            lineHeight: 1.5,
+                            textAlign: 'left'
+                          }}>
+                            <div style={{ fontWeight: 800, color: P.cream, marginBottom: '6px', borderBottom: `1px solid ${P.accent}`, paddingBottom: '4px', fontSize: '0.85rem' }}>
+                              📜 DETAIL KEBIJAKAN
+                            </div>
+                            <div style={{ fontWeight: 700, color: '#fff', marginBottom: '8px' }}>
+                              {pol.nama_aturan}
+                            </div>
+                            <div style={{ color: P.creamMuted }}>
+                              {pol.deskripsi || 'Tidak ada deskripsi kebijakan.'}
+                            </div>
+                          </div>
                         </td>
 
                         {/* Nama Outlet */}

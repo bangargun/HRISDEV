@@ -115,7 +115,7 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
   const [previewModal, setPreviewModal] = useState({ isOpen: false, leave: null });
   const [showModal, setShowModal] = useState(false); // Edit Modal
   const [editingId, setEditingId] = useState(null);
-  const [leaveType, setLeaveType] = useState('cuti');
+  const [leaveType, setLeaveType] = useState('libur_reguler');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
@@ -294,7 +294,7 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
       }
     }
 
-    if (lv.leave_type === 'cuti' || lv.leave_type === 'izin' || lv.leave_type === 'sakit') {
+    if (lv.leave_type === 'cuti' || lv.leave_type === 'libur_reguler' || lv.leave_type === 'cuti_tahunan' || lv.leave_type === 'izin' || lv.leave_type === 'sakit') {
       let attendanceHistory = [];
       try {
         attendanceHistory = JSON.parse(localStorage.getItem('hris_attendances_history') || '[]');
@@ -323,7 +323,13 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
         peakDaysList = JSON.parse(localStorage.getItem('peak_day_rules') || '[]');
       } catch (e) {}
 
-      const labelStatus = lv.leave_type === 'sakit' ? 'Sakit (Disetujui)' : (lv.leave_type === 'izin' ? 'Izin (Disetujui)' : 'Libur Reguler (Disetujui)');
+      const labelStatus = lv.leave_type === 'sakit' 
+        ? 'Sakit (Disetujui)' 
+        : (lv.leave_type === 'izin' 
+          ? 'Izin (Disetujui)' 
+          : (lv.leave_type === 'cuti_tahunan' 
+            ? 'Cuti Tahunan (Disetujui)' 
+            : 'Libur Reguler (Disetujui)'));
 
       dates.forEach(d => {
         const dObj = new Date(d);
@@ -598,11 +604,16 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
     let fg = '#fff';
     let border = '1px solid rgba(255, 255, 255, 0.1)';
 
-    if (type === 'cuti') {
-      label = 'Cuti';
+    if (type === 'cuti' || type === 'libur_reguler') {
+      label = 'Libur Reguler';
       bg = 'rgba(46, 204, 113, 0.12)';
       fg = '#2ECC71';
       border = '1px solid rgba(46, 204, 113, 0.25)';
+    } else if (type === 'cuti_tahunan') {
+      label = 'Cuti Tahunan';
+      bg = 'rgba(52, 152, 219, 0.12)';
+      fg = '#3498DB';
+      border = '1px solid rgba(52, 152, 219, 0.25)';
     } else if (type === 'sakit') {
       label = 'Sakit';
       bg = 'rgba(231, 76, 60, 0.12)';
@@ -1321,7 +1332,7 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
         const sDate = new Date(lv.start_date);
         const eDate = new Date(lv.end_date);
         const days = isNaN(sDate.getTime()) || isNaN(eDate.getTime()) ? 0 : Math.ceil(Math.abs(eDate - sDate) / (1000 * 60 * 60 * 24)) + 1;
-        const isDendaWarning = lv.status === 'pending' && lv.leave_type === 'cuti' && days > maxLeaveLimit;
+        const isDendaWarning = lv.status === 'pending' && (lv.leave_type === 'cuti' || lv.leave_type === 'libur_reguler' || lv.leave_type === 'cuti_tahunan') && days > maxLeaveLimit;
 
         return (
           <div className="modal-backdrop" style={{ backdropFilter: 'blur(8px)', background: 'rgba(0, 0, 0, 0.7)', zIndex: 1000 }}>
@@ -1665,9 +1676,10 @@ export default function Leaves({ token, API_URL, userPermissions, user }) {
               <div className="input-group">
                 <label>Tipe Pengajuan</label>
                 <select className="input-field" value={leaveType} onChange={(e) => setLeaveType(e.target.value)} style={{ background: 'var(--bg-main)', color: '#fff' }}>
-                  <option value="cuti">Cuti Tahunan</option>
-                  <option value="sakit">Sakit (Medis)</option>
-                  <option value="izin">Izin Darurat</option>
+                  <option value="libur_reguler">Libur Reguler</option>
+                  <option value="cuti_tahunan">Cuti Tahunan</option>
+                  <option value="sakit">Sakit</option>
+                  <option value="izin">Izin</option>
                   <option value="setengah_hari">Masuk Setengah Hari</option>
                   <option value="kasbon">Kasbon</option>
                 </select>

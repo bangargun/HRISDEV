@@ -630,7 +630,8 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
         const empName = l.employee_name || l.nama_karyawan || '';
         
         let statusLabel = 'Absen';
-        if (l.leave_type === 'cuti') statusLabel = 'Cuti (Disetujui)';
+        if (l.leave_type === 'cuti' || l.leave_type === 'libur_reguler') statusLabel = 'Libur Reguler (Disetujui)';
+        else if (l.leave_type === 'cuti_tahunan') statusLabel = 'Cuti Tahunan (Disetujui)';
         else if (l.leave_type === 'izin') statusLabel = 'Izin (Disetujui)';
         else if (l.leave_type === 'sakit') statusLabel = 'Sakit (Disetujui)';
         else if (l.leave_type === 'setengah_hari') statusLabel = 'Setengah Hari (Disetujui)';

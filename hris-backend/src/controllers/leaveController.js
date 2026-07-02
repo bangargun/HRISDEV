@@ -366,7 +366,17 @@ export async function sendLeaveNotification(req, res) {
     // Get the employee name and outlet details
     const emp = await dbQuery.get("SELECT full_name, outlet FROM employees WHERE id = ?", [leave.employee_id]);
     const outletName = emp?.outlet || 'CABANG UTAMA';
-    const label = leave.leave_type === 'cuti' ? 'Libur Reguler' : (leave.leave_type === 'sakit' ? 'Sakit' : (leave.leave_type === 'izin' ? 'Izin' : (leave.leave_type === 'setengah_hari' ? 'Masuk Setengah Hari' : 'Kasbon')));
+    const label = (leave.leave_type === 'cuti' || leave.leave_type === 'libur_reguler')
+      ? 'Libur Reguler'
+      : (leave.leave_type === 'cuti_tahunan'
+        ? 'Cuti Tahunan'
+        : (leave.leave_type === 'sakit'
+          ? 'Sakit'
+          : (leave.leave_type === 'izin'
+            ? 'Izin'
+            : (leave.leave_type === 'setengah_hari'
+              ? 'Masuk Setengah Hari'
+              : 'Kasbon'))));
     
     let msg = `🟢 Pengajuan ${label} Anda pada tanggal ${leave.start_date} telah DISETUJUI oleh Manajemen.`;
     if (leave.leave_type === 'kasbon') {

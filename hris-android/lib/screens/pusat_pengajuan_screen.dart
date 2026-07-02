@@ -16,7 +16,7 @@ class PusatPengajuanScreen extends StatefulWidget {
 }
 
 class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
-  String _selectedType = 'cuti';
+  String _selectedType = 'libur_reguler';
   DateTime? _startDate;
   DateTime? _endDate;
   TimeOfDay? _halfDayClockOutTime;
@@ -563,13 +563,13 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
       return;
     }
 
-    // ── Blokir jika ada jadwal training aktif (cuti / izin / sakit / setengah_hari) ──
-    if (_selectedType == 'cuti' || _selectedType == 'izin' ||
+    // ── Blokir jika ada jadwal training aktif (cuti / libur_reguler / cuti_tahunan / izin / sakit / setengah_hari) ──
+    if (_selectedType == 'cuti' || _selectedType == 'libur_reguler' || _selectedType == 'cuti_tahunan' || _selectedType == 'izin' ||
         _selectedType == 'sakit' || _selectedType == 'setengah_hari') {
       _checkTrainingConflict(auth).then((hasConflict) {
         if (hasConflict) return; // dialog sudah ditampilkan di dalam _checkTrainingConflict
         // Lanjut: cek weekend / peak day
-        if ((_selectedType == 'cuti' || _selectedType == 'izin' || _selectedType == 'sakit') &&
+        if ((_selectedType == 'cuti' || _selectedType == 'libur_reguler' || _selectedType == 'cuti_tahunan' || _selectedType == 'izin' || _selectedType == 'sakit') &&
             _startDate != null && _endDate != null) {
           final hasWeekendOrPeak = _checkHasWeekendOrPeakDay(_startDate!, _endDate!, auth.peakDays);
           if (hasWeekendOrPeak) {
@@ -857,7 +857,7 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
 
     int takenDays = 0;
     for (var lv in auth.leaveHistory) {
-      if (lv.leaveType == 'cuti' && lv.status != 'rejected') {
+      if ((lv.leaveType == 'cuti' || lv.leaveType == 'libur_reguler' || lv.leaveType == 'cuti_tahunan') && lv.status != 'rejected') {
         try {
           DateTime lvStart = DateTime.parse(lv.startDate);
           DateTime lvEnd = DateTime.parse(lv.endDate);
@@ -867,14 +867,15 @@ class _PusatPengajuanScreenState extends State<PusatPengajuanScreen> {
     }
 
     int newDuration = 0;
-    if (_selectedType == 'cuti' && _startDate != null && _endDate != null) {
+    if ((_selectedType == 'cuti' || _selectedType == 'libur_reguler' || _selectedType == 'cuti_tahunan') && _startDate != null && _endDate != null) {
       newDuration = _endDate!.difference(_startDate!).inDays + 1;
     }
     final totalInPeriod = takenDays + newDuration;
-    final isLeaveLimitExceeded = _selectedType == 'cuti' && (newDuration > maxLeaveLimit || totalInPeriod > maxLeaveLimit);
+    final isLeaveLimitExceeded = (_selectedType == 'cuti' || _selectedType == 'libur_reguler' || _selectedType == 'cuti_tahunan') && (newDuration > maxLeaveLimit || totalInPeriod > maxLeaveLimit);
 
     const Map<String, String> typeLabels = {
-      'cuti': 'Libur Reguler',
+      'libur_reguler': 'Libur Reguler',
+      'cuti_tahunan': 'Cuti Tahunan',
       'sakit': 'Sakit',
       'izin': 'Izin',
       'setengah_hari': 'Masuk Setengah Hari',
