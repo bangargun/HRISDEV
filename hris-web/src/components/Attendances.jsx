@@ -578,19 +578,101 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   }, [outletEval]);
 
   // ─── FILTERED DATA ─────────────────────────────────────────────────────────
-  const filteredRealtime = useMemo(() => realtimeLogs.filter(log => {
-    const matchSearch = (log.nama_karyawan || '').toLowerCase().includes(searchRealtime.toLowerCase());
-    const matchOutlet = outletRealtime ? (log.outlet || '').toLowerCase() === outletRealtime.toLowerCase() : true;
-    let matchMonth = true, matchYear = true;
-    if (log.date) {
-      const p = log.date.split('-');
-      if (monthRealtime) matchMonth = parseInt(p[1],10) === monthRealtime;
-      if (yearRealtime) matchYear = parseInt(p[0],10) === yearRealtime;
-    }
-    const matchStart = startDateRealtime ? log.date >= startDateRealtime : true;
-    const matchEnd = endDateRealtime ? log.date <= endDateRealtime : true;
-    return matchSearch && matchOutlet && matchMonth && matchYear && matchStart && matchEnd;
-  }), [realtimeLogs, searchRealtime, outletRealtime, monthRealtime, yearRealtime, startDateRealtime, endDateRealtime]);
+  const filteredRealtime = useMemo(() => {
+    // 1. Filter raw check-in logs based on current filters
+    const activeLogs = realtimeLogs.filter(l => {
+      if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
+      if (attFilterDate && !(l.tanggal||l.date||'').startsWith(attFilterDate)) return false;
+      if (attFilterStatus) {
+        const s = getAttendanceStatus(l);
+        if (!s.toLowerCase().includes(attFilterStatus.toLowerCase())) return false;
+      }
+      return true;
+    });
+
+    // 2. Load approved leaves
+    let leaves = [];
+    try {
+      leaves = JSON.parse(localStorage.getItem('hris_leaves') || localStorage.getItem('leaves') || '[]');
+    } catch (e) {}
+
+    const approvedLeaves = leaves.filter(l => 
+      (l.status === 'approved' || l.status === 'APPROVED') &&
+      l.leave_type !== 'kasbon'
+    );
+
+    // Helper to generate dates in range
+    const getDatesInRange = (startStr, endStr) => {
+      const dates = [];
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return dates;
+      let current = new Date(start);
+      while (current <= end) {
+        const yyyy = current.getFullYear();
+        const mm = String(current.getMonth() + 1).padStart(2, '0');
+        const dd = String(current.getDate()).padStart(2, '0');
+        dates.push(`${yyyy}-${mm}-${dd}`);
+        current.setDate(current.getDate() + 1);
+      }
+      return dates;
+    };
+
+    const injectedLogs = [];
+
+    approvedLeaves.forEach(l => {
+      const dates = getDatesInRange(l.start_date, l.end_date || l.start_date);
+      dates.forEach(d => {
+        // Apply filters
+        if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return;
+        if (attFilterDate && !d.startsWith(attFilterDate)) return;
+
+        const empName = l.employee_name || l.nama_karyawan || '';
+        
+        let statusLabel = 'Absen';
+        if (l.leave_type === 'cuti') statusLabel = 'Cuti (Disetujui)';
+        else if (l.leave_type === 'izin') statusLabel = 'Izin (Disetujui)';
+        else if (l.leave_type === 'sakit') statusLabel = 'Sakit (Disetujui)';
+        else if (l.leave_type === 'setengah_hari') statusLabel = 'Setengah Hari (Disetujui)';
+
+        if (attFilterStatus && !statusLabel.toLowerCase().includes(attFilterStatus.toLowerCase())) return;
+
+        // Check if employee already has a check-in for date d
+        const hasCheckIn = realtimeLogs.some(r => 
+          (String(r.employee_id) === String(l.employee_id) || (r.nama_karyawan || '').toLowerCase().trim() === empName.toLowerCase().trim()) &&
+          (r.date === d || r.tanggal === d)
+        );
+
+        if (!hasCheckIn) {
+          injectedLogs.push({
+            id: `injected-leave-${l.id}-${d}`,
+            employee_id: l.employee_id,
+            nama_karyawan: empName,
+            full_name: empName,
+            outlet: l.outlet || '-',
+            date: d,
+            tanggal: d,
+            jam_masuk: '',
+            jam_keluar: '',
+            jam_mulai_istirahat: '',
+            jam_akhir_istirahat: '',
+            _fromLeave: true,
+            leave_type: statusLabel,
+            status_in: 'leave_approved',
+            notes: `${statusLabel}: ${l.reason || '-'}`,
+            keterangan: `${statusLabel}: ${l.reason || '-'}`,
+            ikut_briefing: 'Tidak',
+            sent_status: 'sent'
+          });
+        }
+      });
+    });
+
+    const combined = [...activeLogs, ...injectedLogs];
+    // Sort by Date Descending
+    combined.sort((a, b) => (b.tanggal||b.date||'').localeCompare(a.tanggal||a.date||''));
+    return combined;
+  }, [realtimeLogs, attFilterOutlet, attFilterDate, attFilterStatus]);
 
   const filteredHistory = useMemo(() => historyLogs.filter(log => {
     const name = (log.full_name || '').toLowerCase();
@@ -1179,12 +1261,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
               <button onClick={() => {
                 const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
                 doc.setFontSize(14); doc.text('Laporan Kehadiran Karyawan', 14, 15);
-                const filtered = realtimeLogs.filter(l => {
-                  if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
-                  if (attFilterDate && !(l.tanggal||l.date||'').startsWith(attFilterDate)) return false;
-                  if (attFilterStatus) { const s = getAttendanceStatus(l); if (!s.toLowerCase().includes(attFilterStatus.toLowerCase())) return false; }
-                  return true;
-                });
+                const filtered = filteredRealtime;
                 autoTable(doc, {
                   startY: 22, styles:{fontSize:7.5},
                   head: [['Tanggal, Bulan & Tahun','Nama','Outlet','Jam Masuk','Jam Keluar','Jam Istirahat','Status Kehadiran','Durasi Kerja','Durasi Istirahat','Terlambat (menit)','Ikut Briefing','Status Kirim']],
@@ -1215,13 +1292,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                   </tr>
                 </thead>
                 <tbody>
-                  {realtimeLogs
-                    .filter(l => {
-                      if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
-                      if (attFilterDate && !(l.tanggal||l.date||'').startsWith(attFilterDate)) return false;
-                      if (attFilterStatus) { const s = getAttendanceStatus(l); if (!s.toLowerCase().includes(attFilterStatus.toLowerCase())) return false; }
-                      return true;
-                    })
+                  {filteredRealtime
                     .map((log, idx) => {
                       const status = getAttendanceStatus(log);
                       const terlambat = getMenitTerlambat(log);
@@ -1278,11 +1349,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                     })}
                 </tbody>
               </table>
-              {realtimeLogs.filter(l => {
-                if (attFilterOutlet && (l.outlet||'').toUpperCase().trim() !== attFilterOutlet.toUpperCase().trim()) return false;
-                if (attFilterDate && !(l.tanggal||l.date||'').startsWith(attFilterDate)) return false;
-                return true;
-              }).length === 0 && (
+              {filteredRealtime.length === 0 && (
                 <div style={{ textAlign:'center', padding:'40px', color:'var(--text-muted)', fontSize:'0.88rem' }}>📋 Belum ada data kehadiran.</div>
               )}
             </div>
