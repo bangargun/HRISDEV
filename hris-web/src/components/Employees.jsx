@@ -6,6 +6,7 @@ import { useHRIS } from '../context/HRISContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PDFCompileOverlay from './PDFCompileOverlay';
+import * as XLSX from 'xlsx';
 
 export default function Employees({ token, API_URL, userPermissions, user }) {
   const role = getRoleFromPosition(user?.position, user?.role);
@@ -752,6 +753,229 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
   const fetchOutlets = async () => {
     const list = getLiveOutletList();
     setOutlets(list);
+  };
+
+  // ─── DOWNLOAD EXCEL TEMPLATE ──────────────────────────────────────────────
+  const handleDownloadTemplate = () => {
+    try {
+      const headers = [
+        [
+          'ID Karyawan (Username APK)',
+          'NIK (No KTP)',
+          'Nama Lengkap',
+          'Nama Panggilan',
+          'Jabatan',
+          'Outlet',
+          'Tanggal Mulai Bekerja (YYYY-MM-DD)',
+          'Nomor WhatsApp',
+          'Jenis Kelamin (Laki-laki/Perempuan)',
+          'Alamat',
+          'Status Pernikahan (Belum Menikah/Menikah)',
+          'Status Karyawan (active/inactive)',
+          'Akun Facebook',
+          'Akun Instagram'
+        ]
+      ];
+      const sampleData = [
+        [
+          'KARYAWAN01',
+          '1234567890123456',
+          'Budi Santoso',
+          'Budi',
+          'Staf',
+          'SURABAYA',
+          '2026-01-01',
+          '081234567890',
+          'Laki-laki',
+          'Jl. Mawar No. 10',
+          'Belum Menikah',
+          'active',
+          'budis',
+          'budi_ig'
+        ]
+      ];
+      
+      const ws = XLSX.utils.aoa_to_sheet([...headers, ...sampleData]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Template Karyawan');
+      
+      XLSX.writeFile(wb, 'template_input_karyawan.xlsx');
+      showToast('success', 'Template Excel berhasil diunduh!');
+    } catch (error) {
+      console.error(error);
+      showToast('error', 'Gagal membuat template Excel.');
+    }
+  };
+
+  // ─── UPLOAD & PARSE EXCEL DATA ─────────────────────────────────────────────
+  const handleUploadExcel = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to array of arrays, skip headers
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        if (rows.length <= 1) {
+          showToast('error', 'File Excel kosong atau format tidak sesuai!');
+          return;
+        }
+
+        const importedEmployees = [];
+        
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
+          
+          const empId = String(row[0] || '').trim();
+          const nik = String(row[1] || '').trim();
+          const fullName = String(row[2] || '').trim();
+          
+          if (!empId || !nik || !fullName) {
+            // Skip rows without critical data
+            continue;
+          }
+
+          const nickname = String(row[3] || '').trim() || fullName.split(' ')[0];
+          const position = String(row[4] || 'Staf').trim();
+          const outlet = String(row[5] || 'CABANG UTAMA').trim();
+          const startWorkingDate = String(row[6] || new Date().toISOString().split('T')[0]).trim();
+          const whatsappNumber = String(row[7] || '').trim();
+          const gender = String(row[8] || 'Laki-laki').trim();
+          const address = String(row[9] || '').trim();
+          const maritalStatus = String(row[10] || 'Belum Menikah').trim();
+          const status = String(row[11] || 'active').trim().toLowerCase();
+          const fb = String(row[12] || '').trim();
+          const ig = String(row[13] || '').trim();
+
+          importedEmployees.push({
+            employee_id: empId,
+            nik,
+            full_name: fullName,
+            nickname,
+            position,
+            outlet,
+            start_working_date: startWorkingDate,
+            whatsapp_number: whatsappNumber,
+            gender,
+            address,
+            marital_status: maritalStatus,
+            employee_status: status,
+            facebook_account: fb,
+            instagram_account: ig
+          });
+        }
+
+        if (importedEmployees.length === 0) {
+          showToast('error', 'Tidak ada data karyawan valid untuk diimpor!');
+          return;
+        }
+
+        if (!window.confirm(`Ditemukan ${importedEmployees.length} data karyawan baru. Lanjutkan impor ke sistem?`)) {
+          return;
+        }
+
+        showToast('success', 'Sedang mengimpor data karyawan...');
+
+        // Loop and save each employee to API / LocalStorage
+        let successCount = 0;
+        let failCount = 0;
+        
+        const currentList = [...employees];
+
+        for (const newEmpData of importedEmployees) {
+          const tempId = Date.now() + Math.floor(Math.random() * 1000);
+          const newEmp = {
+            id: tempId,
+            employee_id: newEmpData.employee_id,
+            nik: newEmpData.nik,
+            full_name: toTitleCase(newEmpData.full_name),
+            nickname: toTitleCase(newEmpData.nickname),
+            employee_status: newEmpData.employee_status,
+            end_working_date: '',
+            position: toTitleCase(newEmpData.position),
+            basic_salary: getSalaryForPosition(newEmpData.position),
+            start_working_date: newEmpData.start_working_date,
+            outlet: toTitleCase(newEmpData.outlet),
+            marital_status: newEmpData.marital_status,
+            address: toTitleCase(newEmpData.address),
+            gender: newEmpData.gender,
+            whatsapp_number: newEmpData.whatsapp_number,
+            facebook_account: newEmpData.facebook_account,
+            instagram_account: newEmpData.instagram_account
+          };
+
+          let apiSuccess = false;
+          try {
+            const payload = {
+              email: String(newEmp.employee_id).trim(),
+              password: String(newEmp.employee_id).trim() + getOutletCode(newEmp.outlet),
+              nik: newEmp.nik,
+              full_name: newEmp.full_name,
+              phone: newEmp.whatsapp_number,
+              address: newEmp.address,
+              position: newEmp.position,
+              department: 'Operasional',
+              basic_salary: newEmp.basic_salary,
+              joined_date: newEmp.start_working_date,
+              end_working_date: null,
+              status: newEmp.employee_status,
+              role: (newEmp.position.toLowerCase() === 'admin' || newEmp.position.toLowerCase() === 'owner' || newEmp.position.toLowerCase() === 'supervisor') ? 'admin' : 'employee',
+              outlet: newEmp.outlet,
+              gender: newEmp.gender
+            };
+
+            const res = await fetch(`${API_URL}/employees`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify(payload)
+            });
+
+            if (res.status === 201 || res.status === 200) {
+              const data = await res.json();
+              if (data.status === 'success') {
+                newEmp.id = data.data.employeeId;
+                apiSuccess = true;
+              }
+            }
+          } catch (e) {
+            console.error('API Error during Excel import:', e);
+          }
+
+          if (apiSuccess) {
+            currentList.push(newEmp);
+            successCount++;
+          } else {
+            failCount++;
+          }
+        }
+
+        if (successCount > 0) {
+          localStorage.setItem('hris_employees', JSON.stringify(currentList));
+          localStorage.setItem('karyawan_data', JSON.stringify(currentList));
+          setEmployees(currentList);
+          hrisDispatch('EMPLOYEE_CHANGED', currentList);
+          showToast('success', `🎉 Impor Berhasil! ${successCount} karyawan ditambahkan. ${failCount > 0 ? failCount + ' gagal.' : ''}`);
+        } else {
+          showToast('error', '❌ Gagal mengimpor data karyawan ke API/Server.');
+        }
+
+      } catch (err) {
+        console.error(err);
+        showToast('error', 'Gagal membaca file Excel!');
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = ''; // Reset file input
   };
 
   useEffect(() => {
@@ -2991,10 +3215,67 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
               </button>
 
               {role !== 'admin' && (
-                <button className="btn-primary" onClick={openAddModal} style={{ height: '42px' }}>
-                  <Plus size={18} />
-                  <span>TAMBAH KARYAWAN</span>
-                </button>
+                <>
+                  {/* Template Download Button */}
+                  <button
+                    onClick={handleDownloadTemplate}
+                    style={{
+                      height: '42px',
+                      padding: '0 16px',
+                      background: 'rgba(223, 177, 91, 0.15)',
+                      color: 'var(--primary-solid)',
+                      border: '1px solid rgba(223, 177, 91, 0.35)',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(223, 177, 91, 0.25)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(223, 177, 91, 0.15)'; }}
+                  >
+                    <span>📄 Template Excel</span>
+                  </button>
+
+                  {/* Import Excel Button */}
+                  <button
+                    onClick={() => document.getElementById('excel-upload-input').click()}
+                    style={{
+                      height: '42px',
+                      padding: '0 16px',
+                      background: 'rgba(46, 204, 113, 0.15)',
+                      color: '#2ECC71',
+                      border: '1px solid rgba(46, 204, 113, 0.35)',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(46, 204, 113, 0.25)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(46, 204, 113, 0.15)'; }}
+                  >
+                    <span>📤 Impor Excel</span>
+                  </button>
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    style={{ display: 'none' }}
+                    id="excel-upload-input"
+                    onChange={handleUploadExcel}
+                  />
+
+                  <button className="btn-primary" onClick={openAddModal} style={{ height: '42px' }}>
+                    <Plus size={18} />
+                    <span>TAMBAH KARYAWAN</span>
+                  </button>
+                </>
               )}
             </>
           ) : (
