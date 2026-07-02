@@ -1333,9 +1333,18 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                           </td>
                           <td style={{ padding:'10px 12px' }}>
                             <div style={{ display:'flex', gap:'6px' }}>
-                              <button onClick={() => showToast('success', 'Fitur edit kehadiran tersedia di tab ini.')
-                              } style={{ background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', color:'#3B82F6', borderRadius:'6px', padding:'4px 8px', fontSize:'0.72rem', cursor:'pointer', fontWeight:600 }}>Edit</button>
                               <button onClick={() => {
+                                if (log._fromLeave) {
+                                  showToast('error', '⚠️ Data cuti/izin yang disetujui hanya dapat diubah melalui tab Pusat Pengajuan.');
+                                  return;
+                                }
+                                handleEditRealtime(log);
+                              }} style={{ background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', color:'#3B82F6', borderRadius:'6px', padding:'4px 8px', fontSize:'0.72rem', cursor:'pointer', fontWeight:600 }}>Edit</button>
+                              <button onClick={() => {
+                                if (log._fromLeave) {
+                                  showToast('error', '⚠️ Data cuti/izin yang disetujui hanya dapat dibatalkan/dihapus melalui tab Pusat Pengajuan.');
+                                  return;
+                                }
                                 if (!window.confirm('Hapus data kehadiran ini?')) return;
                                 const updated = realtimeLogs.filter(r => r.id !== log.id);
                                 setRealtimeLogs(updated);
