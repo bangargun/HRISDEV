@@ -26,6 +26,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import contractRoutes from './routes/contractRoutes.js';
 import informationRoutes from './routes/informationRoutes.js';
 import { authenticateToken } from './middleware/auth.js';
+import { runWeeklyPhotoCleanup } from './utils/weeklyCleanup.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -78,6 +79,9 @@ app.use((req, res, next) => {
 // 4. Inisialisasi Database SQLite
 initializeDatabase().then(() => {
   console.log('Database initialized successfully.');
+  // Jalankan pembersihan foto mingguan secara berkala
+  runWeeklyPhotoCleanup();
+  setInterval(runWeeklyPhotoCleanup, 12 * 60 * 60 * 1000); // Periksa setiap 12 jam
 }).catch((err) => {
   console.error('Database initialization failed:', err.message);
   process.exit(1);

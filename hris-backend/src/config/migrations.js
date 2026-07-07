@@ -47,6 +47,18 @@ export async function runDatabaseMigrations(connection) {
       console.log('Migration SUCCESS: Kolom ikut_briefing ditambahkan ke attendances.');
     } catch (_) {}
 
+    // 8. Tambah kolom photo_break_start_url pada tabel attendances
+    try {
+      await connection.execute("ALTER TABLE attendances ADD COLUMN photo_break_start_url TEXT NULL");
+      console.log('Migration SUCCESS: Kolom photo_break_start_url ditambahkan ke attendances.');
+    } catch (_) {}
+
+    // 9. Tambah kolom photo_break_end_url pada tabel attendances
+    try {
+      await connection.execute("ALTER TABLE attendances ADD COLUMN photo_break_end_url TEXT NULL");
+      console.log('Migration SUCCESS: Kolom photo_break_end_url ditambahkan ke attendances.');
+    } catch (_) {}
+
     console.log('✅ Semua migrasi database selesai diproses.');
   } catch (error) {
     console.error('Migration CRITICAL: Gagal memproses migrasi database:', error.message);

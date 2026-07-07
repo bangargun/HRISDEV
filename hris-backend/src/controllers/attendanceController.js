@@ -1,6 +1,33 @@
 import { dbQuery } from '../config/db.js';
 import fs from 'fs';
 import path from 'path';
+import { exec } from 'child_process';
+import util from 'util';
+
+const execPromise = util.promisify(exec);
+
+/**
+ * Memanggil skrip python untuk mendeteksi wajah & memberikan watermark timestamp
+ */
+async function verifyFaceAndWatermark(filePath) {
+  try {
+    const scriptPath = path.resolve('src', 'utils', 'face_detector.py');
+    const absoluteFilePath = path.resolve(filePath.startsWith('/') ? filePath.substring(1) : filePath);
+    
+    const { stdout } = await execPromise(`python3 "${scriptPath}" "${absoluteFilePath}"`);
+    const output = stdout.trim();
+    
+    if (output.includes('SUCCESS')) {
+      return { success: true };
+    } else if (output.includes('FAILED:')) {
+      return { success: false, message: output.split('FAILED:')[1].trim() };
+    }
+    return { success: false, message: 'Wajah tidak terdeteksi pada foto selfie Anda.' };
+  } catch (error) {
+    console.error('Face verification execution error:', error);
+    return { success: false, message: 'Gagal memproses verifikasi wajah pada foto selfie.' };
+  }
+}
 
 /**
  * Menyimpan foto selfie base64 ke file fisik lokal di folder uploads
@@ -89,53 +116,25 @@ export async function clockIn(req, res) {
     });
   }
 
-  if (latitude === undefined || longitude === undefined) {
+  if (!photo_selfie) {
     return res.status(400).json({
       status: 'error',
-      message: 'Lokasi koordinat GPS (latitude & longitude) wajib disertakan.'
+      message: '❌ Foto selfie wajib disertakan untuk verifikasi absensi masuk.'
     });
   }
 
   try {
     // 1. Ambil pengaturan absensi dinamis dari database
-    const settingsRows = await dbQuery.all("SELECT `key`, value FROM system_settings");
+    const settingsRows = await dbQuery.all("SELECT \`key\`, value FROM system_settings");
     const settings = {};
     settingsRows.forEach(row => {
       settings[row.key] = row.value;
     });
 
-    let officeLat = parseFloat(settings['office_latitude'] || '-6.2088');
-    let officeLng = parseFloat(settings['office_longitude'] || '106.8456');
-    let maxRadius = parseFloat(settings['geofence_radius_meters'] || '150');
     const clockInDeadline = settings['clock_in_deadline'] || '08:00:00';
-
-    // Ambil outlet terdaftar karyawan
-    const employee = await dbQuery.get("SELECT outlet FROM employees WHERE id = ?", [employeeId]);
-    let outletInfo = null;
-    if (employee && employee.outlet) {
-      outletInfo = await dbQuery.get("SELECT latitude, longitude, radius FROM outlets WHERE nama = ?", [employee.outlet.trim()]);
-    }
-
-    if (outletInfo && outletInfo.latitude !== null && outletInfo.longitude !== null) {
-      officeLat = parseFloat(outletInfo.latitude);
-      officeLng = parseFloat(outletInfo.longitude);
-      if (outletInfo.radius !== null) {
-        maxRadius = parseFloat(outletInfo.radius);
-      }
-    }
-
-    // 2. Validasi Geofencing lokasi absensi
-    const distance = calculateDistance(latitude, longitude, officeLat, officeLng);
-    if (distance > maxRadius) {
-      return res.status(400).json({
-        status: 'error',
-        message: `Absensi gagal: Anda berada di luar radius outlet terdaftar (${employee?.outlet || 'Kantor Pusat'}) (${Math.round(distance)} meter dari outlet. Maksimal radius ${maxRadius} meter).`
-      });
-    }
-
     const todayDate = getTodayDateString();
     
-    // 3. Periksa apakah sudah pernah Clock-In hari ini
+    // 2. Periksa apakah sudah pernah Clock-In hari ini
     const existingAttendance = await dbQuery.get(
       "SELECT id FROM attendances WHERE employee_id = ? AND date = ?",
       [employeeId, todayDate]
@@ -148,14 +147,33 @@ export async function clockIn(req, res) {
       });
     }
 
-    // 4. Tentukan status ketepatan waktu
+    // Simpan foto selfie
+    const photoPath = saveSelfieImage(photo_selfie, employeeId, 'selfie_in');
+    if (!photoPath) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Gagal menyimpan foto selfie absensi.'
+      });
+    }
+
+    // Verifikasi wajah & Timestamp watermark
+    const verification = await verifyFaceAndWatermark(photoPath);
+    if (!verification.success) {
+      // Hapus file sampah
+      try {
+        fs.unlinkSync(path.resolve(photoPath.substring(1)));
+      } catch (_) {}
+      return res.status(400).json({
+        status: 'error',
+        message: `❌ Absensi Ditolak: ${verification.message}`
+      });
+    }
+
+    // 3. Tentukan status ketepatan waktu
     const clockInTime = getCurrentTimeString();
     const statusIn = clockInTime > clockInDeadline ? 'late' : 'ontime';
 
-    // Simpan foto selfie jika ada
-    const photoPath = saveSelfieImage(photo_selfie, employeeId, 'selfie_in');
-
-    // 4. Rekam data absensi
+    // 4. Rekam data absensi (tanpa perlu geofencing)
     await dbQuery.run(`
       INSERT INTO attendances (employee_id, date, clock_in, lat_in, lng_in, status_in, photo_in_url, notes)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -163,10 +181,10 @@ export async function clockIn(req, res) {
       employeeId,
       todayDate,
       clockInTime,
-      latitude,
-      longitude,
+      latitude !== undefined ? latitude : null,
+      longitude !== undefined ? longitude : null,
       statusIn,
-      photoPath || null,
+      photoPath,
       notes ? notes.trim() : null
     ]);
 
@@ -178,8 +196,7 @@ export async function clockIn(req, res) {
       message: 'Absensi masuk (Clock-In) berhasil dicatat.',
       data: {
         time: clockInTime,
-        status: statusIn,
-        distanceFromOffice: `${Math.round(distance)}m`
+        status: statusIn
       }
     });
 
@@ -206,52 +223,17 @@ export async function clockOut(req, res) {
     });
   }
 
-  if (latitude === undefined || longitude === undefined) {
+  if (!photo_selfie) {
     return res.status(400).json({
       status: 'error',
-      message: 'Lokasi koordinat GPS wajib disertakan.'
+      message: '❌ Foto selfie wajib disertakan untuk verifikasi absensi keluar.'
     });
   }
 
   try {
-    // 1. Ambil pengaturan absensi dinamis dari database
-    const settingsRows = await dbQuery.all("SELECT `key`, value FROM system_settings");
-    const settings = {};
-    settingsRows.forEach(row => {
-      settings[row.key] = row.value;
-    });
-
-    let officeLat = parseFloat(settings['office_latitude'] || '-6.2088');
-    let officeLng = parseFloat(settings['office_longitude'] || '106.8456');
-    let maxRadius = parseFloat(settings['geofence_radius_meters'] || '150');
-
-    // Ambil outlet terdaftar karyawan
-    const employee = await dbQuery.get("SELECT outlet FROM employees WHERE id = ?", [employeeId]);
-    let outletInfo = null;
-    if (employee && employee.outlet) {
-      outletInfo = await dbQuery.get("SELECT latitude, longitude, radius FROM outlets WHERE nama = ?", [employee.outlet.trim()]);
-    }
-
-    if (outletInfo && outletInfo.latitude !== null && outletInfo.longitude !== null) {
-      officeLat = parseFloat(outletInfo.latitude);
-      officeLng = parseFloat(outletInfo.longitude);
-      if (outletInfo.radius !== null) {
-        maxRadius = parseFloat(outletInfo.radius);
-      }
-    }
-
-    // 2. Validasi Geofencing lokasi absensi
-    const distance = calculateDistance(latitude, longitude, officeLat, officeLng);
-    if (distance > maxRadius) {
-      return res.status(400).json({
-        status: 'error',
-        message: `Absensi gagal: Anda berada di luar radius outlet terdaftar (${employee?.outlet || 'Kantor Pusat'}) (${Math.round(distance)} meter dari outlet. Maksimal radius ${maxRadius} meter).`
-      });
-    }
-
     const todayDate = getTodayDateString();
 
-    // 2. Cari data absensi masuk hari ini
+    // 1. Cari data absensi masuk hari ini
     const attendance = await dbQuery.get(
       "SELECT id, clock_out FROM attendances WHERE employee_id = ? AND date = ?",
       [employeeId, todayDate]
@@ -271,14 +253,41 @@ export async function clockOut(req, res) {
       });
     }
 
-    // 3. Catat Clock-Out
-    const clockOutTime = getCurrentTimeString();
+    // Simpan foto selfie
     const photoPath = saveSelfieImage(photo_selfie, employeeId, 'selfie_out');
+    if (!photoPath) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Gagal menyimpan foto selfie absensi.'
+      });
+    }
+
+    // Verifikasi wajah & Timestamp watermark
+    const verification = await verifyFaceAndWatermark(photoPath);
+    if (!verification.success) {
+      // Hapus file sampah
+      try {
+        fs.unlinkSync(path.resolve(photoPath.substring(1)));
+      } catch (_) {}
+      return res.status(400).json({
+        status: 'error',
+        message: `❌ Absensi Ditolak: ${verification.message}`
+      });
+    }
+
+    // 2. Catat Clock-Out
+    const clockOutTime = getCurrentTimeString();
     await dbQuery.run(`
       UPDATE attendances
       SET clock_out = ?, lat_out = ?, lng_out = ?, photo_out_url = ?
       WHERE id = ?
-    `, [clockOutTime, latitude, longitude, photoPath || null, attendance.id]);
+    `, [
+      clockOutTime, 
+      latitude !== undefined ? latitude : null, 
+      longitude !== undefined ? longitude : null, 
+      photoPath, 
+      attendance.id
+    ]);
     
     // Kirim sapaan motivasi bersyukur pulang otomatis
     await sendSapaanAI(employeeId, 'keluar');
@@ -341,7 +350,9 @@ export async function getAttendanceHistory(req, res) {
 
   try {
     let sql = `
-      SELECT a.id, a.date, a.clock_in, a.clock_out, a.status_in, a.notes, e.full_name, e.nik, e.department, e.outlet, a.jam_mulai_istirahat, a.jam_akhir_istirahat, a.ikut_briefing,
+      SELECT a.id, a.date, a.clock_in, a.clock_out, a.status_in, a.notes, e.full_name, e.nik, e.department, e.outlet, 
+             a.jam_mulai_istirahat, a.jam_akhir_istirahat, a.ikut_briefing,
+             a.photo_in_url, a.photo_out_url, a.photo_break_start_url, a.photo_break_end_url,
              bs.jam_mulai AS jadwal_mulai_istirahat, bs.jam_selesai AS jadwal_selesai_istirahat
       FROM attendances a
       JOIN employees e ON a.employee_id = e.id
@@ -396,11 +407,20 @@ export async function getAttendanceHistory(req, res) {
  * Mulai Istirahat (Karyawan via Android)
  */
 export async function breakStart(req, res) {
+  const { photo_selfie } = req.body;
   const employeeId = req.user.employeeId;
+
   if (!employeeId) {
     return res.status(400).json({
       status: 'error',
       message: 'Profil karyawan tidak ditemukan untuk akun ini.'
+    });
+  }
+
+  if (!photo_selfie) {
+    return res.status(400).json({
+      status: 'error',
+      message: '❌ Foto selfie wajib disertakan untuk verifikasi mulai istirahat.'
     });
   }
 
@@ -427,10 +447,32 @@ export async function breakStart(req, res) {
       });
     }
 
+    // Simpan foto selfie
+    const photoPath = saveSelfieImage(photo_selfie, employeeId, 'selfie_break_start');
+    if (!photoPath) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Gagal menyimpan foto selfie istirahat.'
+      });
+    }
+
+    // Verifikasi wajah & Timestamp watermark
+    const verification = await verifyFaceAndWatermark(photoPath);
+    if (!verification.success) {
+      // Hapus file sampah
+      try {
+        fs.unlinkSync(path.resolve(photoPath.substring(1)));
+      } catch (_) {}
+      return res.status(400).json({
+        status: 'error',
+        message: `❌ Istirahat Ditolak: ${verification.message}`
+      });
+    }
+
     const breakTime = getCurrentTimeString();
     await dbQuery.run(
-      "UPDATE attendances SET jam_mulai_istirahat = ? WHERE id = ?",
-      [breakTime, attendance.id]
+      "UPDATE attendances SET jam_mulai_istirahat = ?, photo_break_start_url = ? WHERE id = ?",
+      [breakTime, photoPath, attendance.id]
     );
 
     return res.status(200).json({
@@ -453,11 +495,20 @@ export async function breakStart(req, res) {
  * Selesai Istirahat (Karyawan via Android)
  */
 export async function breakEnd(req, res) {
+  const { photo_selfie } = req.body;
   const employeeId = req.user.employeeId;
+
   if (!employeeId) {
     return res.status(400).json({
       status: 'error',
       message: 'Profil karyawan tidak ditemukan untuk akun ini.'
+    });
+  }
+
+  if (!photo_selfie) {
+    return res.status(400).json({
+      status: 'error',
+      message: '❌ Foto selfie wajib disertakan untuk verifikasi selesai istirahat.'
     });
   }
 
@@ -491,10 +542,32 @@ export async function breakEnd(req, res) {
       });
     }
 
+    // Simpan foto selfie
+    const photoPath = saveSelfieImage(photo_selfie, employeeId, 'selfie_break_end');
+    if (!photoPath) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Gagal menyimpan foto selfie selesai istirahat.'
+      });
+    }
+
+    // Verifikasi wajah & Timestamp watermark
+    const verification = await verifyFaceAndWatermark(photoPath);
+    if (!verification.success) {
+      // Hapus file sampah
+      try {
+        fs.unlinkSync(path.resolve(photoPath.substring(1)));
+      } catch (_) {}
+      return res.status(400).json({
+        status: 'error',
+        message: `❌ Selesai Istirahat Ditolak: ${verification.message}`
+      });
+    }
+
     const endTime = getCurrentTimeString();
     await dbQuery.run(
-      "UPDATE attendances SET jam_akhir_istirahat = ? WHERE id = ?",
-      [endTime, attendance.id]
+      "UPDATE attendances SET jam_akhir_istirahat = ?, photo_break_end_url = ? WHERE id = ?",
+      [endTime, photoPath, attendance.id]
     );
 
     return res.status(200).json({

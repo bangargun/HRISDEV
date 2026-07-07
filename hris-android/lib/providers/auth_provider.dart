@@ -515,14 +515,18 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> startBreak() async {
+  Future<void> startBreak({String? photoSelfie}) async {
     _isLoading = true;
     _attendanceError = null;
     _attendanceSuccess = null;
     notifyListeners();
 
     try {
-      final res = await ApiClient.post('attendance/break-start', {}, token: _token);
+      final Map<String, dynamic> payload = {};
+      if (photoSelfie != null && photoSelfie.isNotEmpty) {
+        payload['photo_selfie'] = photoSelfie;
+      }
+      final res = await ApiClient.post('attendance/break-start', payload, token: _token);
       final data = jsonDecode(res.body);
       _isLoading = false;
 
@@ -541,14 +545,18 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> endBreak() async {
+  Future<void> endBreak({String? photoSelfie}) async {
     _isLoading = true;
     _attendanceError = null;
     _attendanceSuccess = null;
     notifyListeners();
 
     try {
-      final res = await ApiClient.post('attendance/break-end', {}, token: _token);
+      final Map<String, dynamic> payload = {};
+      if (photoSelfie != null && photoSelfie.isNotEmpty) {
+        payload['photo_selfie'] = photoSelfie;
+      }
+      final res = await ApiClient.post('attendance/break-end', payload, token: _token);
       final data = jsonDecode(res.body);
       _isLoading = false;
 

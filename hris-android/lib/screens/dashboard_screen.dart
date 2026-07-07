@@ -1689,85 +1689,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _performClockIn(AuthProvider auth) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan ambil foto selfie masuk untuk verifikasi wajah.')),
+      );
+    }
 
-    try {
-      final pos = await _getCurrentLocation();
-      if (pos == null) {
-        if (mounted) Navigator.pop(context);
-        return;
-      }
-
-      if (mounted) Navigator.pop(context); // Tutup loading GPS
-
+    final base64Photo = await _takeSelfie();
+    if (base64Photo == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Silakan ambil foto selfie untuk verifikasi wajah.')),
+          const SnackBar(content: Text('Absensi dibatalkan: Foto selfie wajib.')),
         );
       }
+      return;
+    }
 
-      final base64Photo = await _takeSelfie();
-      if (base64Photo == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Absensi dibatalkan: Foto selfie wajib.')),
+    String? notes;
+    if (mounted) {
+      notes = await showDialog<String>(
+        context: context,
+        builder: (context) {
+          final controller = TextEditingController();
+          return AlertDialog(
+            backgroundColor: const Color(0xFF393E46),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Catatan Kehadiran', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
+            content: TextField(
+              controller: controller,
+              style: const TextStyle(color: Color(0xFFEEEEEE)),
+              decoration: const InputDecoration(
+                hintText: 'Tulis keterangan/catatan (opsional)...',
+                hintStyle: TextStyle(color: Color(0x52EEEEEE)),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0x33EEEEEE))),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00ADB5))),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, controller.text),
+                child: const Text('KIRIM & ABSEN', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text('BATAL', style: TextStyle(color: Color(0x8DEEEEEE))),
+              ),
+            ],
           );
         }
-        return;
-      }
+      );
+      if (notes == null) return; // Dibatalkan oleh user
+    }
 
-      String? notes;
-      if (mounted) {
-        notes = await showDialog<String>(
-          context: context,
-          builder: (context) {
-            final controller = TextEditingController();
-            return AlertDialog(
-              backgroundColor: const Color(0xFF393E46),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Catatan Kehadiran', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
-              content: TextField(
-                controller: controller,
-                style: const TextStyle(color: Color(0xFFEEEEEE)),
-                decoration: const InputDecoration(
-                  hintText: 'Tulis keterangan/catatan (opsional)...',
-                  hintStyle: TextStyle(color: Color(0x52EEEEEE)),
-                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0x33EEEEEE))),
-                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00ADB5))),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, controller.text),
-                  child: const Text('KIRIM & ABSEN', style: TextStyle(color: Color(0xFF00ADB5), fontWeight: FontWeight.bold)),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, null),
-                  child: const Text('BATAL', style: TextStyle(color: Color(0x8DEEEEEE))),
-                ),
-              ],
-            );
-          }
-        );
-        if (notes == null) return; // Dibatalkan oleh user
-      }
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
+      );
+    }
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
-        );
-      }
+    try {
+      await auth.clockIn(0.0, 0.0, notes: notes, photoSelfie: base64Photo);
+      if (mounted) Navigator.pop(context); // Tutup loading
 
-      await auth.clockIn(pos.latitude, pos.longitude, notes: notes, photoSelfie: base64Photo);
-      
-      if (mounted) Navigator.pop(context); // Tutup loading kedua
-      
       if (auth.attendanceError != null && mounted) {
         showDialog(
           context: context,
@@ -1786,83 +1771,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Terjadi kesalahan: $e')),
-        );
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
       }
     }
   }
 
   void _performClockOut(AuthProvider auth) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan ambil foto selfie pulang untuk verifikasi wajah.')),
+      );
+    }
 
-    try {
-      final pos = await _getCurrentLocation();
-      if (pos == null) {
-        if (mounted) Navigator.pop(context);
-        return;
-      }
-
-      if (mounted) Navigator.pop(context); // Tutup loading GPS
-
+    final base64Photo = await _takeSelfie();
+    if (base64Photo == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Silakan ambil foto selfie pulang untuk verifikasi wajah.')),
+          const SnackBar(content: Text('Absensi dibatalkan: Foto selfie wajib.')),
         );
       }
+      return;
+    }
 
-      final base64Photo = await _takeSelfie();
-      if (base64Photo == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Absensi dibatalkan: Foto selfie wajib.')),
-          );
-        }
-        return;
-      }
+    bool confirm = false;
+    if (mounted) {
+      confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF393E46),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Konfirmasi Pulang', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
+          content: const Text('Apakah Anda yakin ingin melakukan Clock-Out sekarang?', style: TextStyle(color: Color(0x8DEEEEEE))),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('YA, PULANG', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('BATAL', style: TextStyle(color: Color(0x8DEEEEEE))),
+            ),
+          ],
+        )
+      ) ?? false;
+    }
 
-      bool confirm = false;
-      if (mounted) {
-        confirm = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF393E46),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('Konfirmasi Pulang', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 16, fontWeight: FontWeight.bold)),
-            content: const Text('Apakah Anda yakin ingin melakukan Clock-Out sekarang?', style: TextStyle(color: Color(0x8DEEEEEE))),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('YA, PULANG', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('BATAL', style: TextStyle(color: Color(0x8DEEEEEE))),
-              ),
-            ],
-          )
-        ) ?? false;
-      }
+    if (!confirm) return;
 
-      if (!confirm) return;
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
+      );
+    }
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
-        );
-      }
-
-      await auth.clockOut(pos.latitude, pos.longitude, photoSelfie: base64Photo);
-
-      if (mounted) Navigator.pop(context); // Tutup loading kedua
+    try {
+      await auth.clockOut(0.0, 0.0, photoSelfie: base64Photo);
+      if (mounted) Navigator.pop(context); // Tutup loading
 
       if (auth.attendanceError != null && mounted) {
         showDialog(
@@ -1882,11 +1850,117 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
+      }
+    }
+  }
+
+  void _performStartBreak(AuthProvider auth) async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan ambil foto selfie untuk verifikasi mulai istirahat.')),
+      );
+    }
+
+    final base64Photo = await _takeSelfie();
+    if (base64Photo == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Terjadi kesalahan: $e')),
+          const SnackBar(content: Text('Istirahat dibatalkan: Foto selfie wajib.')),
         );
+      }
+      return;
+    }
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
+      );
+    }
+
+    try {
+      await auth.startBreak(photoSelfie: base64Photo);
+      if (mounted) Navigator.pop(context);
+
+      if (auth.attendanceError != null && mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF393E46),
+            title: const Text('Gagal Mulai Istirahat', style: TextStyle(color: Colors.redAccent)),
+            content: Text(auth.attendanceError!, style: const TextStyle(color: Color(0xFFEEEEEE))),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(color: Color(0xFF00ADB5))))
+            ],
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.attendanceSuccess ?? 'Mulai istirahat berhasil dicatat.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
+      }
+    }
+  }
+
+  void _performEndBreak(AuthProvider auth) async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan ambil foto selfie untuk verifikasi selesai istirahat.')),
+      );
+    }
+
+    final base64Photo = await _takeSelfie();
+    if (base64Photo == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Istirahat dibatalkan: Foto selfie wajib.')),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
+      );
+    }
+
+    try {
+      await auth.endBreak(photoSelfie: base64Photo);
+      if (mounted) Navigator.pop(context);
+
+      if (auth.attendanceError != null && mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF393E46),
+            title: const Text('Gagal Selesai Istirahat', style: TextStyle(color: Colors.redAccent)),
+            content: Text(auth.attendanceError!, style: const TextStyle(color: Color(0xFFEEEEEE))),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(color: Color(0xFF00ADB5))))
+            ],
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.attendanceSuccess ?? 'Selesai istirahat berhasil dicatat.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
       }
     }
   }
@@ -1894,73 +1968,90 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildAttendanceActionButtons(BuildContext context, AuthProvider auth, AttendanceRecord? today) {
     const success = Color(0xFF10B981);
     const danger = Color(0xFFEF4444);
+    const primary = Color(0xFF00ADB5);
 
-    // Tombol Clock In dihapus dari dashboard utama.
-    // Karyawan melakukan absen masuk melalui menu Kehadiran.
-    if (today == null || today.clockIn == null) {
-      return GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceScreen())),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF00ADB5).withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF00ADB5).withOpacity(0.25)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.gps_fixed_outlined, color: Color(0xFF00ADB5), size: 16),
-              SizedBox(width: 8),
-              Text(
-                'Tap untuk Absen Masuk Kerja',
-                style: TextStyle(color: Color(0xFF00ADB5), fontSize: 13, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ),
-      );
-    } else if (today.clockOut == null) {
-      return SizedBox(
-        width: double.infinity,
-        height: 48,
-        child: ElevatedButton.icon(
-          onPressed: () => _performClockOut(auth),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: danger,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            elevation: 2,
-          ),
-          icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
-          label: const Text(
-            'PULANG KERJA (CLOCK-OUT)',
-            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-          ),
-        ),
-      );
-    } else {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: success.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: success.withOpacity(0.15)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.check_circle_outline, color: success, size: 18),
-            SizedBox(width: 8),
-            Text(
-              'Absensi Hari Ini Telah Lengkap',
-              style: TextStyle(color: success, fontSize: 13, fontWeight: FontWeight.bold),
+    // Hitung status keaktifan masing-masing dari 4 tombol
+    final bool canClockIn = today == null || today.clockIn == null;
+    final bool canStartBreak = today != null && today.clockIn != null && today.clockOut == null && today.jamMulaiIstirahat == null;
+    final bool canEndBreak = today != null && today.clockIn != null && today.clockOut == null && today.jamMulaiIstirahat != null && today.jamAkhirIstirahat == null;
+    final bool canClockOut = today != null && today.clockIn != null && today.clockOut == null;
+
+    Widget buildButton({
+      required String label,
+      required IconData icon,
+      required Color color,
+      required bool isActive,
+      required VoidCallback onPressed,
+    }) {
+      return Expanded(
+        child: Opacity(
+          opacity: isActive ? 1.0 : 0.4,
+          child: ElevatedButton.icon(
+            onPressed: isActive ? onPressed : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isActive ? color : const Color(0xFF393E46),
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: const Color(0xFF393E46),
+              disabledForegroundColor: Colors.white24,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              elevation: isActive ? 3 : 0,
             ),
-          ],
+            icon: Icon(icon, size: 16),
+            label: Text(
+              label,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
         ),
       );
     }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            buildButton(
+              label: 'Masuk Kerja',
+              icon: Icons.login_rounded,
+              color: primary,
+              isActive: canClockIn,
+              onPressed: () => _performClockIn(auth),
+            ),
+            const SizedBox(width: 8),
+            buildButton(
+              label: 'Mulai Istirahat',
+              icon: Icons.coffee_rounded,
+              color: Colors.amber[700]!,
+              isActive: canStartBreak,
+              onPressed: () => _performStartBreak(auth),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            buildButton(
+              label: 'Selesai Istirahat',
+              icon: Icons.coffee_outlined,
+              color: success,
+              isActive: canEndBreak,
+              onPressed: () => _performEndBreak(auth),
+            ),
+            const SizedBox(width: 8),
+            buildButton(
+              label: 'Pulang Kerja',
+              icon: Icons.logout_rounded,
+              color: danger,
+              isActive: canClockOut,
+              onPressed: () => _performClockOut(auth),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   /// Membangun tabel jadwal istirahat 7 hari ke depan (Senin - Minggu)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Calendar, MapPin, Users, CheckCircle, AlertCircle, Clock, XCircle, Edit2, Trash2, X, Filter, Plus, Info, Store, Loader2, ChevronDown, ChevronRight, FileText, BarChart2, TrendingDown, AlertTriangle } from 'lucide-react';
+import { Search, Calendar, MapPin, Users, CheckCircle, AlertCircle, Clock, XCircle, Edit2, Trash2, X, Filter, Plus, Info, Store, Loader2, ChevronDown, ChevronRight, FileText, BarChart2, TrendingDown, AlertTriangle, Camera } from 'lucide-react';
 import { getLiveOutletList } from '../utils/outletUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -90,25 +90,25 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     no: true, name: true, outlet: true, tanggal: true,
     jam_masuk: true, jam_pulang: true,
     jam_mulai_istirahat: true, jam_akhir_istirahat: true,
-    status: true, durasi: true, keterangan: true, actions: true
+    status: true, durasi: true, selfie: true, keterangan: true, actions: true
   });
   const colLabelMapRealtime = {
     no:'NO', name:'NAMA KARYAWAN', outlet:'OUTLET', tanggal:'TANGGAL',
     jam_masuk:'JAM MASUK', jam_pulang:'JAM PULANG',
     jam_mulai_istirahat:'MULAI ISTIRAHAT', jam_akhir_istirahat:'AKHIR ISTIRAHAT',
-    status:'STATUS', durasi:'DURASI KERJA', keterangan:'KETERANGAN', actions:'AKSI'
+    status:'STATUS', durasi:'DURASI KERJA', selfie:'SELFIE', keterangan:'KETERANGAN', actions:'AKSI'
   };
 
   const [showColFilterHistory, setShowColFilterHistory] = useState(false);
   const [visibleColumnsHistory, setVisibleColumnsHistory] = useState({
     date: true, nik: true, full_name: true, department: true,
     outlet: true, clock_in: true, clock_out: true,
-    break_time: true, status_in: true, map: true, notes: true, actions: true
+    break_time: true, status_in: true, selfie: true, map: true, notes: true, actions: true
   });
   const colLabelMapHistory = {
     date:'TANGGAL', nik:'NIK', full_name:'NAMA LENGKAP', department:'JABATAN',
     outlet:'OUTLET', clock_in:'JAM MASUK', clock_out:'JAM KELUAR',
-    break_time:'WAKTU ISTIRAHAT', status_in:'STATUS MASUK', map:'PETA', notes:'CATATAN', actions:'AKSI'
+    break_time:'WAKTU ISTIRAHAT', status_in:'STATUS MASUK', selfie:'SELFIE', map:'PETA', notes:'CATATAN', actions:'AKSI'
   };
 
   // ─── MODAL STATES ──────────────────────────────────────────────────────────
@@ -149,11 +149,30 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   const [newPeakDay, setNewPeakDay] = useState({ tanggal: '', bulan: '', tahun: '', nama_peak_day: '' });
   const [peakDayPage, setPeakDayPage] = useState(1);
   const [peakDayTransition, setPeakDayTransition] = useState(false);
+  const [selfiePreviewData, setSelfiePreviewData] = useState(null);
 
   // ─── TOAST ─────────────────────────────────────────────────────────────────
   const showToast = (type, message) => {
     setToast({ show: true, type, message });
     setTimeout(() => setToast({ show: false, type: '', message: '' }), 5000);
+  };
+
+  const handleViewSelfie = (log) => {
+    const photos = [];
+    if (log.photo_in_url || log.photo_in) photos.push({ label: 'Masuk', url: log.photo_in_url || log.photo_in });
+    if (log.photo_break_start_url || log.photo_break_start) photos.push({ label: 'Mulai Istirahat', url: log.photo_break_start_url || log.photo_break_start });
+    if (log.photo_break_end_url || log.photo_break_end) photos.push({ label: 'Selesai Istirahat', url: log.photo_break_end_url || log.photo_break_end });
+    if (log.photo_out_url || log.photo_out) photos.push({ label: 'Pulang', url: log.photo_out_url || log.photo_out });
+
+    if (photos.length === 0) {
+      showToast('info', 'Tidak ada foto selfie untuk log kehadiran ini.');
+      return;
+    }
+    setSelfiePreviewData({
+      name: log.full_name || log.nama_karyawan || 'Karyawan',
+      date: log.date,
+      photos
+    });
   };
 
   // ─── DATA LOADING ──────────────────────────────────────────────────────────
@@ -1753,6 +1772,17 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                         {visibleColumnsRealtime.jam_akhir_istirahat && <td style={{color:'var(--text-muted)'}}>{log.jam_akhir_istirahat||'-'}</td>}
                         {visibleColumnsRealtime.status && <td><StatusBadge status={log.status}/></td>}
                         {visibleColumnsRealtime.durasi && <td style={{color:'#f59e0b',fontWeight:600}}>{log.durasi}</td>}
+                        {visibleColumnsRealtime.selfie && (
+                          <td>
+                            {log.photo_in_url || log.photo_out_url || log.photo_break_start_url || log.photo_break_end_url || log.photo_in || log.photo_out || log.photo_break_start || log.photo_break_end ? (
+                              <button type="button" onClick={() => handleViewSelfie(log)} style={{ display:'inline-flex', alignItems:'center', gap:'4px', padding:'3px 8px', borderRadius:'20px', fontSize:'0.72rem', color:'#00ADB5', border:'1px solid rgba(0, 173, 181, 0.3)', background:'rgba(0,173,181,0.08)', fontWeight:600, cursor:'pointer' }}>
+                                <Camera size={11}/> Lihat
+                              </button>
+                            ) : (
+                              <span style={{ color:'var(--text-muted)' }}>-</span>
+                            )}
+                          </td>
+                        )}
                         {visibleColumnsRealtime.keterangan && <td style={{color:'var(--text-muted)',fontStyle:log.keterangan?'normal':'italic'}}>{log.keterangan||'-'}</td>}
                         {visibleColumnsRealtime.actions && (
                           <td>
@@ -1871,6 +1901,17 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                         {visibleColumnsHistory.clock_out && <td style={{color:'var(--text-muted)'}}>{log.clock_out||'--:--'}</td>}
                         {visibleColumnsHistory.break_time && <td style={{color:'var(--text-muted)',fontSize:'11px'}}>{log.jam_mulai_istirahat && log.jam_akhir_istirahat ? `${log.jam_mulai_istirahat}–${log.jam_akhir_istirahat}` : '-'}</td>}
                         {visibleColumnsHistory.status_in && <td><StatusBadge status={statusLabel}/></td>}
+                        {visibleColumnsHistory.selfie && (
+                          <td>
+                            {log.photo_in_url || log.photo_out_url || log.photo_break_start_url || log.photo_break_end_url || log.photo_in || log.photo_out || log.photo_break_start || log.photo_break_end ? (
+                              <button type="button" onClick={() => handleViewSelfie(log)} style={{ display:'inline-flex', alignItems:'center', gap:'4px', padding:'3px 8px', borderRadius:'20px', fontSize:'0.72rem', color:'#00ADB5', border:'1px solid rgba(0, 173, 181, 0.3)', background:'rgba(0,173,181,0.08)', fontWeight:600, cursor:'pointer' }}>
+                                <Camera size={11}/> Lihat
+                              </button>
+                            ) : (
+                              <span style={{ color:'var(--text-muted)' }}>-</span>
+                            )}
+                          </td>
+                        )}
                         {visibleColumnsHistory.map && <td>{log.lat_in ? <a href={`https://www.google.com/maps?q=${log.lat_in},${log.lng_in}`} target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:'4px',color:'var(--primary-solid)',fontSize:'0.8rem',fontWeight:600,textDecoration:'none'}}><MapPin size={12}/>Lihat</a> : <span style={{color:'var(--text-muted)'}}>-</span>}</td>}
                         {visibleColumnsHistory.notes && <td style={{color:'var(--text-muted)',maxWidth:'150px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{log.notes||'-'}</td>}
                         {visibleColumnsHistory.actions && (
@@ -2818,7 +2859,53 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
         </div>
       )}
 
-      {/* Confirm Modal */}
+      {/* Selfie Preview Modal */}
+      {selfiePreviewData && (
+        <div className="modal-backdrop">
+          <div className="glass-card modal-content animate-fade-in" style={{ maxWidth: '640px', width: '95%' }}>
+            <div className="modal-header">
+              <h2>Foto Selfie Kehadiran</h2>
+              <button onClick={() => setSelfiePreviewData(null)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={20}/></button>
+            </div>
+            <div style={{ textAlign: 'left', marginBottom: '14px' }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{toTitleCase(selfiePreviewData.name)}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Tanggal: {formatDate(selfiePreviewData.date)}</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px', maxHeight: '420px', overflowY: 'auto', padding: '4px' }}>
+              {selfiePreviewData.photos.map((photo, idx) => {
+                const photoSrc = photo.url.startsWith('http') || photo.url.startsWith('data:')
+                  ? photo.url
+                  : `${API_URL}${photo.url.startsWith('/') ? '' : '/'}${photo.url}`;
+                
+                return (
+                  <div key={idx} style={{ background: 'var(--bg-main)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--primary-solid)', textTransform: 'uppercase' }}>{photo.label}</span>
+                    <div style={{ width: '100%', height: '140px', background: '#222831', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      {photo.url === 'ARCHIVED_PDF' ? (
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', padding: '10px', textAlign: 'center' }}>📷 Diarsipkan dalam PDF Mingguan</div>
+                      ) : (
+                        <img 
+                          src={photoSrc} 
+                          alt={photo.label} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://placehold.co/150x150/222831/FFFFFF?text=Foto+Hilang';
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: '16px', textAlign: 'right' }}>
+              <button className="btn-secondary" onClick={() => setSelfiePreviewData(null)} style={{ padding: '8px 20px', cursor:'pointer' }}>Tutup</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmModal.isOpen && (
         <div className="confirm-overlay">
           <div className="confirm-card">
