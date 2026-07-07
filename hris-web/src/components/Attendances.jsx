@@ -81,6 +81,8 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   const [scheduleOutlet, setScheduleOutlet]   = useState('');
   const [generatedSchedules, setGeneratedSchedules] = useState([]);
   const [isSyncingSchedule, setIsSyncingSchedule] = useState(false);
+  const [isWeeklyMode, setIsWeeklyMode]       = useState(false); // mode generate 7 hari
+  const [weeklyGeneratedDates, setWeeklyGeneratedDates] = useState([]); // tanggal2 yg di-generate
 
   // ─── COLUMN VISIBILITY ─────────────────────────────────────────────────────
   const [showColFilterRealtime, setShowColFilterRealtime] = useState(false);
@@ -966,17 +968,17 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     } catch { setGeneratedSchedules([]); }
   };
 
-  const generateBreakSchedules = () => {
-    if (!scheduleOutlet) { showToast('error', 'Pilih outlet terlebih dahulu!'); return; }
+  const generateBreakSchedules = (targetDate = scheduleDate) => {
+    if (!scheduleOutlet) { showToast('error', 'Pilih outlet terlebih dahulu!'); return []; }
     
-    // Get absent employees on the selected scheduleDate
+    // Get absent employees on the selected targetDate
     const absentEmployeeIds = new Set();
     const combinedLogs = [
       ...realtimeLogs.map(l => ({ ...l, employee_id: l.employee_id || l.nik })),
       ...historyLogs.map(l => ({ ...l, employee_id: l.employee_id || l.nik }))
     ];
     combinedLogs.forEach(log => {
-      if (log.date === scheduleDate) {
+      if (log.date === targetDate) {
         const status = (log.status || '').toLowerCase();
         if (['absen', 'absent', 'tidak hadir', 'alpha'].includes(status)) {
           absentEmployeeIds.add(String(log.employee_id));
@@ -998,8 +1000,8 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     });
 
     if (active.length === 0) { 
-      showToast('error', `Tidak ada karyawan aktif yang hadir di outlet ${scheduleOutlet} pada tanggal ${scheduleDate}!`); 
-      return; 
+      if (!isWeeklyMode) showToast('error', `Tidak ada karyawan aktif yang hadir di outlet ${scheduleOutlet} pada tanggal ${targetDate}!`); 
+      return []; 
     }
 
     const duration = getRestDurationForOutlet(scheduleOutlet);
@@ -1037,35 +1039,95 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
 
     const result = [];
     assignments.forEach((list, si) => {
-      list.forEach(e => result.push({ employee_id:e.id, full_name:e.full_name, nik:e.nik, position:e.position, gender:e.gender, sesi:sessions[si].sesi, jam_mulai:sessions[si].jam_mulai, jam_selesai:sessions[si].jam_selesai }));
+      list.forEach(e => result.push({ employee_id:e.id, full_name:e.full_name, nik:e.nik, position:e.position, gender:e.gender, sesi:sessions[si].sesi, jam_mulai:sessions[si].jam_mulai, jam_selesai:sessions[si].jam_selesai, _date: targetDate }));
     });
-    setGeneratedSchedules(result);
-    showToast('success', `Jadwal berhasil di-generate untuk ${active.length} karyawan (exclude tidak hadir).`);
+    return result;
   };
 
-  const handleSessionChange = (empId, sesi) => {
+  const handleGenerateButton = () => {
+    if (!scheduleOutlet) { showToast('error', 'Pilih outlet terlebih dahulu!'); return; }
+    if (isWeeklyMode) {
+      // Generate untuk 7 hari: Senin - Minggu minggu depan
+      const now = new Date();
+      const todayWeekday = now.getDay() === 0 ? 7 : now.getDay(); // 1=Mon,7=Sun
+      const daysToNextMonday = todayWeekday === 1 ? 0 : (8 - todayWeekday);
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + daysToNextMonday);
+
+      const allSchedules = [];
+      const generatedDates = [];
+      for (let i = 0; i < 7; i++) {
+        const day = new Date(monday);
+        day.setDate(monday.getDate() + i);
+        const dateStr = day.toISOString().split('T')[0];
+        const daySchedules = generateBreakSchedules(dateStr);
+        allSchedules.push(...daySchedules);
+        generatedDates.push(dateStr);
+      }
+      setGeneratedSchedules(allSchedules);
+      setWeeklyGeneratedDates(generatedDates);
+      if (allSchedules.length > 0) {
+        const karyawan = new Set(allSchedules.map(s => s.employee_id)).size;
+        showToast('success', `✅ Jadwal 7 hari (Senin-Minggu) berhasil di-generate untuk ${karyawan} karyawan.`);
+      } else {
+        showToast('error', 'Gagal generate jadwal mingguan. Pastikan ada karyawan aktif di outlet ini.');
+      }
+    } else {
+      const result = generateBreakSchedules(scheduleDate);
+      setGeneratedSchedules(result);
+      setWeeklyGeneratedDates([]);
+      if (result.length > 0) {
+        showToast('success', `Jadwal berhasil di-generate untuk ${result.length} entri karyawan.`);
+      }
+    }
+  };
+
+  const handleSessionChange = (empId, sesi, targetDate) => {
     const duration = getRestDurationForOutlet(scheduleOutlet);
     const times = duration === 2 
       ? {1:['12:00','14:00'],2:['14:00','16:00'],3:['16:00','18:00']} 
       : {1:['12:00','15:00'],2:['15:00','18:00']};
-    setGeneratedSchedules(prev => prev.map(s => s.employee_id === empId ? { ...s, sesi, jam_mulai:times[sesi][0], jam_selesai:times[sesi][1] } : s));
+    setGeneratedSchedules(prev => prev.map(s => 
+      (s.employee_id === empId && (!targetDate || s._date === targetDate)) 
+        ? { ...s, sesi, jam_mulai:times[sesi][0], jam_selesai:times[sesi][1] } 
+        : s
+    ));
   };
 
-  const handleDeleteScheduleRow = (empId) => {
+  const handleDeleteScheduleRow = (empId, targetDate) => {
     setConfirmModal({ isOpen:true, title:'Hapus Baris Jadwal', message:'Hapus jadwal karyawan ini dari daftar?', confirmText:'Ya, Hapus', cancelText:'Batal', onConfirm: () => {
-      setGeneratedSchedules(prev => prev.filter(s => s.employee_id !== empId));
+      setGeneratedSchedules(prev => prev.filter(s => !(s.employee_id === empId && (!targetDate || s._date === targetDate))));
       showToast('success', 'Baris dihapus.');
     }});
   };
 
   const syncBreakSchedules = async () => {
-    if (!scheduleDate || !scheduleOutlet || generatedSchedules.length === 0) { showToast('error', 'Pastikan tanggal, outlet, dan jadwal telah diisi!'); return; }
+    if (!scheduleOutlet || generatedSchedules.length === 0) { showToast('error', 'Pastikan outlet dan jadwal telah diisi!'); return; }
     setIsSyncingSchedule(true);
     try {
-      const res = await fetch(`${API_URL}/attendance/break-schedule/sync`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }, body: JSON.stringify({ date:scheduleDate, schedules:generatedSchedules.map(s=>({employee_id:s.employee_id,sesi:s.sesi,jam_mulai:s.jam_mulai,jam_selesai:s.jam_selesai})) }) });
-      const data = await res.json();
-      if (data.status === 'success') showToast('success', '🚀 Jadwal berhasil disinkronkan ke karyawan!');
-      else showToast('error', `Gagal: ${data.message}`);
+      if (isWeeklyMode && weeklyGeneratedDates.length > 0) {
+        // Sync per tanggal
+        let successCount = 0;
+        let failCount = 0;
+        for (const date of weeklyGeneratedDates) {
+          const daySchedules = generatedSchedules.filter(s => s._date === date);
+          if (daySchedules.length === 0) continue;
+          try {
+            const res = await fetch(`${API_URL}/attendance/break-schedule/sync`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }, body: JSON.stringify({ date, schedules:daySchedules.map(s=>({employee_id:s.employee_id,sesi:s.sesi,jam_mulai:s.jam_mulai,jam_selesai:s.jam_selesai})) }) });
+            const data = await res.json();
+            if (data.status === 'success') successCount++;
+            else failCount++;
+          } catch { failCount++; }
+        }
+        if (failCount === 0) showToast('success', `🚀 Jadwal 7 hari berhasil disinkronkan ke semua karyawan! (${successCount} tanggal)`);
+        else showToast('error', `Sebagian gagal: ${successCount} berhasil, ${failCount} gagal.`);
+      } else {
+        if (!scheduleDate) { showToast('error', 'Pastikan tanggal telah diisi!'); setIsSyncingSchedule(false); return; }
+        const res = await fetch(`${API_URL}/attendance/break-schedule/sync`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }, body: JSON.stringify({ date:scheduleDate, schedules:generatedSchedules.map(s=>({employee_id:s.employee_id,sesi:s.sesi,jam_mulai:s.jam_mulai,jam_selesai:s.jam_selesai})) }) });
+        const data = await res.json();
+        if (data.status === 'success') showToast('success', '🚀 Jadwal berhasil disinkronkan ke karyawan!');
+        else showToast('error', `Gagal: ${data.message}`);
+      }
     } catch { showToast('error', 'Gagal menghubungi server.'); }
     finally { setIsSyncingSchedule(false); }
   };
@@ -1970,10 +2032,17 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
           {/* Scheduler Controls */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'14px', marginBottom:'24px', padding:'18px 20px', background:'var(--bg-surface)', border:'1px solid var(--border-color)', borderRadius:'12px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
+              {!isWeeklyMode && (
               <div style={{ position:'relative' }}>
                 <Calendar size={14} color="var(--text-muted)" style={{ position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}/>
                 <input type="date" className="input-field" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ paddingLeft:'30px', height:'40px', fontSize:'0.82rem', width:'160px' }}/>
               </div>
+              )}
+              {isWeeklyMode && (
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 14px', background:'rgba(0,173,181,0.08)', border:'1px solid rgba(0,173,181,0.2)', borderRadius:'8px' }}>
+                  <span style={{ fontSize:'0.8rem', color:'#00ADB5', fontWeight:700 }}>📅 Mode Mingguan: Senin – Minggu (otomatis)</span>
+                </div>
+              )}
               <div style={{ position:'relative' }}>
                 <MapPin size={14} color="var(--text-muted)" style={{ position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}/>
                 <select className="input-field" value={scheduleOutlet} onChange={e=>setScheduleOutlet(e.target.value)} style={{ paddingLeft:'30px', height:'40px', fontSize:'0.82rem', minWidth:'220px' }}>
@@ -1982,15 +2051,27 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                 </select>
               </div>
             </div>
-            <button onClick={generateBreakSchedules} disabled={!scheduleOutlet} style={{
-              height:'40px', padding:'0 20px', background:!scheduleOutlet?'rgba(245,158,11,0.1)':'#f59e0b',
-              border:`1px solid ${!scheduleOutlet?'rgba(245,158,11,0.2)':'#f59e0b'}`,
-              color:!scheduleOutlet?'rgba(245,158,11,0.4)':'#000',
-              borderRadius:'8px', fontSize:'0.85rem', fontWeight:800,
-              cursor:!scheduleOutlet?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'8px', transition:'all 0.2s'
-            }}>
-              <Clock size={15}/><span>⚙️ Generate Otomatis</span>
-            </button>
+            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              {/* Weekly Mode Toggle */}
+              <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', padding:'0 12px', height:'40px', background:'var(--bg-card)', border:`1px solid ${isWeeklyMode ? '#00ADB5' : 'var(--border-color)'}`, borderRadius:'8px', transition:'all 0.2s' }}>
+                <div
+                  onClick={() => { setIsWeeklyMode(v => !v); setGeneratedSchedules([]); setWeeklyGeneratedDates([]); }}
+                  style={{ position:'relative', width:'36px', height:'20px', background:isWeeklyMode?'#00ADB5':'rgba(255,255,255,0.1)', borderRadius:'10px', cursor:'pointer', transition:'background 0.2s' }}
+                >
+                  <div style={{ position:'absolute', top:'2px', left:isWeeklyMode?'18px':'2px', width:'16px', height:'16px', background:'#fff', borderRadius:'50%', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.3)' }}/>
+                </div>
+                <span style={{ fontSize:'0.78rem', color:isWeeklyMode?'#00ADB5':'var(--text-muted)', fontWeight:700, whiteSpace:'nowrap' }}>7 Hari</span>
+              </label>
+              <button onClick={handleGenerateButton} disabled={!scheduleOutlet} style={{
+                height:'40px', padding:'0 20px', background:!scheduleOutlet?'rgba(245,158,11,0.1)':'#f59e0b',
+                border:`1px solid ${!scheduleOutlet?'rgba(245,158,11,0.2)':'#f59e0b'}`,
+                color:!scheduleOutlet?'rgba(245,158,11,0.4)':'#000',
+                borderRadius:'8px', fontSize:'0.85rem', fontWeight:800,
+                cursor:!scheduleOutlet?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'8px', transition:'all 0.2s'
+              }}>
+                <Clock size={15}/><span>{isWeeklyMode ? '⚙️ Generate 7 Hari' : '⚙️ Generate Otomatis'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Warnings */}
@@ -2005,6 +2086,76 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
 
           {/* Schedule Table */}
           <div style={{ overflowX:'auto', borderRadius:'10px', border:'1px solid var(--border-color)', marginBottom:'24px' }}>
+            {isWeeklyMode && generatedSchedules.length > 0 ? (
+              // Weekly mode: group by date
+              <div>
+                {weeklyGeneratedDates.map(date => {
+                  const dayScheds = generatedSchedules.filter(s => s._date === date);
+                  if (dayScheds.length === 0) return null;
+                  const d = new Date(date + 'T00:00:00');
+                  const dayNames = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+                  const dayLabel = `${dayNames[d.getDay()]} — ${d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}`;
+                  return (
+                    <div key={date} style={{ marginBottom: '0' }}>
+                      <div style={{ background:'rgba(0,173,181,0.08)', borderBottom:'1px solid var(--border-color)', padding:'8px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
+                        <span style={{ fontSize:'0.78rem', fontWeight:800, color:'#00ADB5' }}>📅 {dayLabel}</span>
+                        <span style={{ fontSize:'0.72rem', color:'var(--text-muted)' }}>({dayScheds.length} karyawan)</span>
+                      </div>
+                      <table className="data-table" style={{ fontSize:'12px', minWidth:'800px', width:'100%' }}>
+                        <thead>
+                          <tr>
+                            <th style={{width:'40px'}}>No</th>
+                            <th>Nama Karyawan</th>
+                            <th>NIK</th>
+                            <th>Jabatan</th>
+                            <th>Gender</th>
+                            <th>Sesi</th>
+                            <th>Waktu Istirahat</th>
+                            <th style={{textAlign:'center',width:'80px'}}>Hapus</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dayScheds.map((item, i) => {
+                            const isFemale = (item.gender||'').toLowerCase()==='wanita';
+                            const duration = getRestDurationForOutlet(scheduleOutlet);
+                            const numSess = duration === 2 ? 3 : 2;
+                            const sessColors = { 1:'rgba(0,173,181,0.15)', 2:'rgba(167,139,250,0.15)', 3:'rgba(34,197,94,0.15)' };
+                            const sessBorder = { 1:'#00ADB5', 2:'#a78bfa', 3:'#22c55e' };
+                            return (
+                              <tr key={`${date}-${item.employee_id}`}>
+                                <td style={{fontWeight:600,color:'var(--text-muted)'}}>{i+1}</td>
+                                <td style={{color:'#fff',fontWeight:700}}>{toTitleCase(item.full_name)}</td>
+                                <td style={{fontFamily:'monospace',fontSize:'11px'}}>{item.nik}</td>
+                                <td style={{color:'var(--text-muted)'}}>{toTitleCase(item.position)}</td>
+                                <td>
+                                  <span style={{ padding:'3px 10px', borderRadius:'20px', fontSize:'0.72rem', fontWeight:700, background:isFemale?'rgba(236,72,153,0.12)':'rgba(59,130,246,0.12)', color:isFemale?'#f472b6':'#60a5fa', border:`1px solid ${isFemale?'rgba(236,72,153,0.3)':'rgba(59,130,246,0.3)'}` }}>
+                                    {item.gender||'Pria'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <select value={item.sesi} onChange={e=>handleSessionChange(item.employee_id,parseInt(e.target.value,10),date)}
+                                    style={{ background:'var(--bg-surface)', color:'#fff', border:`1px solid ${sessBorder[item.sesi]||'var(--border-color)'}`, padding:'4px 10px', borderRadius:'8px', fontSize:'0.78rem', fontWeight:700 }}>
+                                    {Array.from({ length: numSess }, (_, idx) => idx + 1).map(o=><option key={o} value={o}>Sesi {o}</option>)}
+                                  </select>
+                                </td>
+                                <td>
+                                  <span style={{ display:'inline-flex', alignItems:'center', gap:'6px', padding:'4px 12px', borderRadius:'8px', fontSize:'0.78rem', fontWeight:700, background:sessColors[item.sesi]||'transparent', color:sessBorder[item.sesi]||'#fff', border:`1px solid ${sessBorder[item.sesi]||'var(--border-color)'}25` }}>
+                                    <Clock size={12}/>{item.jam_mulai} – {item.jam_selesai} WIB
+                                  </span>
+                                </td>
+                                <td style={{textAlign:'center'}}>
+                                  <button onClick={()=>handleDeleteScheduleRow(item.employee_id, date)} style={{ background:'var(--danger-glow)', border:'none', color:'var(--danger)', padding:'5px 7px', borderRadius:'6px', cursor:'pointer' }}><Trash2 size={13}/></button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
             <table className="data-table" style={{ fontSize:'12px', minWidth:'800px' }}>
               <thead>
                 <tr>
@@ -2061,6 +2212,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                 )}
               </tbody>
             </table>
+            )}
           </div>
 
           {/* Sesi Summary */}

@@ -162,8 +162,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           content: Text(
-            'Waktu Sholat $prayerName telah tiba untuk wilayah Anda.\nSelamat menunaikan ibadah sholat.',
-            style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.5),
+            'Waktu Sholat $prayerName telah tiba untuk wilayah Anda.\n\nSholatlah sebentar. Kemudian lanjutkan aktivitasmu. 🙏',
+            style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, height: 1.6),
           ),
           actions: [
             ElevatedButton(
@@ -730,6 +730,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           // 2a. Break Schedule Card
           _buildBreakScheduleCard(context, auth, today),
+          const SizedBox(height: 16),
+
+          // 2b. Weekly Break Schedule Table
+          _buildWeeklyBreakScheduleTable(context, auth),
           const SizedBox(height: 20),
 
           // Layanan & Performa (Gojek-Style)
@@ -1891,21 +1895,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const success = Color(0xFF10B981);
     const danger = Color(0xFFEF4444);
 
+    // Tombol Clock In dihapus dari dashboard utama.
+    // Karyawan melakukan absen masuk melalui menu Kehadiran.
     if (today == null || today.clockIn == null) {
-      return SizedBox(
-        width: double.infinity,
-        height: 48,
-        child: ElevatedButton.icon(
-          onPressed: () => _performClockIn(auth),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00ADB5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            elevation: 2,
+      return GestureDetector(
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceScreen())),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00ADB5).withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF00ADB5).withOpacity(0.25)),
           ),
-          icon: const Icon(Icons.login_rounded, color: Colors.white, size: 20),
-          label: const Text(
-            'MASUK KERJA (CLOCK-IN)',
-            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.gps_fixed_outlined, color: Color(0xFF00ADB5), size: 16),
+              SizedBox(width: 8),
+              Text(
+                'Tap untuk Absen Masuk Kerja',
+                style: TextStyle(color: Color(0xFF00ADB5), fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
         ),
       );
@@ -1949,5 +1961,196 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     }
+  }
+
+  /// Membangun tabel jadwal istirahat 7 hari ke depan (Senin - Minggu)
+  Widget _buildWeeklyBreakScheduleTable(BuildContext context, AuthProvider auth) {
+    const cardBg = Color(0xFF393E46);
+    const textMuted = Color(0x8DEEEEEE);
+    const teal = Color(0xFF00ADB5);
+
+    final weeklySchedules = auth.weeklyBreakSchedules;
+
+    // Tentukan Senin minggu ini atau minggu depan
+    final now = DateTime.now();
+    final todayWeekday = now.weekday; // 1=Mon, 7=Sun
+    final daysUntilNextMonday = todayWeekday == 1 ? 0 : (8 - todayWeekday);
+    final monday = now.add(Duration(days: daysUntilNextMonday));
+
+    // Build 7 hari Senin - Minggu
+    final List<Map<String, dynamic>> weekDays = List.generate(7, (i) {
+      final day = monday.add(Duration(days: i));
+      final dateStr = '${day.year}-${day.month.toString().padLeft(2,'0')}-${day.day.toString().padLeft(2,'0')}';
+      final dayNames = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+      final sched = weeklySchedules.firstWhere(
+        (s) => s.date == dateStr,
+        orElse: () => BreakSchedule(id: 0, employeeId: 0, date: dateStr, sesi: 0, jamMulai: '', jamSelesai: ''),
+      );
+      return {
+        'dayName': dayNames[i],
+        'date': dateStr,
+        'displayDate': '${day.day}/${day.month}',
+        'sched': sched,
+        'isToday': dateStr == '${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}',
+      };
+    });
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEEEEEE).withOpacity(0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.calendar_view_week_rounded, color: teal, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Jadwal Istirahat Minggu Ini',
+                style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Senin — Minggu',
+            style: TextStyle(color: Color(0x8DEEEEEE), fontSize: 11),
+          ),
+          const SizedBox(height: 16),
+          if (weeklySchedules.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              decoration: BoxDecoration(
+                color: teal.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: teal.withOpacity(0.1)),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.schedule_outlined, color: Color(0x8DEEEEEE), size: 28),
+                  SizedBox(height: 8),
+                  Text(
+                    'Jadwal mingguan belum tersedia.',
+                    style: TextStyle(color: Color(0x8DEEEEEE), fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                  Text(
+                    'Admin akan meng-generate jadwal dari web.',
+                    style: TextStyle(color: Color(0x5DEEEEEE), fontSize: 11),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            )
+          else
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Table(
+                border: TableBorder(
+                  horizontalInside: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.06), width: 1),
+                  top: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.08), width: 1),
+                  bottom: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.08), width: 1),
+                  left: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.08), width: 1),
+                  right: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.08), width: 1),
+                ),
+                columnWidths: const {
+                  0: FlexColumnWidth(1.2),
+                  1: FlexColumnWidth(0.8),
+                  2: FlexColumnWidth(0.6),
+                  3: FlexColumnWidth(1.8),
+                },
+                children: [
+                  // Header
+                  TableRow(
+                    decoration: BoxDecoration(color: teal.withOpacity(0.12)),
+                    children: ['Hari', 'Tanggal', 'Sesi', 'Waktu'].map((h) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                      child: Text(h, style: const TextStyle(color: Color(0xFF00ADB5), fontSize: 11, fontWeight: FontWeight.bold)),
+                    )).toList(),
+                  ),
+                  // Rows
+                  ...weekDays.map((day) {
+                    final sched = day['sched'] as BreakSchedule;
+                    final isToday = day['isToday'] as bool;
+                    final hasSchedule = sched.sesi > 0;
+                    final sessColors = {1: const Color(0xFF00ADB5), 2: const Color(0xFFa78bfa), 3: const Color(0xFF22c55e)};
+                    return TableRow(
+                      decoration: BoxDecoration(
+                        color: isToday
+                            ? teal.withOpacity(0.08)
+                            : const Color(0xFF2D3139),
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                          child: Row(
+                            children: [
+                              if (isToday)
+                                Container(
+                                  width: 6, height: 6,
+                                  margin: const EdgeInsets.only(right: 5),
+                                  decoration: const BoxDecoration(color: teal, shape: BoxShape.circle),
+                                ),
+                              Flexible(
+                                child: Text(
+                                  day['dayName'],
+                                  style: TextStyle(
+                                    color: isToday ? teal : const Color(0xFFEEEEEE),
+                                    fontSize: 12,
+                                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                          child: Text(
+                            day['displayDate'],
+                            style: TextStyle(color: textMuted, fontSize: 11),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                          child: hasSchedule
+                              ? Text(
+                                  'Sesi ${sched.sesi}',
+                                  style: TextStyle(
+                                    color: sessColors[sched.sesi] ?? teal,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : Text('-', style: TextStyle(color: textMuted, fontSize: 11)),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                          child: hasSchedule
+                              ? Text(
+                                  '${sched.jamMulai} – ${sched.jamSelesai} WIB',
+                                  style: TextStyle(
+                                    color: sessColors[sched.sesi] ?? const Color(0xFFEEEEEE),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
+                              : Text('Belum ada jadwal', style: TextStyle(color: textMuted, fontSize: 10)),
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

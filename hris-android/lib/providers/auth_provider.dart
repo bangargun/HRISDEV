@@ -22,6 +22,7 @@ class AuthProvider extends ChangeNotifier {
   List<dynamic> _policies = [];
   List<dynamic> _peakDays = [];
   BreakSchedule? _todayBreakSchedule;
+  List<BreakSchedule> _weeklyBreakSchedules = [];
   Timer? _notificationTimer;
   List<SanctionRecord> _sanctions = [];
   List<NotificationRecord> _notifications = [];
@@ -37,6 +38,7 @@ class AuthProvider extends ChangeNotifier {
         fetchNotifications();
         fetchSanctions();
         fetchTodayBreakSchedule();
+        fetchWeeklyBreakSchedules();
         fetchPayrollHistory();
         fetchQuizzes();
         fetchQuizAttempts();
@@ -80,6 +82,7 @@ class AuthProvider extends ChangeNotifier {
   List<dynamic> get policies => _policies;
   List<dynamic> get peakDays => _peakDays;
   BreakSchedule? get todayBreakSchedule => _todayBreakSchedule;
+  List<BreakSchedule> get weeklyBreakSchedules => _weeklyBreakSchedules;
   List<QuizRecord> get quizzes => _quizzes;
   List<QuizAttemptRecord> get quizAttempts => _quizAttempts;
 
@@ -275,6 +278,7 @@ class AuthProvider extends ChangeNotifier {
         fetchProfile(),
         fetchTodayAttendance(),
         fetchTodayBreakSchedule(),
+        fetchWeeklyBreakSchedules(),
         fetchAttendanceHistory(),
         fetchLeaveHistory(),
         fetchPayrollHistory(),
@@ -467,6 +471,47 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _handleConnectionError(e, 'FetchTodayBreakSchedule');
+    }
+  }
+
+  /// Ambil jadwal istirahat 7 hari (Senin - Minggu minggu ini)
+  Future<void> fetchWeeklyBreakSchedules() async {
+    try {
+      final now = DateTime.now();
+      final todayWeekday = now.weekday; // 1=Mon, 7=Sun
+      final daysToMonday = todayWeekday == 1 ? 0 : (8 - todayWeekday);
+      final monday = now.add(Duration(days: daysToMonday));
+
+      final List<BreakSchedule> results = [];
+      for (int i = 0; i < 7; i++) {
+        final day = monday.add(Duration(days: i));
+        final dateStr = '${day.year}-${day.month.toString().padLeft(2,'0')}-${day.day.toString().padLeft(2,'0')}';
+        try {
+          final res = await ApiClient.get('attendance/break-schedule?date=$dateStr', token: _token);
+          final data = jsonDecode(res.body);
+          if (res.statusCode == 200 && data['status'] == 'success' && data['data'] != null) {
+            final rawData = data['data'];
+            if (rawData is List) {
+              final int? empId = _profile?.employeeId;
+              final matched = rawData.firstWhere(
+                (x) => x is Map && x['employee_id'] == empId,
+                orElse: () => null,
+              );
+              if (matched != null && matched is Map) {
+                results.add(BreakSchedule.fromJson(Map<String, dynamic>.from(matched)));
+              }
+            } else if (rawData is Map) {
+              results.add(BreakSchedule.fromJson(Map<String, dynamic>.from(rawData)));
+            }
+          }
+        } catch (_) {
+          // Skip hari ini jika gagal, lanjutkan ke hari berikutnya
+        }
+      }
+      _weeklyBreakSchedules = results;
+      notifyListeners();
+    } catch (e) {
+      _handleConnectionError(e, 'FetchWeeklyBreakSchedules');
     }
   }
 

@@ -54,37 +54,41 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
     }
   };
 
-  const getSalaryForPosition = (posName) => {
+  const getSalaryForPosition = (posName, statusKaryawan = 'karyawan kontrak') => {
     if (!posName) return 1200000;
+    const cleanPos = posName.toLowerCase().trim();
+    const cleanStatus = (statusKaryawan || 'karyawan kontrak').toLowerCase().trim();
+
     try {
       const policiesList = window.getHrisPolicies();
-      if (!Array.isArray(policiesList)) return 1200000;
+      if (Array.isArray(policiesList)) {
+        const matchingPolicy = policiesList.find(p => {
+          if (p.nama_aturan !== 'Struktur Gaji Pokok' || p.status !== 'ACTIVE' || !p.deskripsi) return false;
+          const descLower = p.deskripsi.toLowerCase();
+          const hasPos = descLower.includes(`jabatan: ${cleanPos}`) || descLower.includes(`jabatan: semua posisi`);
+          const hasStatus = descLower.includes(`status: ${cleanStatus}`) || descLower.includes(`status karyawan: ${cleanStatus}`);
+          return hasPos && hasStatus;
+        });
 
-      const matchingPolicy = policiesList.find(p => {
-        if (p.nama_aturan !== 'Struktur Gaji Pokok' || p.status !== 'ACTIVE' || !p.deskripsi) return false;
-        const match = p.deskripsi.match(/Jabatan:\s*([^,]+)/i);
-        if (match) {
-          return match[1].trim().toUpperCase() === posName.trim().toUpperCase();
-        }
-        return false;
-      });
-
-      if (matchingPolicy && matchingPolicy.deskripsi) {
-        const match = matchingPolicy.deskripsi.match(/Gaji\s+Pokok:\s*Rp\s*([\d.]+)/i);
-        if (match) {
-          return parseInt(match[1].replace(/\./g, ''), 10);
+        if (matchingPolicy && matchingPolicy.deskripsi) {
+          const match = matchingPolicy.deskripsi.match(/Gaji\s+Pokok:\s*Rp\s*([\d.]+)/i);
+          if (match) {
+            return parseInt(match[1].replace(/\./g, ''), 10);
+          }
         }
       }
     } catch (e) {
-      console.error('Error getting salary for position:', e);
+      console.error('Error getting dynamic salary for position:', e);
     }
     
-    const pos = posName.toLowerCase();
-    if (pos.includes('kepala cabang')) return 1700000;
-    if (pos.includes('quality control') || pos.includes('qc')) return 1400000;
-    if (pos.includes('training') && pos.includes('cabang')) return 1400000;
-    if (pos.includes('training')) return 1000000;
-    return 1200000;
+    if (cleanStatus === 'karyawan training') {
+      if (cleanPos.includes('kepala cabang')) return 1500000;
+      return 1000000;
+    } else {
+      if (cleanPos.includes('kepala cabang')) return 1700000;
+      if (cleanPos.includes('quality control') || cleanPos.includes('qc')) return 1400000;
+      return 1200000;
+    }
   };
 
   const positionOptions = React.useMemo(() => {
@@ -547,6 +551,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
     full_name: '',
     nickname: '',
     employee_status: 'active',
+    status_karyawan: 'karyawan kontrak',
     end_working_date: '',
     position: positionOptions[0] ? positionOptions[0].toLowerCase() : 'supervisor',
     start_working_date: '',
@@ -718,6 +723,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
             address: emp.address || '',
             gender: emp.gender || 'Pria',
             whatsapp_number: emp.phone || '',
+            status_karyawan: emp.status_karyawan || 'karyawan kontrak',
             facebook_account: '',
             instagram_account: ''
           }));
@@ -1028,6 +1034,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
       full_name: '',
       nickname: '',
       employee_status: 'active',
+      status_karyawan: 'karyawan kontrak',
       end_working_date: '',
       position: positionOptions[0] ? positionOptions[0].toLowerCase() : 'supervisor',
       start_working_date: '',
@@ -1066,6 +1073,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
       full_name: '',
       nickname: '',
       employee_status: 'inactive',
+      status_karyawan: 'karyawan kontrak',
       end_working_date: '',
       position: '',
       start_working_date: '',
@@ -1113,6 +1121,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
       full_name: emp.full_name,
       nickname: emp.nickname || '',
       employee_status: emp.employee_status === 'inactive' ? 'inactive' : 'active',
+      status_karyawan: emp.status_karyawan || 'karyawan kontrak',
       end_working_date: emp.end_working_date || '',
       position: getClosestValidPosition(emp.position),
       start_working_date: emp.start_working_date || '',
@@ -1192,6 +1201,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
         full_name: '',
         nickname: '',
         employee_status: 'active',
+        status_karyawan: 'karyawan kontrak',
         end_working_date: '',
         position: positionOptions[0] ? positionOptions[0].toLowerCase() : 'supervisor',
         start_working_date: new Date().toISOString().split('T')[0],
@@ -1589,9 +1599,10 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
             full_name: toTitleCase(dataToSave.full_name.trim()),
             nickname: toTitleCase(dataToSave.nickname.trim()),
             employee_status: dataToSave.employee_status,
+            status_karyawan: dataToSave.status_karyawan || 'karyawan kontrak',
             end_working_date: dataToSave.employee_status === 'inactive' ? dataToSave.end_working_date : '',
             position: toTitleCase(dataToSave.position),
-            basic_salary: getSalaryForPosition(dataToSave.position),
+            basic_salary: getSalaryForPosition(dataToSave.position, dataToSave.status_karyawan),
             start_working_date: dataToSave.start_working_date,
             outlet: toTitleCase(dataToSave.outlet),
             marital_status: dataToSave.marital_status,
@@ -1616,6 +1627,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                 department: 'Operasional',
                 basic_salary: updatedEmp.basic_salary,
                 status: updatedEmp.employee_status,
+                status_karyawan: updatedEmp.status_karyawan,
                 joined_date: updatedEmp.start_working_date,
                 end_working_date: updatedEmp.end_working_date,
                 outlet: updatedEmp.outlet,
@@ -1697,9 +1709,10 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
             full_name: toTitleCase(dataToSave.full_name.trim()),
             nickname: toTitleCase(dataToSave.nickname.trim()),
             employee_status: dataToSave.employee_status,
+            status_karyawan: dataToSave.status_karyawan || 'karyawan kontrak',
             end_working_date: dataToSave.employee_status === 'inactive' ? dataToSave.end_working_date : '',
             position: toTitleCase(dataToSave.position),
-            basic_salary: getSalaryForPosition(dataToSave.position),
+            basic_salary: getSalaryForPosition(dataToSave.position, dataToSave.status_karyawan),
             start_working_date: dataToSave.start_working_date,
             outlet: toTitleCase(dataToSave.outlet),
             marital_status: dataToSave.marital_status,
@@ -1728,6 +1741,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
               joined_date: newEmp.start_working_date,
               end_working_date: newEmp.end_working_date,
               status: newEmp.employee_status,
+              status_karyawan: newEmp.status_karyawan,
               role: (newEmp.position.toLowerCase() === 'admin' || newEmp.position.toLowerCase() === 'owner' || newEmp.position.toLowerCase() === 'supervisor') ? 'admin' : 'employee',
               outlet: newEmp.outlet,
               gender: newEmp.gender
@@ -2566,7 +2580,7 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                 <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary-solid)', textTransform: 'uppercase', marginBottom: '16px', letterSpacing: '0.5px' }}>INFORMASI JABATAN & KONTAK</h3>
 
                 <div className="input-group" style={{ marginBottom: '16px' }}>
-                  <label>STATUS KARYAWAN</label>
+                  <label>STATUS KARYAWAN (AKTIF/NONAKTIF)</label>
                   <select 
                     name="employee_status" 
                     className="input-field" 
@@ -2577,6 +2591,22 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+
+                <div className="input-group" style={{ marginBottom: '16px' }}>
+                  <label>TIPE STATUS HUBUNGAN KERJA</label>
+                  <select 
+                    name="status_karyawan" 
+                    className="input-field" 
+                    value={formData.status_karyawan || 'karyawan kontrak'} 
+                    onChange={handleInputChange} 
+                    style={{ background: 'var(--bg-main)', color: '#fff' }} 
+                    required
+                  >
+                    <option value="karyawan kontrak">Karyawan Kontrak</option>
+                    <option value="karyawan training">Karyawan Training</option>
+                    <option value="training leader">Training Leader</option>
                   </select>
                 </div>
 
@@ -3394,7 +3424,12 @@ export default function Employees({ token, API_URL, userPermissions, user }) {
                                   </span>
                                 )}
                               </div>
-                              <span>{toTitleCase(emp.full_name)}</span>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span>{toTitleCase(emp.full_name)}</span>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                                  {emp.status_karyawan || 'karyawan kontrak'}
+                                </span>
+                              </div>
                             </div>
                           </td>
                         )}

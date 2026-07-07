@@ -291,17 +291,18 @@ const calculatePayroll = (emp, month, year, policies, historyLogs, leaves) => {
 
   // A. Gaji Pokok
   let gajiPokokVal = 0;
+  const cleanPos = (emp.position || emp.jabatan || '').toLowerCase().trim();
+  const cleanStatus = (emp.status_karyawan || 'karyawan kontrak').toLowerCase().trim();
+
   try {
     const salaryPolicy = policies.find(p => {
       if (p.nama_aturan !== 'Struktur Gaji Pokok' || p.status !== 'ACTIVE' || !p.deskripsi) return false;
-      const match = p.deskripsi.match(/Jabatan:\s*([^,]+)/i);
-      if (match) {
-        const policyJabatan = match[1].trim().toUpperCase();
-        const empJabatan = (emp.position || emp.jabatan || '').trim().toUpperCase();
-        return policyJabatan === empJabatan;
-      }
-      return false;
+      const descLower = p.deskripsi.toLowerCase();
+      const hasPos = descLower.includes(`jabatan: ${cleanPos}`) || descLower.includes(`jabatan: semua posisi`);
+      const hasStatus = descLower.includes(`status: ${cleanStatus}`) || descLower.includes(`status karyawan: ${cleanStatus}`);
+      return hasPos && hasStatus;
     });
+
     if (salaryPolicy && salaryPolicy.deskripsi) {
       const match = salaryPolicy.deskripsi.match(/Gaji\s+Pokok:\s*Rp\s*([\d.]+)/i);
       if (match) {
@@ -313,12 +314,21 @@ const calculatePayroll = (emp, month, year, policies, historyLogs, leaves) => {
   }
   
   if (gajiPokokVal === 0) {
-    const pos = (emp.position || emp.jabatan || '').toLowerCase();
-    if (pos.includes('kepala cabang')) gajiPokokVal = 1700000;
-    else if (pos.includes('quality control') || pos.includes('qc')) gajiPokokVal = 1400000;
-    else if (pos.includes('training') && pos.includes('cabang')) gajiPokokVal = 1400000;
-    else if (pos.includes('training')) gajiPokokVal = 1000000;
-    else if (pos.includes('karyawan') || pos.includes('helper') || pos.includes('koki') || pos.includes('waiters')) gajiPokokVal = 1200000;
+    if (cleanStatus === 'karyawan training') {
+      if (cleanPos.includes('kepala cabang')) {
+        gajiPokokVal = 1500000;
+      } else {
+        gajiPokokVal = 1000000;
+      }
+    } else { // karyawan kontrak or training leader
+      if (cleanPos.includes('kepala cabang')) {
+        gajiPokokVal = 1700000;
+      } else if (cleanPos.includes('quality control') || cleanPos.includes('qc')) {
+        gajiPokokVal = 1400000;
+      } else {
+        gajiPokokVal = 1200000;
+      }
+    }
   }
 
   // Get Cutoff Range & Logs
@@ -381,9 +391,6 @@ const calculatePayroll = (emp, month, year, policies, historyLogs, leaves) => {
   } catch (e) {}
 
   let potonganKelebihanLibur = 0;
-  if (totalApprovedLeaveDays > maxLeaveDays) {
-    potonganKelebihanLibur = Math.round((gajiPokokVal / 30) * (totalApprovedLeaveDays - maxLeaveDays));
-  }
 
   // Weekend and public holiday fines (Rp200.000 per violation day from policy)
   let dendaWeekendRate = 200000;
@@ -469,8 +476,9 @@ const calculatePayroll = (emp, month, year, policies, historyLogs, leaves) => {
     const isHalfDay = (log.notes && /setengah hari|1\/2|half day/i.test(log.notes)) || 
                       log.status_in === 'half_day' ||
                       (log.clock_out && isCheckoutBeforePolicyLocal(log.clock_out, policyTime));
+    const isBriefing = log.ikut_briefing === 'Ya';
     
-    if (hasClockIn && isOntime && !isLate && !isAbsent && !isHalfDay) {
+    if (hasClockIn && isOntime && !isLate && !isAbsent && !isHalfDay && isBriefing) {
       tepatWaktuDays++;
     }
   });
@@ -538,6 +546,16 @@ const calculatePayroll = (emp, month, year, policies, historyLogs, leaves) => {
   let uangLemburVal = lemburDays * lemburRate;
   if (uangLemburVal > lemburMaxCap) {
     uangLemburVal = lemburMaxCap;
+  }
+  
+  if (totalApprovedLeaveDays > maxLeaveDays) {
+    const excessDays = totalApprovedLeaveDays - maxLeaveDays;
+    const pos = (emp.position || emp.jabatan || '').toLowerCase();
+    let additionalFine = 15000;
+    if (pos.includes('kepala produksi') || pos.includes('kepala layanan') || pos.includes('kepala cabang') || pos.includes('quality control') || pos.includes('qc')) {
+      additionalFine = 25000;
+    }
+    potonganKelebihanLibur = Math.round(((gajiPokokVal / 30) + uangMakanRate + lemburRate + additionalFine) * excessDays);
   }
   
   // D. Tunjangan Keluarga (Dynamic from policy)
@@ -1111,17 +1129,18 @@ export default function Payroll({ token, API_URL }) {
     
     // A. Gaji Pokok
     let gajiPokokVal = 0;
+    const cleanPos = (emp.position || emp.jabatan || '').toLowerCase().trim();
+    const cleanStatus = (emp.status_karyawan || 'karyawan kontrak').toLowerCase().trim();
+
     try {
       const salaryPolicy = policies.find(p => {
         if (p.nama_aturan !== 'Struktur Gaji Pokok' || p.status !== 'ACTIVE' || !p.deskripsi) return false;
-        const match = p.deskripsi.match(/Jabatan:\s*([^,]+)/i);
-        if (match) {
-          const policyJabatan = match[1].trim().toUpperCase();
-          const empJabatan = (emp.position || emp.jabatan || '').trim().toUpperCase();
-          return policyJabatan === empJabatan;
-        }
-        return false;
+        const descLower = p.deskripsi.toLowerCase();
+        const hasPos = descLower.includes(`jabatan: ${cleanPos}`) || descLower.includes(`jabatan: semua posisi`);
+        const hasStatus = descLower.includes(`status: ${cleanStatus}`) || descLower.includes(`status karyawan: ${cleanStatus}`);
+        return hasPos && hasStatus;
       });
+
       if (salaryPolicy && salaryPolicy.deskripsi) {
         const match = salaryPolicy.deskripsi.match(/Gaji\s+Pokok:\s*Rp\s*([\d.]+)/i);
         if (match) {
@@ -1133,12 +1152,21 @@ export default function Payroll({ token, API_URL }) {
     }
     
     if (gajiPokokVal === 0) {
-      const pos = (emp.position || emp.jabatan || '').toLowerCase();
-      if (pos.includes('kepala cabang')) gajiPokokVal = 1700000;
-      else if (pos.includes('quality control') || pos.includes('qc')) gajiPokokVal = 1400000;
-      else if (pos.includes('training') && pos.includes('cabang')) gajiPokokVal = 1400000;
-      else if (pos.includes('training')) gajiPokokVal = 1000000;
-      else if (pos.includes('karyawan') || pos.includes('helper') || pos.includes('koki') || pos.includes('waiters')) gajiPokokVal = 1200000;
+      if (cleanStatus === 'karyawan training') {
+        if (cleanPos.includes('kepala cabang')) {
+          gajiPokokVal = 1500000;
+        } else {
+          gajiPokokVal = 1000000;
+        }
+      } else { // karyawan kontrak or training leader
+        if (cleanPos.includes('kepala cabang')) {
+          gajiPokokVal = 1700000;
+        } else if (cleanPos.includes('quality control') || cleanPos.includes('qc')) {
+          gajiPokokVal = 1400000;
+        } else {
+          gajiPokokVal = 1200000;
+        }
+      }
     }
     
     // Get Cutoff Range & Logs
@@ -1206,9 +1234,6 @@ export default function Payroll({ token, API_URL }) {
     } catch (e) {}
 
     let potonganKelebihanLibur = 0;
-    if (totalApprovedLeaveDays > maxLeaveDays) {
-      potonganKelebihanLibur = Math.round((gajiPokokVal / 30) * (totalApprovedLeaveDays - maxLeaveDays));
-    }
 
     // Weekend and public holiday fines (Rp200.000 per violation day from policy)
     let dendaWeekendRate = 200000;
@@ -1293,8 +1318,9 @@ export default function Payroll({ token, API_URL }) {
       const isHalfDay = (log.notes && /setengah hari|1\/2|half day/i.test(log.notes)) || 
                         log.status_in === 'half_day' ||
                         (log.clock_out && isCheckoutBeforePolicyLocal(log.clock_out, policyTime));
+      const isBriefing = log.ikut_briefing === 'Ya';
       
-      if (hasClockIn && isOntime && !isLate && !isAbsent && !isHalfDay) {
+      if (hasClockIn && isOntime && !isLate && !isAbsent && !isHalfDay && isBriefing) {
         tepatWaktuDays++;
       }
     });
@@ -1645,6 +1671,16 @@ export default function Payroll({ token, API_URL }) {
       tunjangan_tidak_absen: String(tunjanganTidakAbsenVal),
       tunjangan_lama_bekerja: String(tunjanganLamaBekerjaVal),
     }));
+
+    if (totalApprovedLeaveDays > maxLeaveDays) {
+      const excessDays = totalApprovedLeaveDays - maxLeaveDays;
+      const pos = (emp.position || emp.jabatan || '').toLowerCase();
+      let additionalFine = 15000;
+      if (pos.includes('kepala produksi') || pos.includes('kepala layanan') || pos.includes('kepala cabang') || pos.includes('quality control') || pos.includes('qc')) {
+        additionalFine = 25000;
+      }
+      potonganKelebihanLibur = Math.round(((gajiPokokVal / 30) + uangMakanRate + lemburRate + additionalFine) * excessDays);
+    }
 
     setDeduction(prev => ({
       ...prev,

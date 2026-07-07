@@ -188,17 +188,18 @@ const recalculateDraftPayrolls = async (updatedPolicies, token, API_URL) => {
 
       // A. Gaji Pokok
       let gajiPokokVal = 0;
+      const cleanPos = (emp.position || emp.jabatan || '').toLowerCase().trim();
+      const cleanStatus = (emp.status_karyawan || 'karyawan kontrak').toLowerCase().trim();
+
       try {
         const salaryPolicy = updatedPolicies.find(p => {
           if (p.nama_aturan !== 'Struktur Gaji Pokok' || p.status !== 'ACTIVE' || !p.deskripsi) return false;
-          const match = p.deskripsi.match(/Jabatan:\s*([^,]+)/i);
-          if (match) {
-            const policyJabatan = match[1].trim().toUpperCase();
-            const empJabatan = (emp.position || emp.jabatan || '').trim().toUpperCase();
-            return policyJabatan === empJabatan;
-          }
-          return false;
+          const descLower = p.deskripsi.toLowerCase();
+          const hasPos = descLower.includes(`jabatan: ${cleanPos}`) || descLower.includes(`jabatan: semua posisi`);
+          const hasStatus = descLower.includes(`status: ${cleanStatus}`) || descLower.includes(`status karyawan: ${cleanStatus}`);
+          return hasPos && hasStatus;
         });
+
         if (salaryPolicy && salaryPolicy.deskripsi) {
           const match = salaryPolicy.deskripsi.match(/Gaji\s+Pokok:\s*Rp\s*([\d.]+)/i);
           if (match) {
@@ -206,13 +207,23 @@ const recalculateDraftPayrolls = async (updatedPolicies, token, API_URL) => {
           }
         }
       } catch (e) {}
+      
       if (gajiPokokVal === 0) {
-        const pos = (emp.position || emp.jabatan || '').toLowerCase();
-        if (pos.includes('kepala cabang')) gajiPokokVal = 1700000;
-        else if (pos.includes('quality control') || pos.includes('qc')) gajiPokokVal = 1400000;
-        else if (pos.includes('training') && pos.includes('cabang')) gajiPokokVal = 1400000;
-        else if (pos.includes('training')) gajiPokokVal = 1000000;
-        else gajiPokokVal = 1200000;
+        if (cleanStatus === 'karyawan training') {
+          if (cleanPos.includes('kepala cabang')) {
+            gajiPokokVal = 1500000;
+          } else {
+            gajiPokokVal = 1000000;
+          }
+        } else { // karyawan kontrak or training leader
+          if (cleanPos.includes('kepala cabang')) {
+            gajiPokokVal = 1700000;
+          } else if (cleanPos.includes('quality control') || cleanPos.includes('qc')) {
+            gajiPokokVal = 1400000;
+          } else {
+            gajiPokokVal = 1200000;
+          }
+        }
       }
 
       // Cutoff logs
@@ -252,9 +263,6 @@ const recalculateDraftPayrolls = async (updatedPolicies, token, API_URL) => {
       } catch (e) {}
 
       let potonganKelebihanLibur = 0;
-      if (totalApprovedLeaveDays > maxLeaveDays) {
-        potonganKelebihanLibur = Math.round((gajiPokokVal / 30) * (totalApprovedLeaveDays - maxLeaveDays));
-      }
 
       // Weekend/Holiday fines
       let dendaWeekendRate = 200000;
@@ -353,7 +361,8 @@ const recalculateDraftPayrolls = async (updatedPolicies, token, API_URL) => {
         const isHalfDay = (log.notes && /setengah hari|1\/2|half day/i.test(log.notes)) || 
                           log.status_in === 'half_day' ||
                           (log.clock_out && isCheckoutBeforePolicyLocal(log.clock_out, policyTime));
-        if (hasClockIn && isOntime && !isLate && !isAbsent && !isHalfDay) {
+        const isBriefing = log.ikut_briefing === 'Ya';
+        if (hasClockIn && isOntime && !isLate && !isAbsent && !isHalfDay && isBriefing) {
           tepatWaktuDays++;
         }
       });
@@ -398,6 +407,16 @@ const recalculateDraftPayrolls = async (updatedPolicies, token, API_URL) => {
       }
       let uangLemburVal = lemburDays * lemburRate;
       if (uangLemburVal > lemburMaxCap) uangLemburVal = lemburMaxCap;
+
+      if (totalApprovedLeaveDays > maxLeaveDays) {
+        const excessDays = totalApprovedLeaveDays - maxLeaveDays;
+        const pos = (emp.position || emp.jabatan || '').toLowerCase();
+        let additionalFine = 15000;
+        if (pos.includes('kepala produksi') || pos.includes('kepala layanan') || pos.includes('kepala cabang') || pos.includes('quality control') || pos.includes('qc')) {
+          additionalFine = 25000;
+        }
+        potonganKelebihanLibur = Math.round(((gajiPokokVal / 30) + uangMakanRate + lemburRate + additionalFine) * excessDays);
+      }
 
       // Tunjangan Keluarga
       let tunjanganKeluargaVal = 0;
@@ -663,7 +682,7 @@ const seedInitialPolicies = () => {
       nama_aturan: 'Struktur Gaji Pokok',
       outlets: targetAllOutlets,
       all_outlets: true,
-      deskripsi: 'Jabatan: KEPALA CABANG, Gaji Pokok: Rp1.700.000',
+      deskripsi: 'Status Karyawan: Karyawan Kontrak, Jabatan: KEPALA CABANG, Gaji Pokok: Rp1.700.000',
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
     },
@@ -672,7 +691,7 @@ const seedInitialPolicies = () => {
       nama_aturan: 'Struktur Gaji Pokok',
       outlets: targetAllOutlets,
       all_outlets: true,
-      deskripsi: 'Jabatan: QUALITY CONTROL, Gaji Pokok: Rp1.400.000',
+      deskripsi: 'Status Karyawan: Karyawan Kontrak, Jabatan: QUALITY CONTROL, Gaji Pokok: Rp1.400.000',
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
     },
@@ -681,7 +700,7 @@ const seedInitialPolicies = () => {
       nama_aturan: 'Struktur Gaji Pokok',
       outlets: targetAllOutlets,
       all_outlets: true,
-      deskripsi: 'Jabatan: KARYAWAN, Gaji Pokok: Rp1.200.000',
+      deskripsi: 'Status Karyawan: Karyawan Kontrak, Jabatan: Semua Posisi, Gaji Pokok: Rp1.200.000',
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
     },
@@ -690,7 +709,7 @@ const seedInitialPolicies = () => {
       nama_aturan: 'Struktur Gaji Pokok',
       outlets: targetAllOutlets,
       all_outlets: true,
-      deskripsi: 'Jabatan: KARYAWAN TRAINING, Gaji Pokok: Rp1.000.000',
+      deskripsi: 'Status Karyawan: Karyawan Training, Jabatan: Semua Posisi, Gaji Pokok: Rp1.000.000',
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
     },
@@ -699,7 +718,7 @@ const seedInitialPolicies = () => {
       nama_aturan: 'Struktur Gaji Pokok',
       outlets: targetAllOutlets,
       all_outlets: true,
-      deskripsi: 'Jabatan: KEPALA CABANG TRAINING, Gaji Pokok: Rp1.400.000',
+      deskripsi: 'Status Karyawan: Karyawan Training, Jabatan: KEPALA CABANG, Gaji Pokok: Rp1.500.000',
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
     },
@@ -765,7 +784,7 @@ const seedInitialPolicies = () => {
       nama_aturan: 'Kebijakan Uang Makan',
       outlets: targetAllOutlets,
       all_outlets: true,
-      deskripsi: 'Uang makan sebesar Rp20.000 per hari untuk kehadiran tepat waktu.',
+      deskripsi: 'Uang makan sebesar Rp20.000 per hari untuk kehadiran tepat waktu. Karyawan yang terlambat absen masuk (mulai dari 1 detik melewati pukul 10:00:00 WIB) tidak mendapatkan uang makan dan lembur pada hari tersebut.',
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
     },

@@ -10,7 +10,7 @@ import path from 'path';
 export async function getAllEmployees(req, res) {
   try {
     const employees = await dbQuery.all(`
-      SELECT e.id, e.nik, e.full_name, e.position, e.department, e.basic_salary, e.status, e.joined_date, e.outlet, e.gender, e.photo_url, u.email
+      SELECT e.id, e.nik, e.full_name, e.position, e.department, e.basic_salary, e.status, e.joined_date, e.outlet, e.gender, e.photo_url, e.status_karyawan, u.email
       FROM employees e
       JOIN users u ON e.user_id = u.id
       ORDER BY e.id DESC
@@ -37,7 +37,7 @@ export async function getEmployeeById(req, res) {
 
   try {
     const employee = await dbQuery.get(`
-      SELECT e.id, e.nik, e.full_name, e.phone, e.address, e.position, e.department, e.basic_salary, e.status, e.joined_date, e.outlet, e.gender, e.photo_url, u.email
+      SELECT e.id, e.nik, e.full_name, e.phone, e.address, e.position, e.department, e.basic_salary, e.status, e.joined_date, e.outlet, e.gender, e.photo_url, e.status_karyawan, u.email
       FROM employees e
       JOIN users u ON e.user_id = u.id
       WHERE e.id = ?
@@ -81,7 +81,7 @@ export async function getEmployeeById(req, res) {
 }
 
 export async function createEmployee(req, res) {
-  const { email, password, nik, full_name, phone, address, position, department, basic_salary, joined_date, role, outlet, gender, photo_url } = req.body;
+  const { email, password, nik, full_name, phone, address, position, department, basic_salary, joined_date, role, outlet, gender, photo_url, status_karyawan } = req.body;
 
   // Validasi input wajib
   if (!email || !password || !nik || !full_name || !position || !department || basic_salary === undefined || !joined_date) {
@@ -123,8 +123,8 @@ export async function createEmployee(req, res) {
 
     // 5. Masukkan profil ke tabel employees
     const empResult = await dbQuery.run(`
-      INSERT INTO employees (user_id, nik, full_name, phone, address, position, department, basic_salary, joined_date, outlet, gender, photo_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO employees (user_id, nik, full_name, phone, address, position, department, basic_salary, joined_date, outlet, gender, photo_url, status_karyawan)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       userResult.id,
       nik.trim(),
@@ -137,7 +137,8 @@ export async function createEmployee(req, res) {
       joined_date,
       outlet ? outlet.trim() : null,
       gender ? gender.trim() : 'Pria',
-      photo_url ? photo_url.trim() : null
+      photo_url ? photo_url.trim() : null,
+      status_karyawan ? status_karyawan.trim() : 'karyawan kontrak'
     ]);
 
     return res.status(201).json({
@@ -163,7 +164,7 @@ export async function createEmployee(req, res) {
  */
 export async function updateEmployee(req, res) {
   const { id } = req.params;
-  const { full_name, phone, address, position, department, basic_salary, status, joined_date, outlet, gender, photo_url } = req.body;
+  const { full_name, phone, address, position, department, basic_salary, status, joined_date, outlet, gender, photo_url, status_karyawan } = req.body;
 
   try {
     // 1. Cari karyawan
@@ -211,7 +212,7 @@ export async function updateEmployee(req, res) {
       // Owner/Admin/Role berizin memiliki kontrol penuh atas jabatan, divisi, gaji, status, outlet, dan gender
       await dbQuery.run(`
         UPDATE employees
-        SET full_name = ?, phone = ?, address = ?, position = ?, department = ?, basic_salary = ?, status = ?, joined_date = ?, outlet = ?, gender = ?, photo_url = ?
+        SET full_name = ?, phone = ?, address = ?, position = ?, department = ?, basic_salary = ?, status = ?, joined_date = ?, outlet = ?, gender = ?, photo_url = ?, status_karyawan = ?
         WHERE id = ?
       `, [
         full_name ? full_name.trim() : employee.full_name,
@@ -225,6 +226,7 @@ export async function updateEmployee(req, res) {
         outlet ? outlet.trim() : employee.outlet,
         gender ? gender.trim() : (employee.gender || 'Pria'),
         photo_url !== undefined ? photo_url : employee.photo_url,
+        status_karyawan !== undefined ? status_karyawan : employee.status_karyawan,
         id
       ]);
 
