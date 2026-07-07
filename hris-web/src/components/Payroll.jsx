@@ -466,23 +466,8 @@ const calculatePayroll = (emp, month, year, policies, historyLogs, leaves) => {
   } catch (e) {}
 
   let tepatWaktuDays = 0;
-  empLogs.forEach(log => {
-    const hasClockIn = !!log.clock_in;
-    const isOntime = log.status_in === 'ontime';
-    const isLate = log.status_in === 'late' || (log.notes && /terlambat|late/i.test(log.notes));
-    const isAbsent = !log.clock_in || log.status_in === 'absent' || (log.notes && /tidak hadir|alpa|absent/i.test(log.notes));
-    const logOutlet = log.outlet || emp.outlet || '';
-    const policyTime = getPolicyClockOutTimeLocal(logOutlet, policies);
-    const isHalfDay = (log.notes && /setengah hari|1\/2|half day/i.test(log.notes)) || 
-                      log.status_in === 'half_day' ||
-                      (log.clock_out && isCheckoutBeforePolicyLocal(log.clock_out, policyTime));
-    const isBriefing = log.ikut_briefing === 'Ya';
-    
-    if (hasClockIn && isOntime && !isLate && !isAbsent && !isHalfDay && isBriefing) {
-      tepatWaktuDays++;
-    }
-  });
-  const uangMakanVal = tepatWaktuDays * uangMakanRate;
+  let lemburDays = 0;
+  let masukSetengahHariDeduction = 0;
 
   // C. Uang Lembur (Dynamic from policy)
   let lemburRate = 7000;
@@ -497,9 +482,7 @@ const calculatePayroll = (emp, month, year, policies, historyLogs, leaves) => {
     }
   } catch (e) {}
 
-  let lemburDays = 0;
   const empOutletName = (emp.outlet || emp.nama_outlet || '').toUpperCase().trim();
-  
   let empOutletId = '';
   try {
     const outletsData = JSON.parse(localStorage.getItem('outlet_cabang_data') || '[]');
@@ -513,36 +496,92 @@ const calculatePayroll = (emp, month, year, policies, historyLogs, leaves) => {
   } catch (e) {}
 
   const isAbsTt = empOutletId === 'ABS TT' || empOutletName.includes('AYAM BAKAR SURABAYA TEBING TINGGI') || empOutletName === 'ABS TT';
-  
-  if (!isAbsTt) {
-    empLogs.forEach(log => {
-      const hasClockIn = !!log.clock_in;
-      const hasClockOut = !!log.clock_out;
-      const isLate = log.status_in === 'late' || (log.notes && /terlambat|late/i.test(log.notes));
+
+  const parseToMinutesLocal = (timeStr) => {
+    if (!timeStr) return 0;
+    const parts = timeStr.split(':');
+    const hrs = parseInt(parts[0], 10) || 0;
+    const mins = parseInt(parts[1], 10) || 0;
+    return hrs * 60 + mins;
+  };
+
+  empLogs.forEach(log => {
+    const hasClockIn = !!log.clock_in;
+    const hasClockOut = !!log.clock_out;
+    const isLate = log.status_in === 'late' || (log.notes && /terlambat|late/i.test(log.notes));
+    const isBriefing = log.ikut_briefing === 'Ya';
+
+    let isAbsent = !log.clock_in || log.status_in === 'absent' || (log.notes && /tidak hadir|alpa|absent/i.test(log.notes));
+    let isHalfDay = (log.notes && /setengah hari|1\/2|half day|Masuk Setengah Hari/i.test(log.notes)) || log.status_in === 'half_day';
+    
+    let loseMeal = false;
+    let loseLembur = false;
+    let wageDeduction = 0;
+    let countsAsLeave = false;
+
+    if (hasClockIn && hasClockOut) {
+      const outMins = parseToMinutesLocal(log.clock_out);
       const logOutlet = log.outlet || emp.outlet || '';
-      const policyTime = getPolicyClockOutTimeLocal(logOutlet, policies);
-      const isHalfDay = (log.notes && /setengah hari|1\/2|half day/i.test(log.notes)) || 
-                        log.status_in === 'half_day' ||
-                        (log.clock_out && isCheckoutBeforePolicyLocal(log.clock_out, policyTime));
-      
-      if (hasClockIn && hasClockOut && !isLate && !isHalfDay) {
-        let markedLembur = log.notes && /lembur|overtime/i.test(log.notes);
-        
-        if (!markedLembur) {
-          const inMs = parseTimeStringToMs(log.clock_in);
-          const outMs = parseTimeStringToMs(log.clock_out);
-          const diffMs = outMs - inMs;
-          if (diffMs > 32400000) {
-            markedLembur = true;
-          }
-        }
-        
-        if (markedLembur) {
-          lemburDays++;
+      const policyOutTime = getPolicyClockOutTimeLocal(logOutlet, policies);
+      const policyOutMins = parseToMinutesLocal(policyOutTime);
+
+      if (outMins >= 600 && outMins < 900) {
+        isAbsent = true;
+        loseMeal = true;
+        loseLembur = true;
+        wageDeduction = Math.round(gajiPokokVal / 30);
+        countsAsLeave = true;
+      } else if (outMins >= 900 && outMins < 1080) {
+        isAbsent = true;
+        loseMeal = true;
+        loseLembur = true;
+        wageDeduction = Math.round(gajiPokokVal / 30);
+      } else if (outMins >= 1080 && outMins < 1320) {
+        isHalfDay = true;
+        loseMeal = true;
+        loseLembur = true;
+      } else if (outMins >= 1320 && outMins < policyOutMins) {
+        isHalfDay = true;
+        loseLembur = true;
+      }
+    } else if (hasClockIn && !hasClockOut) {
+      isAbsent = true;
+      loseMeal = true;
+      loseLembur = true;
+      wageDeduction = Math.round(gajiPokokVal / 30);
+    }
+
+    if (hasClockIn && !isLate && isBriefing && !isAbsent && !loseMeal) {
+      tepatWaktuDays++;
+    }
+
+    if (hasClockIn && hasClockOut && !isLate && !isHalfDay && !isAbsent && !loseLembur && !isAbsTt) {
+      let markedLembur = log.notes && /lembur|overtime/i.test(log.notes);
+      if (!markedLembur) {
+        const inMs = parseTimeStringToMs(log.clock_in);
+        const outMs = parseTimeStringToMs(log.clock_out);
+        const diffMs = outMs - inMs;
+        if (diffMs > 32400000) {
+          markedLembur = true;
         }
       }
-    });
-  }
+      if (markedLembur) {
+        lemburDays++;
+      }
+    }
+
+    if (wageDeduction > 0) {
+      masukSetengahHariDeduction += wageDeduction;
+    }
+
+    if (countsAsLeave && log.date) {
+      if (!leaveDatesInCutoff.includes(log.date)) {
+        leaveDatesInCutoff.push(log.date);
+      }
+    }
+  });
+
+  const uangMakanVal = tepatWaktuDays * uangMakanRate;
   let uangLemburVal = lemburDays * lemburRate;
   if (uangLemburVal > lemburMaxCap) {
     uangLemburVal = lemburMaxCap;
@@ -770,28 +809,7 @@ const calculatePayroll = (emp, month, year, policies, historyLogs, leaves) => {
     .filter(l => l.leave_type === 'kasbon' && l.start_date >= startDate && l.start_date <= endDate)
     .reduce((acc, curr) => acc + (parseFloat(curr.cash_advance_amount) || 0), 0);
 
-  // alpa parsial setengah hari (< 18.00)
-  let masukSetengahHariDeduction = 0;
-  empLogs.forEach(log => {
-    const logOutlet = log.outlet || emp.outlet || '';
-    const policyTime = getPolicyClockOutTimeLocal(logOutlet, policies);
-    const isHalfDay = (log.notes && /setengah hari|1\/2|half day|Masuk Setengah Hari/i.test(log.notes)) || 
-                      log.status_in === 'half_day' ||
-                      (log.clock_out && isCheckoutBeforePolicyLocal(log.clock_out, policyTime));
-    
-    if (isHalfDay) {
-      const clockOut = log.clock_out;
-      if (clockOut) {
-        const parts = clockOut.split(':');
-        const hrs = parseInt(parts[0], 10) || 0;
-        if (hrs < 18) {
-          masukSetengahHariDeduction += Math.round(gajiPokokVal / 30);
-        }
-      } else {
-        masukSetengahHariDeduction += Math.round(gajiPokokVal / 30);
-      }
-    }
-  });
+  // alpa parsial setengah hari - dihitung di loop utama di atas
 
   let absensiDeduction = 0;
   try {
@@ -1311,24 +1329,9 @@ export default function Payroll({ token, API_URL }) {
     } catch (e) {}
 
     let tepatWaktuDays = 0;
-    empLogs.forEach(log => {
-      const hasClockIn = !!log.clock_in;
-      const isOntime = log.status_in === 'ontime';
-      const isLate = log.status_in === 'late' || (log.notes && /terlambat|late/i.test(log.notes));
-      const isAbsent = !log.clock_in || log.status_in === 'absent' || (log.notes && /tidak hadir|alpa|absent/i.test(log.notes));
-      const logOutlet = log.outlet || emp.outlet || '';
-      const policyTime = getPolicyClockOutTimeLocal(logOutlet, policies);
-      const isHalfDay = (log.notes && /setengah hari|1\/2|half day/i.test(log.notes)) || 
-                        log.status_in === 'half_day' ||
-                        (log.clock_out && isCheckoutBeforePolicyLocal(log.clock_out, policyTime));
-      const isBriefing = log.ikut_briefing === 'Ya';
-      
-      if (hasClockIn && isOntime && !isLate && !isAbsent && !isHalfDay && isBriefing) {
-        tepatWaktuDays++;
-      }
-    });
-    const uangMakanVal = tepatWaktuDays * uangMakanRate;
-    
+    let lemburDays = 0;
+    let masukSetengahHariDeduction = 0;
+
     // Helper to parse time string without browser Date dependency
     const parseTimeStringToMs = (timeStr) => {
       if (!timeStr) return 0;
@@ -1353,7 +1356,6 @@ export default function Payroll({ token, API_URL }) {
       }
     } catch (e) {}
 
-    let lemburDays = 0;
     const empOutletName = (emp.outlet || emp.nama_outlet || '').toUpperCase().trim();
     
     // Precise ID Check for ABS TT
@@ -1370,36 +1372,92 @@ export default function Payroll({ token, API_URL }) {
     } catch (e) {}
 
     const isAbsTt = empOutletId === 'ABS TT' || empOutletName.includes('AYAM BAKAR SURABAYA TEBING TINGGI') || empOutletName === 'ABS TT';
-    
-    if (!isAbsTt) {
-      empLogs.forEach(log => {
-        const hasClockIn = !!log.clock_in;
-        const hasClockOut = !!log.clock_out;
-        const isLate = log.status_in === 'late' || (log.notes && /terlambat|late/i.test(log.notes));
+
+    const parseToMinutesLocal = (timeStr) => {
+      if (!timeStr) return 0;
+      const parts = timeStr.split(':');
+      const hrs = parseInt(parts[0], 10) || 0;
+      const mins = parseInt(parts[1], 10) || 0;
+      return hrs * 60 + mins;
+    };
+
+    empLogs.forEach(log => {
+      const hasClockIn = !!log.clock_in;
+      const hasClockOut = !!log.clock_out;
+      const isLate = log.status_in === 'late' || (log.notes && /terlambat|late/i.test(log.notes));
+      const isBriefing = log.ikut_briefing === 'Ya';
+
+      let isAbsent = !log.clock_in || log.status_in === 'absent' || (log.notes && /tidak hadir|alpa|absent/i.test(log.notes));
+      let isHalfDay = (log.notes && /setengah hari|1\/2|half day|Masuk Setengah Hari/i.test(log.notes)) || log.status_in === 'half_day';
+      
+      let loseMeal = false;
+      let loseLembur = false;
+      let wageDeduction = 0;
+      let countsAsLeave = false;
+
+      if (hasClockIn && hasClockOut) {
+        const outMins = parseToMinutesLocal(log.clock_out);
         const logOutlet = log.outlet || emp.outlet || '';
-        const policyTime = getPolicyClockOutTimeLocal(logOutlet, policies);
-        const isHalfDay = (log.notes && /setengah hari|1\/2|half day/i.test(log.notes)) || 
-                          log.status_in === 'half_day' ||
-                          (log.clock_out && isCheckoutBeforePolicyLocal(log.clock_out, policyTime));
-        
-        if (hasClockIn && hasClockOut && !isLate && !isHalfDay) {
-          let markedLembur = log.notes && /lembur|overtime/i.test(log.notes);
-          
-          if (!markedLembur) {
-            const inMs = parseTimeStringToMs(log.clock_in);
-            const outMs = parseTimeStringToMs(log.clock_out);
-            const diffMs = outMs - inMs;
-            if (diffMs > 32400000) { // 9 hours
-              markedLembur = true;
-            }
-          }
-          
-          if (markedLembur) {
-            lemburDays++;
+        const policyOutTime = getPolicyClockOutTimeLocal(logOutlet, policies);
+        const policyOutMins = parseToMinutesLocal(policyOutTime);
+
+        if (outMins >= 600 && outMins < 900) {
+          isAbsent = true;
+          loseMeal = true;
+          loseLembur = true;
+          wageDeduction = Math.round(gajiPokokVal / 30);
+          countsAsLeave = true;
+        } else if (outMins >= 900 && outMins < 1080) {
+          isAbsent = true;
+          loseMeal = true;
+          loseLembur = true;
+          wageDeduction = Math.round(gajiPokokVal / 30);
+        } else if (outMins >= 1080 && outMins < 1320) {
+          isHalfDay = true;
+          loseMeal = true;
+          loseLembur = true;
+        } else if (outMins >= 1320 && outMins < policyOutMins) {
+          isHalfDay = true;
+          loseLembur = true;
+        }
+      } else if (hasClockIn && !hasClockOut) {
+        isAbsent = true;
+        loseMeal = true;
+        loseLembur = true;
+        wageDeduction = Math.round(gajiPokokVal / 30);
+      }
+
+      if (hasClockIn && !isLate && isBriefing && !isAbsent && !loseMeal) {
+        tepatWaktuDays++;
+      }
+
+      if (hasClockIn && hasClockOut && !isLate && !isHalfDay && !isAbsent && !loseLembur && !isAbsTt) {
+        let markedLembur = log.notes && /lembur|overtime/i.test(log.notes);
+        if (!markedLembur) {
+          const inMs = parseTimeStringToMs(log.clock_in);
+          const outMs = parseTimeStringToMs(log.clock_out);
+          const diffMs = outMs - inMs;
+          if (diffMs > 32400000) {
+            markedLembur = true;
           }
         }
-      });
-    }
+        if (markedLembur) {
+          lemburDays++;
+        }
+      }
+
+      if (wageDeduction > 0) {
+        masukSetengahHariDeduction += wageDeduction;
+      }
+
+      if (countsAsLeave && log.date) {
+        if (!leaveDatesInCutoff.includes(log.date)) {
+          leaveDatesInCutoff.push(log.date);
+        }
+      }
+    });
+
+    const uangMakanVal = tepatWaktuDays * uangMakanRate;
     let uangLemburVal = lemburDays * lemburRate;
     if (uangLemburVal > lemburMaxCap) {
       uangLemburVal = lemburMaxCap;
@@ -1617,28 +1675,7 @@ export default function Payroll({ token, API_URL }) {
       .filter(l => l.leave_type === 'kasbon' && l.start_date >= startDate && l.start_date <= endDate)
       .reduce((acc, curr) => acc + (parseFloat(curr.cash_advance_amount) || 0), 0);
 
-    // alpa parsial setengah hari (< 18.00)
-    let masukSetengahHariDeduction = 0;
-    empLogs.forEach(log => {
-      const logOutlet = log.outlet || emp.outlet || '';
-      const policyTime = getPolicyClockOutTimeLocal(logOutlet, policies);
-      const isHalfDay = (log.notes && /setengah hari|1\/2|half day|Masuk Setengah Hari/i.test(log.notes)) || 
-                        log.status_in === 'half_day' ||
-                        (log.clock_out && isCheckoutBeforePolicyLocal(log.clock_out, policyTime));
-      
-      if (isHalfDay) {
-        const clockOut = log.clock_out;
-        if (clockOut) {
-          const parts = clockOut.split(':');
-          const hrs = parseInt(parts[0], 10) || 0;
-          if (hrs < 18) {
-            masukSetengahHariDeduction += Math.round(gajiPokokVal / 30);
-          }
-        } else {
-          masukSetengahHariDeduction += Math.round(gajiPokokVal / 30);
-        }
-      }
-    });
+    // alpa parsial setengah hari - dihitung di loop utama di atas
 
     let absensiDeduction = 0;
     try {

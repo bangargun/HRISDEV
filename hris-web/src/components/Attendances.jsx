@@ -397,14 +397,20 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   };
 
   const checkIsHalfDay = (log) => {
+    if (!log.jam_keluar && !log.clock_out) return false;
+    const clockOutMins = parseToMinutes(log.jam_keluar || log.clock_out || '');
+    if (clockOutMins === 0) return false;
+
     let outlet = (log.outlet || '').trim();
     if (!outlet) {
       const emp = employees.find(e => (log.employee_id && String(e.id) === String(log.employee_id)) || (log.nik && e.nik === log.nik));
       if (emp) outlet = emp.outlet || '';
     }
-    return (log.notes && /setengah hari|1\/2|half day/i.test(log.notes)) ||
-      log.status_in === 'half_day' ||
-      (log.clock_out && isCheckoutBeforePolicy(log.clock_out, getPolicyClockOutTime(outlet)));
+    const policyOut = getPolicyClockOutTime(outlet);
+    const policyOutMins = parseToMinutes(policyOut);
+
+    // Setengah Hari: pulang >= 18:00 (1080 mins) dan < policy clock out
+    return (clockOutMins >= 1080 && clockOutMins < policyOutMins);
   };
 
   const resolveOutlet = (log) => {
@@ -448,14 +454,26 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     }
     const clockInMins = parseToMinutes(log.jam_masuk || log.clock_in || '');
     const clockOutMins = parseToMinutes(log.jam_keluar || log.clock_out || '');
-    const policyOut = getPolicyClockOutTime(resolveOutlet(log));
-    const policyOutMins = parseToMinutes(policyOut);
-    // Setengah hari: pulang sebelum jam keluar policy
-    if (clockOutMins > 0 && clockInMins > 0) {
-      let co = clockOutMins, po = policyOutMins;
-      if (po < parseToMinutes('12:00')) po += 1440;
-      if (co < parseToMinutes('12:00') && co > 0) co += 1440;
-      if (co < po - 60) return 'Setengah Hari';
+
+    if (clockInMins > 0 && clockOutMins > 0) {
+      // 10:00 = 600 mins, 15:00 = 900 mins, 18:00 = 1080 mins, 22:00 = 1320 mins
+      if (clockOutMins >= 600 && clockOutMins < 900) {
+        return 'Tidak Hadir';
+      }
+      if (clockOutMins >= 900 && clockOutMins < 1080) {
+        return 'Tidak Hadir';
+      }
+      if (clockOutMins >= 1080 && clockOutMins < 1320) {
+        return 'Setengah Hari';
+      }
+      if (clockOutMins >= 1320) {
+        const outlet = resolveOutlet(log);
+        const policyOut = getPolicyClockOutTime(outlet);
+        const policyOutMins = parseToMinutes(policyOut);
+        if (clockOutMins < policyOutMins) {
+          return 'Setengah Hari';
+        }
+      }
     }
     // Terlambat: masuk > 10:00
     const masukLimit = 10 * 60; // 10:00 = 600 menit
