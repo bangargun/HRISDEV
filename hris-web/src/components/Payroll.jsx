@@ -2461,6 +2461,68 @@ export default function Payroll({ token, API_URL }) {
 
 
 
+      {/* ── Papan Informasi Peringatan Cutoff ── */}
+      {(() => {
+        if (activeTab === 'kasbon') return null;
+        
+        const currentSelectedOutlet = activeTab === 'rekap' ? rekapOutlet : (filterOutlet || 'ALL');
+        const unconfigured = [];
+        try {
+          const policiesList = JSON.parse(localStorage.getItem('corporate_policies') || '[]');
+          const cutoffPolicies = policiesList.filter(p => p.nama_aturan === 'Periode Cut-Off & Tanggal Gajian' && p.status === 'ACTIVE');
+          
+          const outletsWithPolicy = new Set();
+          cutoffPolicies.forEach(p => {
+            (p.outlets || []).forEach(o => outletsWithPolicy.add(o.toUpperCase().trim()));
+          });
+          
+          if (currentSelectedOutlet === 'ALL' || currentSelectedOutlet === '') {
+            availableOutlets.forEach(o => {
+              if (!outletsWithPolicy.has(o.toUpperCase().trim())) {
+                unconfigured.push(o);
+              }
+            });
+          } else {
+            if (!outletsWithPolicy.has(currentSelectedOutlet.toUpperCase().trim())) {
+              unconfigured.push(currentSelectedOutlet);
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+
+        if (unconfigured.length === 0) return null;
+
+        return (
+          <div style={{
+            background: 'rgba(224, 92, 92, 0.08)',
+            border: '1.5px solid rgba(224, 92, 92, 0.3)',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            animation: 'fadeIn 0.3s ease',
+          }}>
+            <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>⚠️</span>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: '0 0 4px 0', fontSize: '0.85rem', fontWeight: 800, color: '#E05C5C' }}>
+                PERINGATAN: Kebijakan Periode Cut-Off Belum Diatur
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: PALETTE.creamMuted, lineHeight: '1.4' }}>
+                Kebijakan periode cut-off untuk outlet berikut belum terdaftar atau berstatus tidak aktif di Halaman Kebijakan Perusahaan:
+                <strong style={{ color: PALETTE.cream, marginLeft: '4px' }}>
+                  {unconfigured.join(', ')}
+                </strong>.
+                Perhitungan payroll saat ini otomatis menggunakan tanggal default (tanggal 1 s.d. akhir bulan).
+                Harap segera tambahkan/aktifkan aturan <strong>"Periode Cut-Off & Tanggal Gajian"</strong> untuk outlet tersebut agar hasil perhitungan gaji tidak rancu.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Tabel Terkondisi (Rekap vs Slips vs Kasbon) ── */}
       {activeTab === 'rekap' && (
         <>
