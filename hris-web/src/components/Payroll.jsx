@@ -919,6 +919,8 @@ export default function Payroll({ token, API_URL }) {
   const [formTahun, setFormTahun] = useState(currentYear);
   const [income, setIncome] = useState(initIncome);
   const [deduction, setDeduction] = useState(initDeduction);
+  const [kasbonDates, setKasbonDates] = useState('');
+  const [leaveDates, setLeaveDates] = useState('');
 
   // ── State UI ──
   const [toast, setToast] = useState(null);
@@ -1213,6 +1215,7 @@ export default function Payroll({ token, API_URL }) {
 
     const leaveDatesInCutoff = [];
     empLeaves.forEach(lv => {
+      if (lv.leave_type === 'kasbon') return; // Exclude kasbon from leave dates!
       const dates = getLeaveDatesInCutoff(lv.start_date, lv.end_date, startDate, endDate);
       dates.forEach(d => {
         if (!leaveDatesInCutoff.includes(d)) {
@@ -1672,6 +1675,25 @@ export default function Payroll({ token, API_URL }) {
       tunjangan_lama_bekerja: String(tunjanganLamaBekerjaVal),
     }));
 
+    // Filter approved kasbon dates
+    const kasbonLeaves = empLeaves.filter(l => l.leave_type === 'kasbon' && l.start_date >= startDate && l.start_date <= endDate);
+    const kasbonDatesStr = kasbonLeaves.map(l => {
+      const parts = l.start_date.split('-');
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
+      return l.start_date;
+    }).join(', ') || '-';
+
+    // Filter all approved leaves (excluding kasbon)
+    const sortedLeaveDates = [...leaveDatesInCutoff].sort((a, b) => new Date(a) - new Date(b));
+    const leaveDatesStr = sortedLeaveDates.map(d => {
+      const parts = d.split('-');
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
+      return d;
+    }).join(', ') || '-';
+
+    setKasbonDates(kasbonDatesStr);
+    setLeaveDates(leaveDatesStr);
+
     if (totalApprovedLeaveDays > maxLeaveDays) {
       const excessDays = totalApprovedLeaveDays - maxLeaveDays;
       const pos = (emp.position || emp.jabatan || '').toLowerCase();
@@ -1719,6 +1741,8 @@ export default function Payroll({ token, API_URL }) {
     setFormTahun(currentYear);
     setIncome(initIncome);
     setDeduction(initDeduction);
+    setKasbonDates('');
+    setLeaveDates('');
     setShowModal(true);
   };
 
@@ -1732,6 +1756,8 @@ export default function Payroll({ token, API_URL }) {
     setFormTahun(slip.tahun);
     setIncome({ ...initIncome, ...slip.income });
     setDeduction({ ...initDeduction, ...slip.deduction });
+    setKasbonDates(slip.kasbon_dates || '-');
+    setLeaveDates(slip.leave_dates || '-');
     setShowModal(true);
   };
 
@@ -1805,6 +1831,8 @@ export default function Payroll({ token, API_URL }) {
       total_pendapatan: totalPendapatan,
       total_pengeluaran: totalPengeluaran,
       thp,
+      kasbon_dates: kasbonDates,
+      leave_dates: leaveDates,
       slip_sent: editingSlipId ? (existing.find(s => s.id === editingSlipId)?.slip_sent || false) : false,
       created_at: new Date().toISOString(),
     };
@@ -3318,6 +3346,24 @@ export default function Payroll({ token, API_URL }) {
                   <div>{toTitleCase(previewSlip.outlet) || '-'}</div>
                 </div>
               </div>
+
+              {/* Info Tanggal Kasbon & Libur */}
+              {((previewSlip.kasbon_dates && previewSlip.kasbon_dates !== '-') || (previewSlip.leave_dates && previewSlip.leave_dates !== '-')) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '12px 14px', borderRadius: '10px', border: '1px dashed rgba(255,255,255,0.1)', fontSize: '0.8rem' }}>
+                  {previewSlip.kasbon_dates && previewSlip.kasbon_dates !== '-' && (
+                    <div>
+                      <span style={{ color: PALETTE.creamMuted, fontWeight: 700 }}>📅 Tanggal Kasbon: </span>
+                      <span style={{ color: PALETTE.cream }}>{previewSlip.kasbon_dates}</span>
+                    </div>
+                  )}
+                  {previewSlip.leave_dates && previewSlip.leave_dates !== '-' && (
+                    <div>
+                      <span style={{ color: PALETTE.creamMuted, fontWeight: 700 }}>📅 Tanggal Libur/Cuti: </span>
+                      <span style={{ color: PALETTE.cream }}>{previewSlip.leave_dates}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Income Section */}
               <div>

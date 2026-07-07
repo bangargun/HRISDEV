@@ -326,6 +326,67 @@ class _PayrollScreenState extends State<PayrollScreen> {
                       ),
                     ],
                   ),
+                ],
+
+                // ── Info Tanggal Kasbon & Libur ──
+                if ((slip.kasbonDates != null && slip.kasbonDates != '-') ||
+                    (slip.leaveDates != null && slip.leaveDates != '-')) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _cream.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _cream.withOpacity(0.1)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (slip.kasbonDates != null && slip.kasbonDates != '-') ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.calendar_month, color: _creamMuted, size: 13),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: const TextStyle(color: _cream, fontSize: 11),
+                                    children: [
+                                      const TextSpan(text: 'Tanggal Kasbon: ', style: TextStyle(color: _creamMuted, fontWeight: FontWeight.bold)),
+                                      TextSpan(text: slip.kasbonDates),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (slip.leaveDates != null && slip.leaveDates != '-') const SizedBox(height: 8),
+                        ],
+                        if (slip.leaveDates != null && slip.leaveDates != '-') ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.calendar_month, color: _creamMuted, size: 13),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: const TextStyle(color: _cream, fontSize: 11),
+                                    children: [
+                                      const TextSpan(text: 'Tanggal Libur: ', style: TextStyle(color: _creamMuted, fontWeight: FontWeight.bold)),
+                                      TextSpan(text: slip.leaveDates),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ]
               ],
             ),

@@ -228,6 +228,8 @@ class LocalPayrollSlip {
   final double totalPengeluaran;
   final double thp;
   final String? sentAt;
+  final String? kasbonDates;
+  final String? leaveDates;
 
   LocalPayrollSlip({
     required this.id,
@@ -261,6 +263,8 @@ class LocalPayrollSlip {
     required this.totalPengeluaran,
     required this.thp,
     this.sentAt,
+    this.kasbonDates,
+    this.leaveDates,
   });
 
   factory LocalPayrollSlip.fromJson(Map<String, dynamic> json) {
@@ -298,6 +302,8 @@ class LocalPayrollSlip {
       totalPengeluaran: _toDouble(json['total_pengeluaran']),
       thp: _toDouble(json['thp']),
       sentAt: json['sent_at'] as String?,
+      kasbonDates: json['kasbon_dates'] as String?,
+      leaveDates: json['leave_dates'] as String?,
     );
   }
 
