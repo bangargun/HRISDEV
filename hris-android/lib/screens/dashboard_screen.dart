@@ -772,6 +772,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 20),
 
+          // Tombol Sync — Sinkronisasi data lengkap dari server
+          _buildSyncButton(context, auth),
+          const SizedBox(height: 20),
+
           // Adzan Countdown Card
           _buildPrayerCountdownCard(),
           const SizedBox(height: 20),
@@ -2011,6 +2015,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
       }
     }
+  }
+  bool _isSyncing = false;
+
+  Widget _buildSyncButton(BuildContext context, AuthProvider auth) {
+    const teal = Color(0xFF00ADB5);
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _isSyncing ? null : () async {
+          setState(() => _isSyncing = true);
+          try {
+            await auth.fullSync();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('✅ Sinkronisasi berhasil! Semua data telah diperbarui.'),
+                  backgroundColor: Color(0xFF10B981),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('❌ Gagal sinkronisasi: $e'),
+                  backgroundColor: const Color(0xFFEF4444),
+                ),
+              );
+            }
+          } finally {
+            if (mounted) setState(() => _isSyncing = false);
+          }
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _isSyncing ? const Color(0xFF393E46) : teal,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFF393E46),
+          disabledForegroundColor: Colors.white54,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          elevation: _isSyncing ? 0 : 4,
+        ),
+        icon: _isSyncing
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70))
+            : const Icon(Icons.sync_rounded, size: 20),
+        label: Text(
+          _isSyncing ? 'Menyinkronkan...' : '🔄 Sinkronisasi Data',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
   }
 
   Widget _buildAttendanceActionButtons(BuildContext context, AuthProvider auth, AttendanceRecord? today) {

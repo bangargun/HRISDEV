@@ -314,6 +314,55 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Sinkronisasi penuh: Refresh seluruh data dari server backend.
+  /// Dipanggil oleh tombol Sync di dashboard.
+  Future<void> fullSync() async {
+    if (_token == null) return;
+    _isLoading = true;
+    _connectionError = false;
+    notifyListeners();
+    try {
+      await Future.wait([
+        fetchProfile(),
+        fetchTodayAttendance(),
+        fetchTodayBreakSchedule(),
+        fetchWeeklyBreakSchedules(),
+        fetchAttendanceHistory(),
+        fetchLeaveHistory(),
+        fetchPayrollHistory(),
+        fetchSops(),
+        fetchInformations(),
+        fetchDocumentations(),
+        fetchPolicies(),
+        fetchPeakDays(),
+        fetchSanctions(),
+        fetchNotifications(),
+        fetchContracts(),
+        fetchQuizzes(),
+        fetchQuizAttempts(),
+      ]);
+      _successMessage = '✅ Sinkronisasi berhasil! Semua data telah diperbarui.';
+    } catch (e) {
+      final errStr = e.toString().toLowerCase();
+      final isNetworkException = errStr.contains('socketexception') ||
+          errStr.contains('timeoutexception') ||
+          errStr.contains('clientexception') ||
+          errStr.contains('connection failed') ||
+          errStr.contains('handshakeexception') ||
+          errStr.contains('connection refused') ||
+          errStr.contains('network is unreachable') ||
+          errStr.contains('failed host lookup');
+      if (isNetworkException) {
+        _connectionError = true;
+      }
+      _errorMessage = 'Gagal melakukan sinkronisasi data.';
+      print('FullSync Error: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> fetchProfile() async {
     try {
       final res = await ApiClient.get('auth/me', token: _token);
