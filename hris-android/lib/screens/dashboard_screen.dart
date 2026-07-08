@@ -66,7 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final downloadUrl = body['data']['download_url'].toString();
           final changelog = body['data']['changelog'] ?? '';
           
-          const currentVersion = '2.0';
+          const currentVersion = '2.1';
           if (latest != currentVersion) {
             _showUpdateDialog(latest, downloadUrl, changelog);
           }
