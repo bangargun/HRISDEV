@@ -2,7 +2,7 @@
 set -e
 
 # =====================================================
-# HRIS BAROKAH - Build Script v2.1
+# HRIS BAROKAH - Build Script v2.2
 # Build kedua APK: Mobile Karyawan + Tablet Operasional
 # API URL: https://api.barokahgroupindonesia.tech/api
 # =====================================================
@@ -23,7 +23,7 @@ mkdir -p "$ARTIFACT_DIR"
 
 cd "$ANDROID_DIR"
 
-echo "=== [HRIS Barokah v2.1 Build] API Target: https://api.barokahgroupindonesia.tech/api ==="
+echo "=== [HRIS Barokah v2.2 Build] API Target: https://api.barokahgroupindonesia.tech/api ==="
 echo "=== Running Flutter Clean ==="
 flutter clean
 flutter pub get
@@ -32,7 +32,7 @@ flutter pub get
 # 1. BUILD PHONE EDITION (Mobile Karyawan)
 # ==========================================
 echo ""
-echo "=== [1/2] Building Mobile Karyawan v2.1 (Phone Edition) ==="
+echo "=== [1/2] Building Mobile Karyawan v2.2 (Phone Edition) ==="
 sed -i '' 's/static bool isTabletEdition = true;/static bool isTabletEdition = false;/g' lib/config/api_client.dart 2>/dev/null || true
 sed -i '' 's/android:label="HRIS Employee (Tablet)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
 sed -i '' 's/android:label="HRIS Employee (Tablet Edition)"/android:label="HRIS Employee"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
@@ -41,13 +41,13 @@ flutter build apk --release --target-platform android-arm64
 
 echo "=== Copying Phone Edition APK ==="
 if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
-  cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.1.apk"
-  cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v2.1.apk"
-  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.1.apk"
+  cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.2.apk"
+  cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v2.2.apk"
+  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.2.apk"
 elif [ -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ]; then
-  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.1.apk"
-  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v2.1.apk"
-  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.1.apk"
+  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.2.apk"
+  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Karyawan_Mobile_v2.2.apk"
+  echo "✅ Mobile APK berhasil: $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.2.apk"
 else
   echo "❌ ERROR: APK Mobile tidak ditemukan di build output!"
   exit 1
@@ -57,7 +57,7 @@ fi
 # 2. BUILD TABLET EDITION (Operasional)
 # ==========================================
 echo ""
-echo "=== [2/2] Building Tablet Operasional v2.1 (Landscape Edition) ==="
+echo "=== [2/2] Building Tablet Operasional v2.2 (Landscape Edition) ==="
 sed -i '' 's/static bool isTabletEdition = false;/static bool isTabletEdition = true;/g' lib/config/api_client.dart 2>/dev/null || true
 sed -i '' 's/android:label="HRIS Employee"/android:label="HRIS Employee (Tablet)"/g' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
 
@@ -65,13 +65,13 @@ flutter build apk --release --target-platform android-arm64
 
 echo "=== Copying Tablet Edition APK ==="
 if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
-  cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.1.apk"
-  cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v2.1.apk"
-  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.1.apk"
+  cp build/app/outputs/flutter-apk/app-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.2.apk"
+  cp build/app/outputs/flutter-apk/app-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v2.2.apk"
+  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.2.apk"
 elif [ -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ]; then
-  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.1.apk"
-  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v2.1.apk"
-  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.1.apk"
+  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.2.apk"
+  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARTIFACT_DIR/BarokahGrup_Operasional_Tablet_v2.2.apk"
+  echo "✅ Tablet APK berhasil: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.2.apk"
 else
   echo "❌ ERROR: APK Tablet tidak ditemukan di build output!"
   exit 1
@@ -87,10 +87,10 @@ sed -i '' 's/android:label="HRIS Employee (Tablet)"/android:label="HRIS Employee
 
 echo ""
 echo "============================================"
-echo " ✅ HRIS Barokah APK Build v2.1 Selesai!"
+echo " ✅ HRIS Barokah APK Build v2.2 Selesai!"
 echo "============================================"
-echo " Mobile Karyawan   : $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.1.apk"
-echo " Tablet Operasional: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.1.apk"
+echo " Mobile Karyawan   : $DEPLOY_DIR/BarokahGrup_Karyawan_Mobile_v2.2.apk"
+echo " Tablet Operasional: $DEPLOY_DIR/BarokahGrup_Operasional_Tablet_v2.2.apk"
 echo " API URL           : https://api.barokahgroupindonesia.tech/api"
 echo "============================================"
 ls -lh "$DEPLOY_DIR/"
