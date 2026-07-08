@@ -83,6 +83,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   const [isSyncingSchedule, setIsSyncingSchedule] = useState(false);
   const [isWeeklyMode, setIsWeeklyMode]       = useState(false); // mode generate 7 hari
   const [weeklyGeneratedDates, setWeeklyGeneratedDates] = useState([]); // tanggal2 yg di-generate
+  const [targetWeek, setTargetWeek]           = useState('current'); // 'current' (Minggu Ini) | 'next' (Minggu Depan)
 
   // ─── COLUMN VISIBILITY ─────────────────────────────────────────────────────
   const [showColFilterRealtime, setShowColFilterRealtime] = useState(false);
@@ -1084,12 +1085,19 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   const handleGenerateButton = () => {
     if (!scheduleOutlet) { showToast('error', 'Pilih outlet terlebih dahulu!'); return; }
     if (isWeeklyMode) {
-      // Generate untuk 7 hari: Senin - Minggu minggu depan
+      // Generate untuk 7 hari: Senin - Minggu (Minggu Ini / Minggu Depan)
       const now = new Date();
       const todayWeekday = now.getDay() === 0 ? 7 : now.getDay(); // 1=Mon,7=Sun
-      const daysToNextMonday = todayWeekday === 1 ? 0 : (8 - todayWeekday);
+      
+      let daysOffset = 0;
+      if (targetWeek === 'next') {
+        daysOffset = todayWeekday === 1 ? 0 : (8 - todayWeekday);
+      } else {
+        daysOffset = -(todayWeekday - 1);
+      }
+      
       const monday = new Date(now);
-      monday.setDate(now.getDate() + daysToNextMonday);
+      monday.setDate(now.getDate() + daysOffset);
 
       const allSchedules = [];
       const generatedDates = [];
@@ -1105,7 +1113,8 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
       setWeeklyGeneratedDates(generatedDates);
       if (allSchedules.length > 0) {
         const karyawan = new Set(allSchedules.map(s => s.employee_id)).size;
-        showToast('success', `✅ Jadwal 7 hari (Senin-Minggu) berhasil di-generate untuk ${karyawan} karyawan.`);
+        const weekLabel = targetWeek === 'current' ? 'Minggu Ini' : 'Minggu Depan';
+        showToast('success', `✅ Jadwal 7 hari (${weekLabel}) berhasil di-generate untuk ${karyawan} karyawan.`);
       } else {
         showToast('error', 'Gagal generate jadwal mingguan. Pastikan ada karyawan aktif di outlet ini.');
       }
@@ -2098,8 +2107,20 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
               </div>
               )}
               {isWeeklyMode && (
-                <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 14px', background:'rgba(0,173,181,0.08)', border:'1px solid rgba(0,173,181,0.2)', borderRadius:'8px' }}>
-                  <span style={{ fontSize:'0.8rem', color:'#00ADB5', fontWeight:700 }}>📅 Mode Mingguan: Senin – Minggu (otomatis)</span>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                  <select
+                    className="input-field"
+                    value={targetWeek}
+                    onChange={e => {
+                      setTargetWeek(e.target.value);
+                      setGeneratedSchedules([]);
+                      setWeeklyGeneratedDates([]);
+                    }}
+                    style={{ height:'40px', fontSize:'0.82rem', borderColor:'#00ADB5', color:'#00ADB5', background:'rgba(0,173,181,0.05)', fontWeight:700, borderRadius:'8px' }}
+                  >
+                    <option value="current">📅 Minggu Ini (Senin – Minggu)</option>
+                    <option value="next">📅 Minggu Depan (Senin – Minggu)</option>
+                  </select>
                 </div>
               )}
               <div style={{ position:'relative' }}>
