@@ -528,8 +528,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       final now = DateTime.now();
       final todayWeekday = now.weekday; // 1=Mon, 7=Sun
-      final daysToMonday = todayWeekday == 1 ? 0 : (8 - todayWeekday);
-      final monday = now.add(Duration(days: daysToMonday));
+      final monday = now.subtract(Duration(days: todayWeekday - 1));
 
       final List<BreakSchedule> results = [];
       for (int i = 0; i < 7; i++) {

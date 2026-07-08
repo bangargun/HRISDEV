@@ -66,7 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final downloadUrl = body['data']['download_url'].toString();
           final changelog = body['data']['changelog'] ?? '';
           
-          const currentVersion = '2.1';
+          const currentVersion = '2.3';
           if (latest != currentVersion) {
             _showUpdateDialog(latest, downloadUrl, changelog);
           }
@@ -2169,8 +2169,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Tentukan Senin minggu ini atau minggu depan
     final now = DateTime.now();
     final todayWeekday = now.weekday; // 1=Mon, 7=Sun
-    final daysUntilNextMonday = todayWeekday == 1 ? 0 : (8 - todayWeekday);
-    final monday = now.add(Duration(days: daysUntilNextMonday));
+    final monday = now.subtract(Duration(days: todayWeekday - 1));
 
     // Build 7 hari Senin - Minggu
     final List<Map<String, dynamic>> weekDays = List.generate(7, (i) {
