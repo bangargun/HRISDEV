@@ -66,7 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final downloadUrl = body['data']['download_url'].toString();
           final changelog = body['data']['changelog'] ?? '';
           
-          const currentVersion = '1.8';
+          const currentVersion = '2.0';
           if (latest != currentVersion) {
             _showUpdateDialog(latest, downloadUrl, changelog);
           }
@@ -609,8 +609,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: darkBg,
+      appBar: AppBar(
+        title: const Text('DASHBOARD UTAMA', style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+        backgroundColor: darkBg,
+        elevation: 0,
+        centerTitle: false,
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: const Icon(Icons.sync_rounded, color: Color(0xFF00ADB5), size: 24),
+              tooltip: 'Sinkronisasi Jadwal & Kehadiran',
+              onPressed: () async {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF00ADB5))),
+                );
+                try {
+                  await auth.fetchProfile();
+                  await auth.fetchTodayAttendance();
+                  await auth.fetchTodayBreakSchedule();
+                  await auth.fetchWeeklyBreakSchedules();
+                  await auth.fetchAttendanceHistory();
+                  if (context.mounted) {
+                    Navigator.pop(context); // Tutup loading
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Sinkronisasi data jadwal & absensi berhasil!'),
+                        backgroundColor: Color(0xFF10B981),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    Navigator.pop(context); // Tutup loading
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Gagal sinkronisasi data. Periksa koneksi internet Anda.'),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+          )
+        ],
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         children: [
 
           // 0. Motivasi Hari Ini Card (Sapaan AI)
