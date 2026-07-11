@@ -632,7 +632,7 @@ async function getOrCreateBreakSchedule(employeeId, targetDate) {
 
   // 2. Jika tidak ada, buat jadwal deterministik
   const employee = await dbQuery.get("SELECT * FROM employees WHERE id = ?", [employeeId]);
-  if (!employee || employee.employee_status === 'inactive') {
+  if (!employee || employee.status === 'inactive') {
     return null;
   }
 
@@ -645,7 +645,7 @@ async function getOrCreateBreakSchedule(employeeId, targetDate) {
 
   // Ambil semua karyawan aktif di outlet yang sama
   const activeEmployees = await dbQuery.all(
-    "SELECT * FROM employees WHERE (outlet = ? OR ? LIKE CONCAT('%', outlet, '%')) AND employee_status != 'inactive' ORDER BY id ASC",
+    "SELECT * FROM employees WHERE (outlet = ? OR ? LIKE CONCAT('%', outlet, '%')) AND status != 'inactive' ORDER BY id ASC",
     [outlet, outlet]
   );
 
