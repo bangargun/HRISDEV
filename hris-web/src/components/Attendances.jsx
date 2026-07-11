@@ -1088,24 +1088,17 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     setIsSyncingSchedule(true);
     try {
       if (isWeeklyMode) {
-        const now = new Date();
-        const todayWeekday = now.getDay() === 0 ? 7 : now.getDay();
-        
-        let daysOffset = 0;
-        if (targetWeek === 'next') {
-          daysOffset = todayWeekday === 1 ? 0 : (8 - todayWeekday);
-        } else {
-          daysOffset = -(todayWeekday - 1);
+        const startDate = new Date(scheduleDate);
+        if (isNaN(startDate.getTime())) {
+          showToast('error', 'Pilih tanggal mulai terlebih dahulu!');
+          return;
         }
-        
-        const monday = new Date(now);
-        monday.setDate(now.getDate() + daysOffset);
 
         const allSchedules = [];
         const generatedDates = [];
-        for (let i = 0; i < 7; i++) {
-          const day = new Date(monday);
-          day.setDate(monday.getDate() + i);
+        for (let i = 0; i < 3; i++) {
+          const day = new Date(startDate);
+          day.setDate(startDate.getDate() + i);
           const dateStr = day.toISOString().split('T')[0];
           const daySchedules = generateBreakSchedules(dateStr);
           allSchedules.push(...daySchedules);
@@ -1154,14 +1147,13 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
           setWeeklyGeneratedDates(generatedDates);
 
           const karyawan = new Set(allSchedules.map(s => s.employee_id)).size;
-          const weekLabel = targetWeek === 'current' ? 'Minggu Ini' : 'Minggu Depan';
           if (failCount === 0) {
-            showToast('success', `🚀 Jadwal 7 hari (${weekLabel}) berhasil di-generate & disinkronkan ke server untuk ${karyawan} karyawan.`);
+            showToast('success', `🚀 Jadwal 3 hari berhasil di-generate & disinkronkan ke server untuk ${karyawan} karyawan.`);
           } else {
             showToast('success', `Jadwal di-generate. ${successCount} hari sukses disinkronkan, ${failCount} gagal.`);
           }
         } else {
-          showToast('error', 'Gagal generate jadwal mingguan. Pastikan ada karyawan aktif di outlet ini.');
+          showToast('error', 'Gagal generate jadwal. Pastikan ada karyawan aktif di outlet ini pada tanggal terpilih.');
         }
       } else {
         const result = generateBreakSchedules(scheduleDate);
@@ -2186,28 +2178,14 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
           {/* Scheduler Controls */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'14px', marginBottom:'24px', padding:'18px 20px', background:'var(--bg-surface)', border:'1px solid var(--border-color)', borderRadius:'12px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
-              {!isWeeklyMode && (
               <div style={{ position:'relative' }}>
                 <Calendar size={14} color="var(--text-muted)" style={{ position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}/>
                 <input type="date" className="input-field" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ paddingLeft:'30px', height:'40px', fontSize:'0.82rem', width:'160px' }}/>
               </div>
-              )}
               {isWeeklyMode && (
-                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                  <select
-                    className="input-field"
-                    value={targetWeek}
-                    onChange={e => {
-                      setTargetWeek(e.target.value);
-                      setGeneratedSchedules([]);
-                      setWeeklyGeneratedDates([]);
-                    }}
-                    style={{ height:'40px', fontSize:'0.82rem', borderColor:'#00ADB5', color:'#00ADB5', background:'rgba(0,173,181,0.05)', fontWeight:700, borderRadius:'8px' }}
-                  >
-                    <option value="current">📅 Minggu Ini (Senin – Minggu)</option>
-                    <option value="next">📅 Minggu Depan (Senin – Minggu)</option>
-                  </select>
-                </div>
+                <span style={{ fontSize:'0.8rem', color:'#00ADB5', background:'rgba(0,173,181,0.06)', padding:'8px 12px', borderRadius:'8px', border:'1px solid rgba(0,173,181,0.15)', fontWeight:700 }}>
+                  📅 Mulai Tanggal Ini (3 Hari Berurutan)
+                </span>
               )}
               <div style={{ position:'relative' }}>
                 <MapPin size={14} color="var(--text-muted)" style={{ position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}/>
@@ -2218,7 +2196,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
               </div>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-              {/* Weekly Mode Toggle */}
+              {/* Weekly Mode Toggle (now 3 Days) */}
               <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', padding:'0 12px', height:'40px', background:'var(--bg-card)', border:`1px solid ${isWeeklyMode ? '#00ADB5' : 'var(--border-color)'}`, borderRadius:'8px', transition:'all 0.2s' }}>
                 <div
                   onClick={() => { setIsWeeklyMode(v => !v); setGeneratedSchedules([]); setWeeklyGeneratedDates([]); }}
@@ -2226,7 +2204,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                 >
                   <div style={{ position:'absolute', top:'2px', left:isWeeklyMode?'18px':'2px', width:'16px', height:'16px', background:'#fff', borderRadius:'50%', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.3)' }}/>
                 </div>
-                <span style={{ fontSize:'0.78rem', color:isWeeklyMode?'#00ADB5':'var(--text-muted)', fontWeight:700, whiteSpace:'nowrap' }}>7 Hari</span>
+                <span style={{ fontSize:'0.78rem', color:isWeeklyMode?'#00ADB5':'var(--text-muted)', fontWeight:700, whiteSpace:'nowrap' }}>3 Hari</span>
               </label>
               <button onClick={handleGenerateButton} disabled={!scheduleOutlet} style={{
                 height:'40px', padding:'0 20px', background:!scheduleOutlet?'rgba(245,158,11,0.1)':'#f59e0b',
@@ -2235,7 +2213,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                 borderRadius:'8px', fontSize:'0.85rem', fontWeight:800,
                 cursor:!scheduleOutlet?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'8px', transition:'all 0.2s'
               }}>
-                <Clock size={15}/><span>{isWeeklyMode ? '⚙️ Generate 7 Hari' : '⚙️ Generate Otomatis'}</span>
+                <Clock size={15}/><span>{isWeeklyMode ? '⚙️ Generate 3 Hari' : '⚙️ Generate Otomatis'}</span>
               </button>
             </div>
           </div>
