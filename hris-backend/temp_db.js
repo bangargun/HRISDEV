@@ -16,8 +16,8 @@ async function main() {
     const [outlets] = await connection.execute('SELECT * FROM outlets LIMIT 5');
     console.log('Outlets details:', outlets);
 
-    const [columns] = await connection.execute('DESCRIBE employees');
-    console.log('Employees Columns:', columns.map(c => c.Field));
+    const [employees] = await connection.execute('SELECT id, nik, full_name, status, status_karyawan, outlet, gender FROM employees LIMIT 5');
+    console.log('Employees details:', employees);
   } catch (error) {
     console.error('Error:', error.message);
   } finally {
