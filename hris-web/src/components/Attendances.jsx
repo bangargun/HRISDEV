@@ -142,6 +142,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false, title: '', message: '', confirmText: 'YAKIN', cancelText: 'BATAL', onConfirm: null
   });
+  const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
   const [toast, setToast] = useState({ show: false, type: '', message: '' });
 
   // Peak Days State
@@ -1114,6 +1115,7 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
         if (allSchedules.length > 0) {
           let successCount = 0;
           let failCount = 0;
+          let isSessionExpired = false;
           for (const date of generatedDates) {
             const daySchedules = allSchedules.filter(s => s._date === date);
             if (daySchedules.length === 0) continue;
@@ -1132,12 +1134,22 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
                 })
               });
               const data = await res.json();
+              if (res.status === 401 || res.status === 403 || (data && data.message && (data.message.includes('expired') || data.message.includes('kedaluwarsa')))) {
+                isSessionExpired = true;
+                break;
+              }
               if (data.status === 'success') successCount++;
               else failCount++;
             } catch {
               failCount++;
             }
           }
+
+          if (isSessionExpired) {
+            setShowSessionExpiredModal(true);
+            return;
+          }
+
           setGeneratedSchedules(allSchedules);
           setWeeklyGeneratedDates(generatedDates);
 
@@ -1168,6 +1180,10 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
             })
           });
           const data = await res.json();
+          if (res.status === 401 || res.status === 403 || (data && data.message && (data.message.includes('expired') || data.message.includes('kedaluwarsa')))) {
+            setShowSessionExpiredModal(true);
+            return;
+          }
           if (data.status === 'success') {
             setGeneratedSchedules(result);
             setWeeklyGeneratedDates([]);
@@ -1212,15 +1228,24 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
       if (isWeeklyMode && weeklyGeneratedDates.length > 0) {
         let successCount = 0;
         let failCount = 0;
+        let isSessionExpired = false;
         for (const date of weeklyGeneratedDates) {
           const daySchedules = generatedSchedules.filter(s => s._date === date);
           if (daySchedules.length === 0) continue;
           try {
             const res = await fetch(`${API_URL}/attendance/break-schedule/sync`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }, body: JSON.stringify({ date, schedules:daySchedules.map(s=>({employee_id:s.employee_id,sesi:s.sesi,jam_mulai:s.jam_mulai,jam_selesai:s.jam_selesai})) }) });
             const data = await res.json();
+            if (res.status === 401 || res.status === 403 || (data && data.message && (data.message.includes('expired') || data.message.includes('kedaluwarsa')))) {
+              isSessionExpired = true;
+              break;
+            }
             if (data.status === 'success') successCount++;
             else failCount++;
           } catch { failCount++; }
+        }
+        if (isSessionExpired) {
+          setShowSessionExpiredModal(true);
+          return;
         }
         if (failCount === 0) showToast('success', `🚀 Jadwal 7 hari berhasil disinkronkan ke semua karyawan! (${successCount} tanggal)`);
         else showToast('error', `Sebagian gagal: ${successCount} berhasil, ${failCount} gagal.`);
@@ -1228,6 +1253,10 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
         if (!scheduleDate) { showToast('error', 'Pastikan tanggal telah diisi!'); setIsSyncingSchedule(false); return; }
         const res = await fetch(`${API_URL}/attendance/break-schedule/sync`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }, body: JSON.stringify({ date:scheduleDate, schedules:generatedSchedules.map(s=>({employee_id:s.employee_id,sesi:s.sesi,jam_mulai:s.jam_mulai,jam_selesai:s.jam_selesai})) }) });
         const data = await res.json();
+        if (res.status === 401 || res.status === 403 || (data && data.message && (data.message.includes('expired') || data.message.includes('kedaluwarsa')))) {
+          setShowSessionExpiredModal(true);
+          return;
+        }
         if (data.status === 'success') showToast('success', '🚀 Jadwal berhasil disinkronkan ke karyawan!');
         else showToast('error', `Gagal: ${data.message}`);
       }
@@ -2992,6 +3021,31 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
             <div className="confirm-actions">
               <button className="btn-confirm-yes" onClick={()=>{ confirmModal.onConfirm(); setConfirmModal(p=>({...p,isOpen:false})); }}>{confirmModal.confirmText}</button>
               <button className="btn-confirm-cancel" onClick={()=>setConfirmModal(p=>({...p,isOpen:false}))}>{confirmModal.cancelText}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSessionExpiredModal && (
+        <div className="confirm-overlay" style={{ zIndex: 9999 }}>
+          <div className="confirm-card" style={{ maxWidth: '420px', textAlign: 'center', padding: '30px' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '16px' }}>⚠️</div>
+            <h3 className="confirm-title" style={{ color: 'var(--danger)', fontSize: '1.4rem', marginBottom: '12px' }}>Sesi Login Kedaluwarsa</h3>
+            <p className="confirm-message" style={{ fontSize: '0.95rem', lineHeight: '1.6', marginBottom: '24px', color: 'var(--text-main)' }}>
+              Demi keamanan data, sesi login Anda di server Barokah Grup telah berakhir (batas 24 jam). Silakan klik tombol di bawah untuk keluar sesi dan masuk kembali.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button 
+                className="btn-confirm-yes" 
+                onClick={() => {
+                  sessionStorage.removeItem('token');
+                  sessionStorage.removeItem('user');
+                  window.location.reload();
+                }}
+                style={{ width: '100%', padding: '12px', background: '#E05C5C', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Keluar Sesi & Login Ulang
+              </button>
             </div>
           </div>
         </div>
