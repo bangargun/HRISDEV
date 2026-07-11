@@ -1082,49 +1082,107 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     return result;
   };
 
-  const handleGenerateButton = () => {
+  const handleGenerateButton = async () => {
     if (!scheduleOutlet) { showToast('error', 'Pilih outlet terlebih dahulu!'); return; }
-    if (isWeeklyMode) {
-      // Generate untuk 7 hari: Senin - Minggu (Minggu Ini / Minggu Depan)
-      const now = new Date();
-      const todayWeekday = now.getDay() === 0 ? 7 : now.getDay(); // 1=Mon,7=Sun
-      
-      let daysOffset = 0;
-      if (targetWeek === 'next') {
-        daysOffset = todayWeekday === 1 ? 0 : (8 - todayWeekday);
-      } else {
-        daysOffset = -(todayWeekday - 1);
-      }
-      
-      const monday = new Date(now);
-      monday.setDate(now.getDate() + daysOffset);
+    setIsSyncingSchedule(true);
+    try {
+      if (isWeeklyMode) {
+        const now = new Date();
+        const todayWeekday = now.getDay() === 0 ? 7 : now.getDay();
+        
+        let daysOffset = 0;
+        if (targetWeek === 'next') {
+          daysOffset = todayWeekday === 1 ? 0 : (8 - todayWeekday);
+        } else {
+          daysOffset = -(todayWeekday - 1);
+        }
+        
+        const monday = new Date(now);
+        monday.setDate(now.getDate() + daysOffset);
 
-      const allSchedules = [];
-      const generatedDates = [];
-      for (let i = 0; i < 7; i++) {
-        const day = new Date(monday);
-        day.setDate(monday.getDate() + i);
-        const dateStr = day.toISOString().split('T')[0];
-        const daySchedules = generateBreakSchedules(dateStr);
-        allSchedules.push(...daySchedules);
-        generatedDates.push(dateStr);
-      }
-      setGeneratedSchedules(allSchedules);
-      setWeeklyGeneratedDates(generatedDates);
-      if (allSchedules.length > 0) {
-        const karyawan = new Set(allSchedules.map(s => s.employee_id)).size;
-        const weekLabel = targetWeek === 'current' ? 'Minggu Ini' : 'Minggu Depan';
-        showToast('success', `✅ Jadwal 7 hari (${weekLabel}) berhasil di-generate untuk ${karyawan} karyawan.`);
+        const allSchedules = [];
+        const generatedDates = [];
+        for (let i = 0; i < 7; i++) {
+          const day = new Date(monday);
+          day.setDate(monday.getDate() + i);
+          const dateStr = day.toISOString().split('T')[0];
+          const daySchedules = generateBreakSchedules(dateStr);
+          allSchedules.push(...daySchedules);
+          generatedDates.push(dateStr);
+        }
+
+        if (allSchedules.length > 0) {
+          let successCount = 0;
+          let failCount = 0;
+          for (const date of generatedDates) {
+            const daySchedules = allSchedules.filter(s => s._date === date);
+            if (daySchedules.length === 0) continue;
+            try {
+              const res = await fetch(`${API_URL}/attendance/break-schedule/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  date,
+                  schedules: daySchedules.map(s => ({
+                    employee_id: s.employee_id,
+                    sesi: s.sesi,
+                    jam_mulai: s.jam_mulai,
+                    jam_selesai: s.jam_selesai
+                  }))
+                })
+              });
+              const data = await res.json();
+              if (data.status === 'success') successCount++;
+              else failCount++;
+            } catch {
+              failCount++;
+            }
+          }
+          setGeneratedSchedules(allSchedules);
+          setWeeklyGeneratedDates(generatedDates);
+
+          const karyawan = new Set(allSchedules.map(s => s.employee_id)).size;
+          const weekLabel = targetWeek === 'current' ? 'Minggu Ini' : 'Minggu Depan';
+          if (failCount === 0) {
+            showToast('success', `🚀 Jadwal 7 hari (${weekLabel}) berhasil di-generate & disinkronkan ke server untuk ${karyawan} karyawan.`);
+          } else {
+            showToast('success', `Jadwal di-generate. ${successCount} hari sukses disinkronkan, ${failCount} gagal.`);
+          }
+        } else {
+          showToast('error', 'Gagal generate jadwal mingguan. Pastikan ada karyawan aktif di outlet ini.');
+        }
       } else {
-        showToast('error', 'Gagal generate jadwal mingguan. Pastikan ada karyawan aktif di outlet ini.');
+        const result = generateBreakSchedules(scheduleDate);
+        if (result.length > 0) {
+          const res = await fetch(`${API_URL}/attendance/break-schedule/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              date: scheduleDate,
+              schedules: result.map(s => ({
+                employee_id: s.employee_id,
+                sesi: s.sesi,
+                jam_mulai: s.jam_mulai,
+                jam_selesai: s.jam_selesai
+              }))
+            })
+          });
+          const data = await res.json();
+          if (data.status === 'success') {
+            setGeneratedSchedules(result);
+            setWeeklyGeneratedDates([]);
+            showToast('success', `🚀 Jadwal harian (${scheduleDate}) berhasil di-generate & disinkronkan ke server untuk ${result.length} karyawan.`);
+          } else {
+            showToast('error', `Gagal sync ke server: ${data.message}`);
+          }
+        } else {
+          showToast('error', 'Gagal generate jadwal. Pastikan ada karyawan aktif di outlet ini.');
+        }
       }
-    } else {
-      const result = generateBreakSchedules(scheduleDate);
-      setGeneratedSchedules(result);
-      setWeeklyGeneratedDates([]);
-      if (result.length > 0) {
-        showToast('success', `Jadwal berhasil di-generate untuk ${result.length} entri karyawan.`);
-      }
+    } catch (err) {
+      showToast('error', 'Gagal menghubungi server saat generate & sync.');
+    } finally {
+      setIsSyncingSchedule(false);
     }
   };
 
@@ -1152,7 +1210,6 @@ export default function Attendances({ token, API_URL, userPermissions, setActive
     setIsSyncingSchedule(true);
     try {
       if (isWeeklyMode && weeklyGeneratedDates.length > 0) {
-        // Sync per tanggal
         let successCount = 0;
         let failCount = 0;
         for (const date of weeklyGeneratedDates) {

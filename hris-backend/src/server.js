@@ -945,9 +945,9 @@ app.get('/api/app-version', (req, res) => {
   res.status(200).json({
     status: 'success',
     data: {
-      latest_version: '2.4',
-      download_url: 'https://hris.barokahgroupindonesia.tech/BarokahGrup_Karyawan_Mobile_v2.4.apk',
-      changelog: 'Jadwal istirahat bulanan (cut-off) baru, timeline picker horizontal, dan alokasi otomatis untuk karyawan baru.'
+      latest_version: '2.5',
+      download_url: 'https://hris.barokahgroupindonesia.tech/BarokahGrup_Karyawan_Mobile_v2.5.apk',
+      changelog: 'Penyelarasan otomatis sinkronisasi jadwal istirahat dari Web Admin Portal langsung ke Mobile, dan penambahan tampilan Riwayat Jadwal Istirahat di aplikasi mobile.'
     }
   });
 });

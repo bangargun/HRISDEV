@@ -1,6 +1,6 @@
 name: hris_employee
 description: Aplikasi HRIS Karyawan untuk absensi, cuti, dan penggajian.
-version: 2.4.0+14
+version: 2.5.0+15
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

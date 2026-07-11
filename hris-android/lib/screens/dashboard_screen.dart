@@ -2462,8 +2462,111 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 20),
+          Row(
+            children: const [
+              Icon(Icons.history_rounded, color: teal, size: 16),
+              SizedBox(width: 8),
+              Text(
+                'Riwayat Jadwal Istirahat',
+                style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ..._buildPastBreakSchedulesList(auth, todayStr, sessColors, textMuted),
         ],
       ),
     );
   }
+
+  List<Widget> _buildPastBreakSchedulesList(
+    AuthProvider auth,
+    String todayStr,
+    Map<int, Color> sessColors,
+    Color textMuted,
+  ) {
+    const teal = Color(0xFF00ADB5);
+    final weeklySchedules = auth.weeklyBreakSchedules;
+    final pastSchedules = weeklySchedules.where((s) {
+      if (s.sesi <= 0) return false;
+      return s.date.compareTo(todayStr) < 0;
+    }).toList();
+
+    pastSchedules.sort((a, b) => b.date.compareTo(a.date));
+
+    if (pastSchedules.isEmpty) {
+      return [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF222831),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Text(
+            'Belum ada riwayat jadwal istirahat.',
+            style: TextStyle(color: textMuted, fontSize: 11),
+          ),
+        ),
+      ];
+    }
+
+    final monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+
+    String formatPastDate(String dateStr) {
+      try {
+        final parts = dateStr.split('-');
+        final y = parts[0];
+        final m = int.parse(parts[1]);
+        final d = int.parse(parts[2]);
+        return '$d ${monthNames[m - 1]} $y';
+      } catch (e) {
+        return dateStr;
+      }
+    }
+
+    return pastSchedules.take(5).map((s) {
+      final sColor = sessColors[s.sesi] ?? teal;
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF222831),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withOpacity(0.01)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.check_circle_outline_rounded, color: sColor, size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  formatPastDate(s.date),
+                  style: const TextStyle(color: Color(0xFFEEEEEE), fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: sColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Sesi ${s.sesi} (${s.jamMulai} - ${s.jamSelesai})',
+                style: TextStyle(color: sColor, fontSize: 11, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+  }
 }
+
