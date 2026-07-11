@@ -921,3 +921,135 @@ async function sendSapaanAI(employeeId, category) {
     console.error('Error sending Sapaan AI:', err.message);
   }
 }
+
+/**
+ * Hapus satu baris jadwal istirahat berdasarkan ID
+ */
+export async function deleteBreakSchedule(req, res) {
+  const role = req.user.role;
+  if (role !== 'owner' && role !== 'admin') {
+    return res.status(403).json({ status: 'error', message: 'Akses ditolak.' });
+  }
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ status: 'error', message: 'ID jadwal tidak valid.' });
+  try {
+    const existing = await dbQuery.get('SELECT id FROM break_schedules WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ status: 'error', message: 'Jadwal tidak ditemukan.' });
+    await dbQuery.run('DELETE FROM break_schedules WHERE id = ?', [id]);
+    return res.status(200).json({ status: 'success', message: 'Jadwal berhasil dihapus.' });
+  } catch (error) {
+    console.error('deleteBreakSchedule error:', error.message);
+    return res.status(500).json({ status: 'error', message: 'Gagal menghapus jadwal.' });
+  }
+}
+
+/**
+ * Rekap jadwal istirahat bulanan per karyawan (untuk mobile)
+ * Query params: employee_id, start_date (YYYY-MM-DD), end_date (YYYY-MM-DD)
+ */
+export async function getMonthlyBreakSchedule(req, res) {
+  const role = req.user.role;
+  const userId = req.user.id;
+  try {
+    let employeeId;
+    if (role === 'karyawan') {
+      // Karyawan hanya bisa lihat miliknya sendiri
+      const emp = await dbQuery.get('SELECT id FROM employees WHERE user_id = ?', [userId]);
+      if (!emp) return res.status(404).json({ status: 'error', message: 'Karyawan tidak ditemukan.' });
+      employeeId = emp.id;
+    } else {
+      employeeId = req.query.employee_id;
+      if (!employeeId) return res.status(400).json({ status: 'error', message: 'Parameter employee_id wajib diisi.' });
+    }
+
+    const { start_date, end_date } = req.query;
+    if (!start_date || !end_date) {
+      return res.status(400).json({ status: 'error', message: 'Parameter start_date dan end_date wajib diisi.' });
+    }
+
+    // Ambil semua jadwal dalam rentang tanggal
+    const schedules = await dbQuery.all(
+      `SELECT bs.id, bs.date, bs.sesi, bs.jam_mulai, bs.jam_selesai
+       FROM break_schedules bs
+       WHERE bs.employee_id = ? AND bs.date >= ? AND bs.date <= ?
+       ORDER BY bs.date ASC, bs.sesi ASC`,
+      [employeeId, start_date, end_date]
+    );
+
+    // Ambil data aktual istirahat dari tabel attendance
+    const attendanceLogs = await dbQuery.all(
+      `SELECT date, jam_mulai_istirahat, jam_akhir_istirahat
+       FROM attendance
+       WHERE employee_id = ? AND date >= ? AND date <= ?`,
+      [employeeId, start_date, end_date]
+    );
+    const attMap = {};
+    attendanceLogs.forEach(a => { attMap[a.date] = a; });
+
+    // Ambil policy denda istirahat
+    let breakTolerance = 15;
+    let breakRate = 1000;
+    try {
+      const breakPenaltyPolicy = await dbQuery.get(
+        "SELECT deskripsi FROM corporate_policies WHERE nama_aturan LIKE '%denda istirahat%' AND status = 'ACTIVE' LIMIT 1"
+      );
+      if (breakPenaltyPolicy && breakPenaltyPolicy.deskripsi) {
+        const matchTol = breakPenaltyPolicy.deskripsi.match(/toleransi\s*[a-zA-Z0-9_\s]*\s*(\d+)\s*poin/i);
+        if (matchTol) breakTolerance = parseInt(matchTol[1], 10);
+        const matchRate = breakPenaltyPolicy.deskripsi.match(/denda\s*rp\s*([\d.]+)/i);
+        if (matchRate) breakRate = parseInt(matchRate[1].replace(/\./g, ''), 10);
+      }
+    } catch (_) {}
+
+    // Hitung poin & denda per baris
+    let totalPoints = 0;
+    const result = schedules.map(bs => {
+      const att = attMap[bs.date];
+      const actualStart = att ? (att.jam_mulai_istirahat || null) : null;
+      const actualEnd = att ? (att.jam_akhir_istirahat || null) : null;
+
+      // Hitung poin keterlambatan kembali dari istirahat
+      let latePoints = 0;
+      if (actualEnd && bs.jam_selesai) {
+        const toMin = (t) => {
+          if (!t) return 0;
+          const p = t.split(':');
+          return parseInt(p[0], 10) * 60 + parseInt(p[1] || '0', 10);
+        };
+        const schedEnd = toMin(bs.jam_selesai);
+        const actEnd = toMin(actualEnd);
+        latePoints = Math.max(0, actEnd - schedEnd);
+      }
+      totalPoints += latePoints;
+
+      return {
+        id: bs.id,
+        date: bs.date,
+        sesi: bs.sesi,
+        jam_mulai_jadwal: bs.jam_mulai,
+        jam_selesai_jadwal: bs.jam_selesai,
+        jam_mulai_aktual: actualStart,
+        jam_selesai_aktual: actualEnd,
+        poin_telat: latePoints,
+      };
+    });
+
+    // Hitung denda total bulan ini
+    const dendaTotal = totalPoints > breakTolerance ? (totalPoints - breakTolerance) * breakRate : 0;
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
+      summary: {
+        total_poin: totalPoints,
+        toleransi_poin: breakTolerance,
+        rate_denda: breakRate,
+        denda_total: dendaTotal,
+      }
+    });
+  } catch (error) {
+    console.error('getMonthlyBreakSchedule error:', error.message);
+    return res.status(500).json({ status: 'error', message: 'Gagal mengambil rekap jadwal istirahat.' });
+  }
+}
+

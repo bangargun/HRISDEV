@@ -7,7 +7,9 @@ import {
   breakStart,
   breakEnd,
   getBreakSchedule,
-  syncBreakSchedule
+  syncBreakSchedule,
+  deleteBreakSchedule,
+  getMonthlyBreakSchedule
 } from '../controllers/attendanceController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -26,5 +28,8 @@ router.post('/break-start', breakStart);
 router.post('/break-end', breakEnd);
 router.get('/break-schedule', getBreakSchedule);
 router.post('/break-schedule/sync', syncBreakSchedule);
+router.delete('/break-schedule/:id', deleteBreakSchedule);
+router.get('/break-schedule/monthly', getMonthlyBreakSchedule);
 
 export default router;
+
