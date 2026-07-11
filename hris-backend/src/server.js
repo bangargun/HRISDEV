@@ -945,9 +945,9 @@ app.get('/api/app-version', (req, res) => {
   res.status(200).json({
     status: 'success',
     data: {
-      latest_version: '1.8',
-      download_url: 'https://hris.barokahgroupindonesia.tech/BarokahGrup_Karyawan_Mobile_v1.8.apk',
-      changelog: 'Pembaruan fitur survei angket karyawan, broadcast instan, integrasi motivasi AI, dan peningkatan kontras tombol.'
+      latest_version: '2.3',
+      download_url: 'https://hris.barokahgroupindonesia.tech/BarokahGrup_Karyawan_Mobile_v2.3.apk',
+      changelog: 'Sinkronisasi cepat jadwal istirahat perbaikan hari berjalan dan tombol Sync dashboard.'
     }
   });
 });

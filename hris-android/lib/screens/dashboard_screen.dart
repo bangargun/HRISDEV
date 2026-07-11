@@ -31,6 +31,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _dialogShown = false;
   Timer? _countdownTimer;
+  DateTime? _selectedBreakDate;
 
   @override
   void initState() {
@@ -2159,35 +2160,92 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Membangun tabel jadwal istirahat 7 hari ke depan (Senin - Minggu)
+  int _getCutoffStartDay(List<dynamic> policies, String? outlet) {
+    try {
+      final policy = policies.firstWhere(
+        (p) {
+          final name = p['nama_aturan'] ?? p['nama_kebijakan'] ?? '';
+          if (!name.toString().toLowerCase().contains('cut-off')) return false;
+          final status = p['status']?.toString().toLowerCase();
+          if (status != 'active' && status != 'aktif') return false;
+          return true;
+        },
+        orElse: () => null,
+      );
+      if (policy != null) {
+        final desc = policy['deskripsi'] ?? policy['nilai'] ?? '';
+        final match = RegExp(r'Periode\s+Cut-Off:\s*(\d+)\s*-\s*(\d+)', caseSensitive: false)
+            .firstMatch(desc.toString());
+        if (match != null) {
+          return int.parse(match.group(1)!);
+        }
+      }
+    } catch (_) {}
+    return 23;
+  }
+
+  Map<String, DateTime> _getActiveCutoffPeriod(int startDay, DateTime today) {
+    int year = today.year;
+    int month = today.month;
+    if (startDay == 1) {
+      DateTime start = DateTime(year, month, 1);
+      DateTime end = DateTime(year, month + 1, 0);
+      return {'start': start, 'end': end};
+    } else {
+      if (today.day >= startDay) {
+        DateTime start = DateTime(year, month, startDay);
+        DateTime end = DateTime(year, month + 1, startDay - 1);
+        return {'start': start, 'end': end};
+      } else {
+        DateTime start = DateTime(year, month - 1, startDay);
+        DateTime end = DateTime(year, month, startDay - 1);
+        return {'start': start, 'end': end};
+      }
+    }
+  }
+
+  /// Membangun timeline jadwal istirahat bulanan (berdasarkan cut-off)
   Widget _buildWeeklyBreakScheduleTable(BuildContext context, AuthProvider auth) {
     const cardBg = Color(0xFF393E46);
     const textMuted = Color(0x8DEEEEEE);
     const teal = Color(0xFF00ADB5);
+    const darkBg = Color(0xFF222831);
 
     final weeklySchedules = auth.weeklyBreakSchedules;
 
-    // Tentukan Senin minggu ini atau minggu depan
-    final now = DateTime.now();
-    final todayWeekday = now.weekday; // 1=Mon, 7=Sun
-    final monday = now.subtract(Duration(days: todayWeekday - 1));
+    // Tentukan rentang cut-off
+    final cutoffStartDay = _getCutoffStartDay(auth.policies, auth.profile?.outlet);
+    final activePeriod = _getActiveCutoffPeriod(cutoffStartDay, DateTime.now());
+    final start = activePeriod['start']!;
+    final end = activePeriod['end']!;
 
-    // Build 7 hari Senin - Minggu
-    final List<Map<String, dynamic>> weekDays = List.generate(7, (i) {
-      final day = monday.add(Duration(days: i));
-      final dateStr = '${day.year}-${day.month.toString().padLeft(2,'0')}-${day.day.toString().padLeft(2,'0')}';
-      final dayNames = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-      final sched = weeklySchedules.firstWhere(
-        (s) => s.date == dateStr,
-        orElse: () => BreakSchedule(id: 0, employeeId: 0, date: dateStr, sesi: 0, jamMulai: '', jamSelesai: ''),
-      );
-      return {
-        'dayName': dayNames[i],
-        'date': dateStr,
-        'displayDate': '${day.day}/${day.month}',
-        'sched': sched,
-        'isToday': dateStr == '${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}',
-      };
-    });
+    // Generate list tanggal cut-off sebulan
+    final int diffDays = end.difference(start).inDays;
+    final List<DateTime> allDays = List.generate(diffDays + 1, (i) => start.add(Duration(days: i)));
+
+    // Jika selectedBreakDate belum diinisialisasi atau di luar rentang, inisialisasi ke hari ini
+    final now = DateTime.now();
+    final todayStr = '${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}';
+    
+    if (_selectedBreakDate == null) {
+      _selectedBreakDate = now;
+    }
+
+    final selectedStr = '${_selectedBreakDate!.year}-${_selectedBreakDate!.month.toString().padLeft(2,'0')}-${_selectedBreakDate!.day.toString().padLeft(2,'0')}';
+
+    // Cari jadwal untuk tanggal yang dipilih
+    final activeSched = weeklySchedules.firstWhere(
+      (s) => s.date == selectedStr,
+      orElse: () => BreakSchedule(id: 0, employeeId: 0, date: selectedStr, sesi: 0, jamMulai: '', jamSelesai: ''),
+    );
+
+    final hasSchedule = activeSched.sesi > 0;
+    final sessColors = {1: const Color(0xFF00ADB5), 2: const Color(0xFFa78bfa), 3: const Color(0xFF22c55e)};
+
+    final monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -2200,149 +2258,210 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.calendar_view_week_rounded, color: teal, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Jadwal Istirahat Minggu Ini',
-                style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 15, fontWeight: FontWeight.bold),
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.calendar_month_rounded, color: teal, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Jadwal Istirahat Bulanan',
+                    style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: teal.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: teal.withOpacity(0.2)),
+                ),
+                child: Text(
+                  '${monthNames[start.month - 1]} – ${monthNames[end.month - 1]}',
+                  style: const TextStyle(color: teal, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Senin — Minggu',
-            style: TextStyle(color: Color(0x8DEEEEEE), fontSize: 11),
+          Text(
+            'Periode Cut-off: ${start.day} ${monthNames[start.month - 1].substring(0, 3)} – ${end.day} ${monthNames[end.month - 1].substring(0, 3)}',
+            style: const TextStyle(color: textMuted, fontSize: 11),
           ),
           const SizedBox(height: 16),
-          if (weeklySchedules.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              decoration: BoxDecoration(
-                color: teal.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: teal.withOpacity(0.1)),
-              ),
-              child: const Column(
-                children: [
-                  Icon(Icons.schedule_outlined, color: Color(0x8DEEEEEE), size: 28),
-                  SizedBox(height: 8),
-                  Text(
-                    'Jadwal mingguan belum tersedia.',
-                    style: TextStyle(color: Color(0x8DEEEEEE), fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text(
-                    'Admin akan meng-generate jadwal dari web.',
-                    style: TextStyle(color: Color(0x5DEEEEEE), fontSize: 11),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            )
-          else
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Table(
-                border: TableBorder(
-                  horizontalInside: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.06), width: 1),
-                  top: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.08), width: 1),
-                  bottom: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.08), width: 1),
-                  left: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.08), width: 1),
-                  right: BorderSide(color: const Color(0xFFEEEEEE).withOpacity(0.08), width: 1),
-                ),
-                columnWidths: const {
-                  0: FlexColumnWidth(1.2),
-                  1: FlexColumnWidth(0.8),
-                  2: FlexColumnWidth(0.6),
-                  3: FlexColumnWidth(1.8),
-                },
-                children: [
-                  // Header
-                  TableRow(
-                    decoration: BoxDecoration(color: teal.withOpacity(0.12)),
-                    children: ['Hari', 'Tanggal', 'Sesi', 'Waktu'].map((h) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                      child: Text(h, style: const TextStyle(color: Color(0xFF00ADB5), fontSize: 11, fontWeight: FontWeight.bold)),
-                    )).toList(),
-                  ),
-                  // Rows
-                  ...weekDays.map((day) {
-                    final sched = day['sched'] as BreakSchedule;
-                    final isToday = day['isToday'] as bool;
-                    final hasSchedule = sched.sesi > 0;
-                    final sessColors = {1: const Color(0xFF00ADB5), 2: const Color(0xFFa78bfa), 3: const Color(0xFF22c55e)};
-                    return TableRow(
-                      decoration: BoxDecoration(
-                        color: isToday
-                            ? teal.withOpacity(0.08)
-                            : const Color(0xFF2D3139),
+          
+          // Horizontal Timeline Picker
+          SizedBox(
+            height: 70,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: allDays.length,
+              itemBuilder: (context, index) {
+                final day = allDays[index];
+                final dayStr = '${day.year}-${day.month.toString().padLeft(2,'0')}-${day.day.toString().padLeft(2,'0')}';
+                final isSelected = dayStr == selectedStr;
+                final isToday = dayStr == todayStr;
+                
+                final dayName = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'][day.weekday - 1];
+                
+                final hasDaySched = weeklySchedules.any((s) => s.date == dayStr && s.sesi > 0);
+
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedBreakDate = day;
+                    });
+                  },
+                  child: Container(
+                    width: 52,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? teal : (isToday ? teal.withOpacity(0.12) : darkBg),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? teal : (isToday ? teal.withOpacity(0.3) : Colors.transparent),
+                        width: 1.5,
                       ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-                          child: Row(
-                            children: [
-                              if (isToday)
-                                Container(
-                                  width: 6, height: 6,
-                                  margin: const EdgeInsets.only(right: 5),
-                                  decoration: const BoxDecoration(color: teal, shape: BoxShape.circle),
-                                ),
-                              Flexible(
-                                child: Text(
-                                  day['dayName'],
-                                  style: TextStyle(
-                                    color: isToday ? teal : const Color(0xFFEEEEEE),
-                                    fontSize: 12,
-                                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                        Text(
+                          dayName,
+                          style: TextStyle(
+                            color: isSelected ? Colors.black : (isToday ? teal : textMuted),
+                            fontSize: 10,
+                            fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-                          child: Text(
-                            day['displayDate'],
-                            style: TextStyle(color: textMuted, fontSize: 11),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${day.day}',
+                          style: TextStyle(
+                            color: isSelected ? Colors.black : const Color(0xFFEEEEEE),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-                          child: hasSchedule
-                              ? Text(
-                                  'Sesi ${sched.sesi}',
-                                  style: TextStyle(
-                                    color: sessColors[sched.sesi] ?? teal,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )
-                              : Text('-', style: TextStyle(color: textMuted, fontSize: 11)),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-                          child: hasSchedule
-                              ? Text(
-                                  '${sched.jamMulai} – ${sched.jamSelesai} WIB',
-                                  style: TextStyle(
-                                    color: sessColors[sched.sesi] ?? const Color(0xFFEEEEEE),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                )
-                              : Text('Belum ada jadwal', style: TextStyle(color: textMuted, fontSize: 10)),
-                        ),
+                        if (hasDaySched)
+                          Container(
+                            width: 4,
+                            height: 4,
+                            margin: const EdgeInsets.only(top: 4),
+                            decoration: BoxDecoration(
+                              color: isSelected ? Colors.black : teal,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
                       ],
-                    );
-                  }),
-                ],
-              ),
+                    ),
+                  ),
+                );
+              },
             ),
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Card Details for selected date
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: darkBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.02)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Detail Jadwal Istirahat:',
+                      style: TextStyle(color: textMuted, fontSize: 11),
+                    ),
+                    Text(
+                      '${_selectedBreakDate!.day} ${monthNames[_selectedBreakDate!.month - 1]} ${_selectedBreakDate!.year}',
+                      style: const TextStyle(color: teal, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (hasSchedule) ...[
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: (sessColors[activeSched.sesi] ?? teal).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Sesi ${activeSched.sesi}',
+                          style: TextStyle(
+                            color: sessColors[activeSched.sesi] ?? teal,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${activeSched.jamMulai} – ${activeSched.jamSelesai} WIB',
+                          style: TextStyle(
+                            color: sessColors[activeSched.sesi] ?? const Color(0xFFEEEEEE),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Divider(color: Colors.white10),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.store_rounded, color: textMuted, size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Outlet: ${auth.profile?.outlet ?? "-"}',
+                        style: const TextStyle(color: textMuted, fontSize: 11),
+                      ),
+                      const SizedBox(width: 16),
+                      const Icon(Icons.person_outline_rounded, color: textMuted, size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Posisi: ${auth.profile?.position ?? "-"}',
+                        style: const TextStyle(color: textMuted, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, color: Colors.amber[300], size: 18),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Tidak ada jadwal istirahat untuk tanggal ini.',
+                          style: TextStyle(color: Color(0xFFEEEEEE), fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Jadwal libur/cuti disetujui atau outlet sedang tutup.',
+                    style: TextStyle(color: textMuted, fontSize: 11),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );

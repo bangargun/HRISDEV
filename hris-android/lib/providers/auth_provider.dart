@@ -523,41 +523,98 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Ambil jadwal istirahat 7 hari (Senin - Minggu minggu ini)
+  int _getCutoffStartDayFromPolicies(List<dynamic> policies, String? employeeOutlet) {
+    try {
+      final policy = policies.firstWhere(
+        (p) {
+          final isNameMatch = p['nama_aturan'] == 'Periode Cut-Off & Tanggal Gajian' ||
+                              p['nama_kebijakan'] == 'Periode Cut-Off & Tanggal Gajian';
+          if (!isNameMatch) return false;
+          
+          final status = p['status']?.toString().toLowerCase();
+          if (status != 'active' && status != 'aktif') return false;
+
+          final onlySelected = p['hanya_outlet_terpilih'] == 1 || p['hanya_outlet_terpilih'] == true;
+          if (!onlySelected) return true;
+
+          var berlakuDi = p['berlaku_di'] ?? p['outlets'];
+          List<String> outlets = [];
+          if (berlakuDi is List) {
+            outlets = berlakuDi.map((e) => e.toString().toLowerCase().trim()).toList();
+          } else if (berlakuDi is String) {
+            try {
+              final decoded = jsonDecode(berlakuDi);
+              if (decoded is List) {
+                outlets = decoded.map((e) => e.toString().toLowerCase().trim()).toList();
+              }
+            } catch (_) {
+              outlets = berlakuDi.split(',').map((e) => e.toLowerCase().trim()).toList();
+            }
+          }
+          
+          final outletLower = employeeOutlet?.toLowerCase().trim() ?? '';
+          return outlets.contains(outletLower);
+        },
+        orElse: () => null,
+      );
+
+      if (policy != null) {
+        final desc = policy['deskripsi'] ?? policy['nilai'] ?? '';
+        final match = RegExp(r'Periode\s+Cut-Off:\s*(\d+)\s*-\s*(\d+)', caseSensitive: false)
+            .firstMatch(desc.toString());
+        if (match != null) {
+          return int.parse(match.group(1)!);
+        }
+      }
+    } catch (e) {
+      print('Error parsing cutoff day from policies in provider: $e');
+    }
+    return 23; // default fallback
+  }
+
+  Map<String, DateTime> _getActiveCutoffPeriod(int startDay, DateTime today) {
+    int year = today.year;
+    int month = today.month;
+    
+    if (startDay == 1) {
+      DateTime start = DateTime(year, month, 1);
+      DateTime end = DateTime(year, month + 1, 0);
+      return {'start': start, 'end': end};
+    } else {
+      if (today.day >= startDay) {
+        DateTime start = DateTime(year, month, startDay);
+        DateTime end = DateTime(year, month + 1, startDay - 1);
+        return {'start': start, 'end': end};
+      } else {
+        DateTime start = DateTime(year, month - 1, startDay);
+        DateTime end = DateTime(year, month, startDay - 1);
+        return {'start': start, 'end': end};
+      }
+    }
+  }
+
+  /// Ambil jadwal istirahat 1 bulan (masa cut-off)
   Future<void> fetchWeeklyBreakSchedules() async {
     try {
       final now = DateTime.now();
-      final todayWeekday = now.weekday; // 1=Mon, 7=Sun
-      final monday = now.subtract(Duration(days: todayWeekday - 1));
+      final cutoffStartDay = _getCutoffStartDayFromPolicies(_policies, _profile?.outlet);
+      final activePeriod = _getActiveCutoffPeriod(cutoffStartDay, now);
+      final startDateStr = DateFormat('yyyy-MM-dd').format(activePeriod['start']!);
+      final endDateStr = DateFormat('yyyy-MM-dd').format(activePeriod['end']!);
 
-      final List<BreakSchedule> results = [];
-      for (int i = 0; i < 7; i++) {
-        final day = monday.add(Duration(days: i));
-        final dateStr = '${day.year}-${day.month.toString().padLeft(2,'0')}-${day.day.toString().padLeft(2,'0')}';
-        try {
-          final res = await ApiClient.get('attendance/break-schedule?date=$dateStr', token: _token);
-          final data = jsonDecode(res.body);
-          if (res.statusCode == 200 && data['status'] == 'success' && data['data'] != null) {
-            final rawData = data['data'];
-            if (rawData is List) {
-              final int? empId = _profile?.employeeId;
-              final matched = rawData.firstWhere(
-                (x) => x is Map && x['employee_id'] == empId,
-                orElse: () => null,
-              );
-              if (matched != null && matched is Map) {
-                results.add(BreakSchedule.fromJson(Map<String, dynamic>.from(matched)));
-              }
-            } else if (rawData is Map) {
-              results.add(BreakSchedule.fromJson(Map<String, dynamic>.from(rawData)));
-            }
+      final res = await ApiClient.get('attendance/break-schedule?start_date=$startDateStr&end_date=$endDateStr', token: _token);
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['status'] == 'success' && data['data'] != null) {
+        final rawData = data['data'];
+        final List<BreakSchedule> results = [];
+        if (rawData is List) {
+          for (var x in rawData) {
+            results.add(BreakSchedule.fromJson(Map<String, dynamic>.from(x)));
           }
-        } catch (_) {
-          // Skip hari ini jika gagal, lanjutkan ke hari berikutnya
         }
+        _weeklyBreakSchedules = results;
+        notifyListeners();
       }
-      _weeklyBreakSchedules = results;
-      notifyListeners();
     } catch (e) {
       _handleConnectionError(e, 'FetchWeeklyBreakSchedules');
     }

@@ -587,13 +587,134 @@ export async function breakEnd(req, res) {
 }
 
 /**
- * Mendapatkan Jadwal Istirahat Hari Ini atau Tanggal Tertentu
+ * Helper to get rest duration for an outlet dynamically from policies
+ */
+async function getRestDurationForOutlet(outletName) {
+  try {
+    const policies = await dbQuery.all("SELECT * FROM policies WHERE status = 'aktif'");
+    const matching = policies
+      .filter(p => (p.nama_kebijakan || p.nama_aturan || '').toLowerCase().includes('durasi istirahat'))
+      .find(p => {
+        const allOutlets = p.all_outlets === 1 || p.all_outlets === true || p.berlaku_untuk_semua === 1 || p.berlaku_untuk_semua === true;
+        if (allOutlets) return true;
+        let outlets = [];
+        try {
+          outlets = JSON.parse(p.berlaku_di || p.outlets || '[]');
+        } catch (_) {
+          outlets = (p.berlaku_di || p.outlets || '').split(',');
+        }
+        return outlets.some(o => o.toUpperCase().trim() === (outletName || '').toUpperCase().trim());
+      });
+    if (matching && (matching.deskripsi || matching.nilai)) {
+      const desc = matching.deskripsi || matching.nilai;
+      const m = desc.match(/(\d+)\s*jam/i);
+      if (m) return parseInt(m[1], 10);
+    }
+  } catch (err) {
+    console.error('Error fetching rest duration policy:', err.message);
+  }
+  if ((outletName || '').toUpperCase().includes('ABS') || (outletName || '').toUpperCase().includes('SURABAYA')) return 2;
+  return 3;
+}
+
+/**
+ * Get or dynamically create a deterministic schedule for an employee on a target date
+ */
+async function getOrCreateBreakSchedule(employeeId, targetDate) {
+  // 1. Cek apakah ada jadwal di database
+  let schedule = await dbQuery.get(
+    "SELECT bs.*, e.full_name, e.nik, e.outlet FROM break_schedules bs JOIN employees e ON bs.employee_id = e.id WHERE bs.employee_id = ? AND bs.date = ?",
+    [employeeId, targetDate]
+  );
+  if (schedule) {
+    return schedule;
+  }
+
+  // 2. Jika tidak ada, buat jadwal deterministik
+  const employee = await dbQuery.get("SELECT * FROM employees WHERE id = ?", [employeeId]);
+  if (!employee || employee.employee_status === 'inactive') {
+    return null;
+  }
+
+  const outlet = employee.outlet;
+  const duration = await getRestDurationForOutlet(outlet);
+  const numSess = duration === 2 ? 3 : 2;
+  const sessions = duration === 2
+    ? [{ sesi:1,jam_mulai:'12:00',jam_selesai:'14:00' },{ sesi:2,jam_mulai:'14:00',jam_selesai:'16:00' },{ sesi:3,jam_mulai:'16:00',jam_selesai:'18:00' }]
+    : [{ sesi:1,jam_mulai:'12:00',jam_selesai:'15:00' },{ sesi:2,jam_mulai:'15:00',jam_selesai:'18:00' }];
+
+  // Ambil semua karyawan aktif di outlet yang sama
+  const activeEmployees = await dbQuery.all(
+    "SELECT * FROM employees WHERE (outlet = ? OR ? LIKE CONCAT('%', outlet, '%')) AND employee_status != 'inactive' ORDER BY id ASC",
+    [outlet, outlet]
+  );
+
+  if (activeEmployees.length === 0) {
+    return null;
+  }
+
+  // Pengelompokan (Grouping) seperti algoritma generate
+  const assignments = Array.from({ length: numSess }, () => []);
+  const women=[], koki=[], helper=[], waiter=[], other=[];
+  activeEmployees.forEach(e => {
+    const isFemale = (e.gender||'').toLowerCase() === 'wanita';
+    const pos = (e.position||'').toLowerCase();
+    if (isFemale) women.push(e);
+    else if (pos.includes('koki') || pos.includes('cook')) koki.push(e);
+    else if (pos.includes('helper')) helper.push(e);
+    else if (pos.includes('waiter')) waiter.push(e);
+    else other.push(e);
+  });
+
+  const minLoad = (arr, role=null) => {
+    let mi=0, mv=Infinity;
+    for (let i=0;i<arr.length;i++) {
+      const v = role ? arr[i].filter(e=>(e.position||'').toLowerCase().includes(role)).length : arr[i].length;
+      if (v<mv) { mv=v; mi=i; }
+    }
+    return mi;
+  };
+
+  women.forEach((e,i) => assignments[i%numSess].push(e));
+  koki.forEach(e => { const idx = minLoad(assignments,'koki'); assignments[idx].push(e); });
+  helper.forEach(e => { const idx = minLoad(assignments,'helper'); assignments[idx].push(e); });
+  waiter.forEach(e => { const idx = minLoad(assignments,'waiter'); assignments[idx].push(e); });
+  other.forEach(e => { const idx = minLoad(assignments); assignments[idx].push(e); });
+
+  // Cari di sesi mana karyawan ini berada
+  let assignedSesi = 1;
+  let assignedMulai = sessions[0].jam_mulai;
+  let assignedSelesai = sessions[0].jam_selesai;
+
+  assignments.forEach((list, si) => {
+    if (list.some(e => e.id === employeeId)) {
+      assignedSesi = sessions[si].sesi;
+      assignedMulai = sessions[si].jam_mulai;
+      assignedSelesai = sessions[si].jam_selesai;
+    }
+  });
+
+  return {
+    id: `virtual-${employeeId}-${targetDate}`,
+    employee_id: employeeId,
+    date: targetDate,
+    sesi: assignedSesi,
+    jam_mulai: assignedMulai,
+    jam_selesai: assignedSelesai,
+    full_name: employee.full_name,
+    nik: employee.nik,
+    outlet: employee.outlet,
+    is_virtual: true
+  };
+}
+
+/**
+ * Mendapatkan Jadwal Istirahat Hari Ini, Rentang Tanggal, atau Tanggal Tertentu
  */
 export async function getBreakSchedule(req, res) {
   const employeeId = req.user.employeeId;
   const role = req.user.role;
-  const { date, outlet } = req.query;
-  const targetDate = date || getTodayDateString();
+  const { date, outlet, start_date, end_date } = req.query;
 
   try {
     if (role === 'employee') {
@@ -604,17 +725,44 @@ export async function getBreakSchedule(req, res) {
         });
       }
 
-      const schedule = await dbQuery.get(
-        "SELECT bs.*, e.full_name, e.nik, e.outlet FROM break_schedules bs JOIN employees e ON bs.employee_id = e.id WHERE bs.employee_id = ? AND bs.date = ?",
-        [employeeId, targetDate]
-      );
+      if (start_date && end_date) {
+        const start = new Date(start_date);
+        const end = new Date(end_date);
+        const schedules = [];
 
-      return res.status(200).json({
-        status: 'success',
-        data: schedule || null
-      });
+        const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0 || diffDays > 35) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Rentang tanggal tidak valid atau terlalu besar (maksimal 35 hari).'
+          });
+        }
+
+        for (let i = 0; i <= diffDays; i++) {
+          const current = new Date(start);
+          current.setDate(start.getDate() + i);
+          const dateStr = current.toISOString().split('T')[0];
+          const sched = await getOrCreateBreakSchedule(employeeId, dateStr);
+          if (sched) {
+            schedules.push(sched);
+          }
+        }
+
+        return res.status(200).json({
+          status: 'success',
+          data: schedules
+        });
+      } else {
+        const targetDate = date || getTodayDateString();
+        const schedule = await getOrCreateBreakSchedule(employeeId, targetDate);
+        return res.status(200).json({
+          status: 'success',
+          data: schedule || null
+        });
+      }
     } else {
       // Owner/Admin bisa melihat semua jadwal istirahat tanggal tersebut
+      const targetDate = date || getTodayDateString();
       let query = `
         SELECT bs.*, e.full_name, e.nik, e.outlet, e.position, e.gender
         FROM break_schedules bs
