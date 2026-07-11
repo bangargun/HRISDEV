@@ -2504,7 +2504,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             color: const Color(0xFF222831),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Text(
+          child: Text(
             'Belum ada riwayat jadwal istirahat.',
             style: TextStyle(color: textMuted, fontSize: 11),
           ),
