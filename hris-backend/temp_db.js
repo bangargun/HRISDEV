@@ -13,11 +13,11 @@ async function main() {
   });
 
   try {
-    const [outlets] = await connection.execute('SELECT * FROM outlets');
-    console.log('Outlets:', outlets.map(o => ({ id: o.id, name: o.name, code: o.code })));
+    const [outlets] = await connection.execute('SELECT * FROM outlets LIMIT 5');
+    console.log('Outlets details:', outlets);
 
-    const [employees] = await connection.execute("SELECT id, full_name, outlet, employee_status FROM employees WHERE employee_status = 'active' LIMIT 10");
-    console.log('Active Employees:', employees);
+    const [columns] = await connection.execute('DESCRIBE employees');
+    console.log('Employees Columns:', columns.map(c => c.Field));
   } catch (error) {
     console.error('Error:', error.message);
   } finally {
